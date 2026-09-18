@@ -1,0 +1,75 @@
+services:
+  db:
+    image: mysql:8.0
+    container_name: gestion_ti_db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpass}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-gestion_ti}
+      MYSQL_USER: ${MYSQL_USER:-gestion_ti}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-gestion_ti_pass}
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  api:
+    build:
+      context: .
+      target: development
+    container_name: gestion_ti_api
+    restart: unless-stopped
+    user: "1000:1000"
+    env_file:
+      - .env
+    environment:
+      HOME: /home/node
+      NODE_ENV: development
+      PORT: 3000
+      DATABASE_URL: mysql://${MYSQL_USER:-gestion_ti}:${MYSQL_PASSWORD:-gestion_ti_pass}@db:3306/${MYSQL_DATABASE:-gestion_ti}
+    ports:
+      - "${PORT:-3000}:3000"
+    volumes:
+      - ./src:/app/src
+      - ./prisma:/app/prisma
+    depends_on:
+      db:
+        condition: service_healthy
+    command: sh -c "npx prisma generate && npx prisma migrate deploy && npm run dev"
+
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: gestion_ti_phpmyadmin
+    restart: unless-stopped
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+      PMA_USER: ${MYSQL_USER:-gestion_ti}
+      PMA_PASSWORD: ${MYSQL_PASSWORD:-gestion_ti_pass}
+      UPLOAD_LIMIT: 64M
+    ports:
+      - "${PHPMYADMIN_PORT:-8081}:80"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Servicio opcional de IA local. Levantar con: docker compose --profile ai up
+  ollama:
+    image: ollama/ollama:latest
+    container_name: gestion_ti_ollama
+    profiles: ["ai"]
+    restart: unless-stopped
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+
+volumes:
+  db_data:
+  ollama_data:

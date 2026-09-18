@@ -1,0 +1,53 @@
+{
+  "name": "backend_gestion_ti",
+  "version": "1.0.0",
+  "description": "API RESTful y servicio en tiempo real para el Sistema de Gestion de TI, desarrollado con Node.js, Express, TypeScript, Prisma ORM y MySQL. Este backend se encarga de gestionar la logica de negocio para la operativa de tickets, inventario, licenciamiento cifrado, proyectos, notificaciones y la integracion con el asistente de IA Local (Llama 3.1).",
+  "main": "index.js",
+  "scripts": {
+    "dev": "ts-node-dev --respawn --transpile-only src/app.ts",
+    "build": "tsc",
+    "start": "node dist/app.js",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:deploy": "prisma migrate deploy",
+    "prisma:studio": "prisma studio",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/waryduchess/backend_gestion_TI.git"
+  },
+  "keywords": [],
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/waryduchess/backend_gestion_TI/issues"
+  },
+  "homepage": "https://github.com/waryduchess/backend_gestion_TI#readme",
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1135.0",
+    "@prisma/client": "^7.10.0",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.0",
+    "exceljs": "^4.4.0",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "node-cron": "^4.6.0",
+    "nodemailer": "^10.0.10",
+    "puppeteer": "^25.11.0",
+    "socket.io": "^4.8.3"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^26.6.1",
+    "@types/nodemailer": "^8.0.2",
+    "prisma": "^7.10.0",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
