@@ -2,6 +2,7 @@ import 'dotenv/config';
 import cors from 'cors';
 import express, { Application, Request, Response } from 'express';
 import { errorHandler, notFoundHandler } from './middlewares/error.middleware';
+import incidenciaRoutes from './routes/incidencia.routes';
 
 const app: Application = express();
 
@@ -16,6 +17,8 @@ app.get('/health', (_req: Request, res: Response) => {
     errors: [],
   });
 });
+
+app.use('/api/incidencias', incidenciaRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

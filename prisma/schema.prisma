@@ -1,7 +1,8 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
+// ============================================================================
+// Sistema de Gestion de TI - Schema Prisma (fuente de verdad)
+// Motor: MySQL 8 | Prisma 7 (requiere driver adapter)
+// La fuente de verdad es este archivo; db/schema.sql es referencia historica.
+// ============================================================================
 
 generator client {
   provider     = "prisma-client"
@@ -11,4 +12,222 @@ generator client {
 
 datasource db {
   provider = "mysql"
+}
+
+// ------------------------------------------------------
+// ENUMS
+// ------------------------------------------------------
+
+enum EstadoIncidencia {
+  NUEVO
+  EN_ANALISIS
+  EN_CURSO
+  COMPLETADO
+  DUPLICADO
+}
+
+enum Prioridad {
+  BAJA
+  NORMAL
+  ALTA
+  CRITICA
+}
+
+enum TipoRequerimiento {
+  NETSUITE
+  OTROS
+  OFFICE
+  EMAIL
+  IMPRESION
+  ERROR_EN_EQUIPO
+  SOLICITUD_DE_EQUIPO
+  INTRANET
+  CONEXION_DE_RED
+}
+
+enum EstadoActivo {
+  EN_USO
+  EN_ALMACEN
+  EN_MANTENIMIENTO
+  DE_BAJA
+}
+
+// ------------------------------------------------------
+// CATALOGOS
+// ------------------------------------------------------
+
+model Rol {
+  id       Int       @id @default(autoincrement())
+  nombre   String    @unique
+  usuarios Usuario[]
+}
+
+model Departamento {
+  id          Int           @id @default(autoincrement())
+  nombre      String        @unique
+  usuarios    Usuario[]
+  incidencias Incidencia[]
+}
+
+model Ubicacion {
+  id       Int       @id @default(autoincrement())
+  nombre   String    @unique
+  usuarios Usuario[]
+}
+
+model Puesto {
+  id       Int       @id @default(autoincrement())
+  nombre   String    @unique
+  usuarios Usuario[]
+}
+
+model TipoUsuario {
+  id       Int       @id @default(autoincrement())
+  nombre   String    @unique
+  usuarios Usuario[]
+}
+
+// ------------------------------------------------------
+// USUARIOS
+// ------------------------------------------------------
+
+model Usuario {
+  id            String  @id // Clave interna del excel (ej: "A006")
+  nombre        String
+  email         String? // Sin unique: hay correos compartidos entre usuarios
+  activo        Boolean @default(true)
+  fechaInicio   DateTime?
+  fechaFin      DateTime?
+
+  departamentoId Int?
+  ubicacionId    Int?
+  puestoId       Int?
+  tipoUsuarioId  Int?
+  rolId          Int?
+
+  departamento Departamento? @relation(fields: [departamentoId], references: [id])
+  ubicacion    Ubicacion?    @relation(fields: [ubicacionId], references: [id])
+  puesto       Puesto?       @relation(fields: [puestoId], references: [id])
+  tipoUsuario  TipoUsuario?  @relation(fields: [tipoUsuarioId], references: [id])
+  rol          Rol?          @relation(fields: [rolId], references: [id])
+
+  incidencias         Incidencia[]           @relation("Solicitante")
+  incidenciasAsignadas Incidencia[]          @relation("AsignadoA")
+  activosResponsables Activo[]               @relation("Responsable")
+  asignaciones        AsignacionComputo[]
+  licencias           Licencia[]
+
+  @@index([email])
+}
+
+// ------------------------------------------------------
+// INCIDENCIAS (TICKETS)
+// ------------------------------------------------------
+
+model Incidencia {
+  id                Int      @id @default(autoincrement())
+  originalId        Int?     @unique // ID original de SharePoint (reimportacion/desduplicado)
+  titulo            String   @db.VarChar(500)
+  descripcion       String   @db.Text
+  fechaNotificacion DateTime @default(now())
+  fechaResolucion   DateTime?
+  estado            EstadoIncidencia @default(NUEVO)
+  prioridad         Prioridad       @default(NORMAL)
+  tipoRequerimiento TipoRequerimiento
+  evidenciaUrl      String?  @db.VarChar(500)
+
+  solicitanteId  String // Obligatorio: siempre hay quien reporta
+  asignadoAId    String?
+  departamentoId Int?
+
+  solicitante  Usuario      @relation("Solicitante", fields: [solicitanteId], references: [id])
+  asignadoA    Usuario?     @relation("AsignadoA", fields: [asignadoAId], references: [id])
+  departamento Departamento? @relation(fields: [departamentoId], references: [id])
+  actualizaciones ActualizacionIncidencia[]
+
+  @@index([estado, fechaNotificacion])
+  @@index([solicitanteId])
+}
+
+model ActualizacionIncidencia {
+  id           Int      @id @default(autoincrement())
+  incidenciaId Int
+  texto        String   @db.Text
+  creadaEn     DateTime @default(now())
+
+  incidencia Incidencia @relation(fields: [incidenciaId], references: [id], onDelete: Cascade)
+}
+
+// ------------------------------------------------------
+// INVENTARIO DE EQUIPOS
+// ------------------------------------------------------
+
+model Activo {
+  id           Int      @id @default(autoincrement())
+  claveActivo  String?  @unique // AF00007 (algunos renglones del Excel no traen clave)
+  cb23         String?
+  tipo         String // Laptop, Desktop, Mini PC, Monitor...
+  marca        String?
+  modelo       String?
+  numeroParte  String?
+  numeroSerie  String?
+  sucursal     String?
+  anydesk      String?
+  nombreRed    String?
+  procesador   String?
+  memoria      String?
+  estado       EstadoActivo @default(EN_USO)
+  estadoGeneral String? // Condicion fisica (ej: "Bien")
+  notas        String? @db.Text
+
+  responsableId String?
+  responsable   Usuario? @relation("Responsable", fields: [responsableId], references: [id])
+
+  asignaciones AsignacionComputo[]
+}
+
+model AsignacionComputo {
+  id              Int      @id @default(autoincrement())
+  usuarioId       String
+  activoId        Int
+  anioCompra      Int?
+  numeroActivo    String?
+  nombreEquipo    String? // Hostname del equipo
+  bitlocker       String? // Clave de recuperacion (candidata a cifrado)
+  observacion     String? @db.Text
+  activa          Boolean @default(true)
+  fechaAsignacion DateTime @default(now())
+  fechaDevolucion DateTime?
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  activo  Activo  @relation(fields: [activoId], references: [id], onDelete: Cascade)
+
+  @@unique([usuarioId, activoId])
+}
+
+// ------------------------------------------------------
+// LICENCIAS Y CREDENCIALES
+// ------------------------------------------------------
+
+model Licencia {
+  id               Int      @id @default(autoincrement())
+  software         String
+  clave            String?  @db.Text // Cifrar con AES-256-GCM antes de guardar
+  proveedor        String?
+  fechaCompra      DateTime?
+  fechaVencimiento DateTime // Obligatoria: alimenta el cron de alertas
+  activa           Boolean  @default(true)
+  asignadaAId      String?
+
+  asignadaA Usuario? @relation(fields: [asignadaAId], references: [id])
+}
+
+model Secreto {
+  id         Int     @id @default(autoincrement())
+  tipo       String?
+  proyecto   String?
+  nombre     String?
+  usuario    String?
+  password   String  @db.Text // Cifrar con AES-256-GCM antes de guardar
+  comentario String? @db.Text
 }
