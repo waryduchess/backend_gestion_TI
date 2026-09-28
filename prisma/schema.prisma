@@ -99,6 +99,8 @@ model Usuario {
   fechaInicio   DateTime?
   fechaFin      DateTime?
 
+  passwordHash  String? @db.VarChar(100) // bcrypt; null = usuario sin acceso al sistema
+
   departamentoId Int?
   ubicacionId    Int?
   puestoId       Int?

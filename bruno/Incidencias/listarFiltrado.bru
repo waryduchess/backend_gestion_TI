@@ -1,0 +1,21 @@
+meta {
+  name: Listar incidencias (filtrado)
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/incidencias
+  body: json
+  auth: none
+}
+
+params:query {
+  page: 1
+  limit: 10
+  estado: NUEVO
+}
+
+assert {
+  res.status: eq 200
+}

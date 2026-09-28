@@ -16,3 +16,6 @@ coverage/
 .idea/
 
 /src/generated/prisma
+
+# Bruno: entorno local con credenciales (la plantilla se comparte aparte)
+bruno/environments/Local.bru
