@@ -1,0 +1,15 @@
+meta {
+  name: Listar activos (pagina sin resultados)
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/api/activos?page=999&limit=10
+  body: json
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}

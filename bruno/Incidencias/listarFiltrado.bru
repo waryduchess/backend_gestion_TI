@@ -5,15 +5,9 @@ meta {
 }
 
 get {
-  url: {{baseUrl}}/api/incidencias
+  url: {{baseUrl}}/api/incidencias?page=1&limit=10&estado=NUEVO
   body: json
   auth: none
-}
-
-params:query {
-  page: 1
-  limit: 10
-  estado: NUEVO
 }
 
 assert {

@@ -1,0 +1,21 @@
+meta {
+  name: Buscar activo por serie
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/activos?q=CXBF1Z3
+  body: json
+  auth: none
+}
+
+script:post-response {
+  bru.setEnvVar("activoPorSerie", res.body.data[0]?.claveActivo ?? "sin-coincidencia");
+}
+
+assert {
+  res.status: eq 200
+  res.body.data[0].claveActivo: eq AF00010
+  res.body.data[0].numeroSerie: eq CXBF1Z3
+}

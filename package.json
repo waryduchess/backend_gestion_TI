@@ -12,6 +12,7 @@
     "prisma:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
     "seed": "ts-node --transpile-only src/scripts/seedAdmin.ts",
+    "import:inventario": "ts-node --transpile-only src/scripts/importarInventario.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {

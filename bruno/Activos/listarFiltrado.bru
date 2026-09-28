@@ -1,0 +1,18 @@
+meta {
+  name: Listar activos (filtrado)
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/activos?page=1&limit=10&tipo=Laptop&sucursal=CANCUN&estado=EN_USO
+  body: json
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+  res.body.data[0].tipo: eq Laptop
+  res.body.data[0].sucursal: eq CANCUN
+  res.body.meta.limit: eq 10
+}

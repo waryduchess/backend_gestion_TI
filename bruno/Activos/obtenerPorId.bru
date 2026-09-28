@@ -1,11 +1,11 @@
 meta {
-  name: Listar incidencias
+  name: Obtener activo por id
   type: http
-  seq: 1
+  seq: 5
 }
 
 get {
-  url: {{baseUrl}}/api/incidencias?page=1&limit=5
+  url: {{baseUrl}}/api/activos/{{primerActivoId}}
   body: json
   auth: none
 }
