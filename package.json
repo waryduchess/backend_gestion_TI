@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/app.ts",
-    "build": "tsc",
+    "build": "tsc && mkdir -p dist/docs && cp src/docs/openapi.yaml dist/docs/openapi.yaml",
     "start": "node dist/app.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
@@ -38,7 +38,8 @@
     "node-cron": "^4.6.0",
     "nodemailer": "^10.0.10",
     "puppeteer": "^25.11.0",
-    "socket.io": "^4.8.3"
+    "socket.io": "^4.8.3",
+    "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
@@ -46,6 +47,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^26.6.1",
     "@types/nodemailer": "^8.0.2",
+    "@types/swagger-ui-express": "^4.1.8",
     "prisma": "^7.10.0",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.9.3"

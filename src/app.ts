@@ -5,6 +5,7 @@ import { errorHandler, notFoundHandler } from './middlewares/error.middleware';
 import authRoutes from './routes/auth.routes';
 import activoRoutes from './routes/activo.routes';
 import incidenciaRoutes from './routes/incidencia.routes';
+import docsRoutes from './docs/docs.routes';
 
 const app: Application = express();
 
@@ -23,6 +24,7 @@ app.get('/health', (_req: Request, res: Response) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/activos', activoRoutes);
 app.use('/api/incidencias', incidenciaRoutes);
+app.use('/api/docs', docsRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);
