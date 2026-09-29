@@ -261,4 +261,48 @@ export const actualizar = async (
   return obtenerPorId(id);
 };
 
+export const cambiarEstado = async (
+  id: number,
+  estado: EstadoActivo
+): Promise<ActivoDetalle> => {
+  const fila = await prisma.activo.findUnique({
+    where: { id },
+    include: {
+      asignaciones: {
+        where: { activa: true },
+        select: { id: true },
+      },
+    },
+  });
+
+  if (!fila) {
+    throw new HttpError(404, 'Activo no encontrado', [
+      { campo: 'id', valor: String(id) },
+    ]);
+  }
+
+  const estadosQueExigenDevolucion: EstadoActivo[] = ['DE_BAJA', 'EN_ALMACEN'];
+
+  if (
+    fila.estado !== estado &&
+    estadosQueExigenDevolucion.includes(estado) &&
+    fila.asignaciones.length > 0
+  ) {
+    throw new HttpError(
+      409,
+      `El activo tiene una asignacion activa; devuelvelo antes de cambiar a ${estado}`,
+      [
+        { campo: 'estado', valor: estado },
+        { campo: 'asignacionActiva', valor: String(fila.asignaciones[0].id) },
+      ]
+    );
+  }
+
+  if (fila.estado !== estado) {
+    await prisma.activo.update({ where: { id }, data: { estado } });
+  }
+
+  return obtenerPorId(id);
+};
+
 export const ESTADOS_DE_ACTIVO: EstadoActivo[] = Object.values(EstadoActivo);

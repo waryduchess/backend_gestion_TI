@@ -37,7 +37,7 @@ Verificado: `tsc` limpio, suite Bruno 14/14 requests y 19/19 assertions, spec va
 
 - [x] `POST /api/activos` - registrar activo (solo tipo obligatorio, estado default EN_USO, publico; 409 en clave duplicada, 400 si responsableId no existe)
 - [x] `PATCH /api/activos/:id` - editar datos del activo (edicion parcial, null borra, estado fuera de aqui, responsableId id o null, publico)
-- [ ] `PATCH /api/activos/:id/estado` - transiciones EN_USO / EN_ALMACEN / EN_MANTENIMIENTO / DE_BAJA
+- [X] `PATCH /api/activos/:id/estado` - transiciones EN_USO / EN_ALMACEN / EN_MANTENIMIENTO / DE_BAJA (libres, 409 si asignacion activa al bajar/almacenar, mismo estado = 200 idempotente, publico)
 - [ ] `POST /api/activos/:id/asignaciones` - asignar equipo a usuario (transaccion con estado del activo)
 - [ ] `POST /api/asignaciones/:id/devolucion` - cerrar asignacion (`activa=false`, `fechaDevolucion`)
 - [ ] `DELETE /api/activos/:id` - baja del activo

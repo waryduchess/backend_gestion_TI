@@ -6,6 +6,7 @@ import {
   ESTADOS_DE_ACTIVO,
   crear,
   actualizar,
+  cambiarEstado,
   listar,
   obtenerPorId,
 } from '../services/activo.service';
@@ -264,6 +265,39 @@ export const actualizarActivo = asyncHandler(
     res.status(200).json({
       success: true,
       message: 'Activo actualizado correctamente',
+      errors: [],
+      data: activo,
+    });
+  }
+);
+
+export const cambiarEstadoActivo = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const textoId = comoTexto(req.params.id);
+
+    if (!/^\d+$/.test(textoId)) {
+      throw new HttpError(400, 'El parametro "id" debe ser un numero entero', [
+        { campo: 'id', valor: textoId },
+      ]);
+    }
+
+    const cuerpo = (req.body ?? {}) as Record<string, unknown>;
+    const estado = validarCampoOpcion(cuerpo.estado, 'estado', ESTADOS_DE_ACTIVO);
+
+    if (!estado) {
+      throw new HttpError(400, 'Faltan campos obligatorios', [
+        { campo: 'estado', valor: '', mensaje: 'El estado es obligatorio' },
+      ]);
+    }
+
+    const activo: ActivoDetalle = await cambiarEstado(
+      Number(textoId),
+      estado as (typeof ESTADOS_DE_ACTIVO)[number]
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Estado del activo actualizado correctamente',
       errors: [],
       data: activo,
     });

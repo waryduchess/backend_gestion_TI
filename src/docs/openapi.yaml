@@ -604,6 +604,115 @@ paths:
                   - campo: claveActivo
                     valor: AF00011
 
+  /api/activos/{id}/estado:
+    patch:
+      tags: [activos]
+      summary: Cambiar el estado de un activo
+      description: >
+        Transiciones libres entre EN_USO, EN_ALMACEN, EN_MANTENIMIENTO y
+        DE_BAJA. Si el activo tiene una asignacion activa no se permite pasar
+        a DE_BAJA ni a EN_ALMACEN (409); primero debe devolverse. Enviar el
+        mismo estado actual responde 200 sin modificar nada. Publico (sin
+        token) mientras no se active RBAC.
+      operationId: cambiarEstadoActivo
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            example: 439
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CambioEstadoActivo'
+            example:
+              estado: EN_MANTENIMIENTO
+      responses:
+        '200':
+          description: Estado actualizado (o sin cambios si era el mismo)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaActivo'
+              example:
+                success: true
+                message: Estado del activo actualizado correctamente
+                errors: []
+                data:
+                  id: 439
+                  claveActivo: AF00010
+                  tipo: Laptop
+                  estado: EN_MANTENIMIENTO
+                  asignaciones: []
+        '400':
+          description: id no entero, falta "estado" o valor fuera del enum
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              examples:
+                idInvalido:
+                  summary: id no numerico
+                  value:
+                    success: false
+                    message: El parametro "id" debe ser un numero entero
+                    errors:
+                      - campo: id
+                        valor: abc
+                sinEstado:
+                  summary: Body sin estado
+                  value:
+                    success: false
+                    message: Faltan campos obligatorios
+                    errors:
+                      - campo: estado
+                        valor: ''
+                        mensaje: El estado es obligatorio
+                estadoInvalido:
+                  summary: Estado fuera del enum
+                  value:
+                    success: false
+                    message: El campo "estado" no tiene un valor valido
+                    errors:
+                      - campo: estado
+                        valor: BOGUS
+                        permitidos:
+                          - EN_USO
+                          - EN_ALMACEN
+                          - EN_MANTENIMIENTO
+                          - DE_BAJA
+        '404':
+          description: No existe un activo con ese id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: Activo no encontrado
+                errors:
+                  - campo: id
+                    valor: '999999'
+        '409':
+          description: Tiene asignacion activa y el nuevo estado exige devolucion
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: El activo tiene una asignacion activa; devuelvelo antes de cambiar a DE_BAJA
+                errors:
+                  - campo: estado
+                    valor: DE_BAJA
+                  - campo: asignacionActiva
+                    valor: '1'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1070,6 +1179,15 @@ components:
           type: [string, 'null']
           description: Usuario existente; null o cadena vacia libera el responsable
           example: A010
+
+    CambioEstadoActivo:
+      type: object
+      required: [estado]
+      properties:
+        estado:
+          allOf:
+            - $ref: '#/components/schemas/EstadoActivo'
+          description: Obligatorio; cualquier transicion entre los 4 estados
 
     RespuestaActivosPaginada:
       type: object

@@ -1,0 +1,37 @@
+meta {
+  name: Cambiar estado con asignacion activa
+  type: http
+  seq: 27
+}
+
+patch {
+  url: {{baseUrl}}/api/activos/{{activoConAsignacionId}}/estado
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "estado": "DE_BAJA"
+  }
+}
+
+assert {
+  res.status: eq 409
+}
+
+assert {
+  res.body.success: eq false
+}
+
+assert {
+  res.body.errors[0].campo: eq estado
+}
+
+assert {
+  res.body.errors[1].campo: eq asignacionActiva
+}

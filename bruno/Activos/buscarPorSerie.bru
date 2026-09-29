@@ -10,6 +10,10 @@ get {
   auth: none
 }
 
+script:post-response {
+  bru.setEnvVar("activoConAsignacionId", res.body.data[0].id);
+}
+
 assert {
   res.status: eq 200
 }
