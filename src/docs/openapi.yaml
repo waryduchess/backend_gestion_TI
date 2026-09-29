@@ -1,0 +1,923 @@
+openapi: 3.1.0
+info:
+  title: Sistema de Gestion TI - API
+  version: 1.0.0
+  description: >
+    API REST del Sistema de Gestion de TI (tickets, inventario, licencias,
+    proyectos, reportes). Todas las respuestas usan el mismo envoltorio
+    { success, message, errors, data, meta } y los errores HTTP devuelven
+    success=false con el detalle en errors.
+  contact:
+    name: Equipo de TI
+servers:
+  - url: http://localhost:3000
+    description: Entorno local (Docker)
+tags:
+  - name: auth
+    description: Autenticacion JWT (login y perfil)
+  - name: incidencias
+    description: Listado de tickets / incidencias
+  - name: activos
+    description: Inventario de activos de computo
+
+paths:
+  /api/auth/login:
+    post:
+      tags: [auth]
+      summary: Iniciar sesion
+      description: >
+        Valida las credenciales contra la base de datos y devuelve un token
+        JWT con expiracion configurada (8h por defecto).
+      operationId: iniciarSesion
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              email: admin@horbismex.com
+              password: "********"
+      responses:
+        '200':
+          description: Sesion iniciada correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaLogin'
+              example:
+                success: true
+                message: Sesion iniciada correctamente
+                errors: []
+                data:
+                  token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                  tokenTipo: Bearer
+                  expiraEn: 8h
+                  usuario:
+                    id: ADMIN
+                    nombre: Administrador
+                    email: admin@horbismex.com
+        '400':
+          description: Faltan campos obligatorios
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: Faltan campos obligatorios
+                errors:
+                  - campo: email
+                    valor: ''
+                    mensaje: El email es obligatorio
+        '401':
+          description: Credenciales invalidas (email o password incorrectos, o usuario inactivo)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: Credenciales invalidas
+                errors: []
+
+  /api/auth/me:
+    get:
+      tags: [auth]
+      summary: Obtener el perfil del usuario autenticado
+      operationId: obtenerPerfil
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Perfil del usuario del token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaPerfil'
+              example:
+                success: true
+                message: Perfil obtenido correctamente
+                errors: []
+                data:
+                  id: ADMIN
+                  nombre: Administrador
+                  email: admin@horbismex.com
+                  activo: true
+                  rol: null
+        '401':
+          description: Token ausente, invalido o expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: Autenticacion requerida
+                errors: []
+        '403':
+          description: El usuario existe pero esta inactivo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: El usuario esta inactivo
+                errors: []
+
+  /api/incidencias:
+    get:
+      tags: [incidencias]
+      summary: Listar incidencias (paginado)
+      operationId: listarIncidencias
+      parameters:
+        - name: page
+          in: query
+          required: false
+          description: Pagina a consultar (empezando en 1)
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          description: Elementos por pagina (entre 1 y 100)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+        - name: estado
+          in: query
+          required: false
+          description: Filtra por estado de la incidencia
+          schema:
+            $ref: '#/components/schemas/EstadoIncidencia'
+        - name: prioridad
+          in: query
+          required: false
+          description: Filtra por prioridad
+          schema:
+            $ref: '#/components/schemas/Prioridad'
+      responses:
+        '200':
+          description: Incidencias obtenidas correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaIncidenciasPaginada'
+              example:
+                success: true
+                message: Incidencias obtenidas correctamente
+                errors: []
+                data:
+                  - id: 1
+                    originalId: null
+                    titulo: Falla de conexion a la red
+                    estado: NUEVO
+                    prioridad: ALTA
+                    tipoRequerimiento: CONEXION_DE_RED
+                    fechaNotificacion: '2026-09-28T15:00:00.000Z'
+                    fechaResolucion: null
+                    solicitante:
+                      id: A006
+                      nombre: Angelica Maria Buendia Fierro
+                      email: cxc.cancun@horbismex.com
+                    asignadoA: null
+                    departamento: null
+                    totalActualizaciones: 0
+                meta:
+                  page: 1
+                  limit: 10
+                  total: 3
+                  totalPages: 1
+        '400':
+          description: Parametro invalido (page no numerico, limit fuera de rango o enum desconocido)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: El parametro "limit" debe estar entre 1 y 100
+                errors:
+                  - campo: limit
+                    valor: '500'
+
+  /api/activos:
+    get:
+      tags: [activos]
+      summary: Listar activos (paginado y filtrable)
+      operationId: listarActivos
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          description: Elementos por pagina (entre 1 y 100)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+        - name: tipo
+          in: query
+          required: false
+          description: Tipo de activo exacto (Laptop, Desktop, Monitor...)
+          schema:
+            type: string
+            example: Laptop
+        - name: estado
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/EstadoActivo'
+        - name: sucursal
+          in: query
+          required: false
+          description: Sucursal exacta (CANCUN, PLAYA...)
+          schema:
+            type: string
+            example: CANCUN
+        - name: responsableId
+          in: query
+          required: false
+          description: Id del usuario responsable del activo
+          schema:
+            type: string
+            example: A010
+        - name: q
+          in: query
+          required: false
+          description: Busqueda libre en claveActivo, cb23, numeroSerie, marca, modelo y nombreRed
+          schema:
+            type: string
+            example: CXBF1Z3
+      responses:
+        '200':
+          description: Activos obtenidos correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaActivosPaginada'
+              example:
+                success: true
+                message: Activos obtenidos correctamente
+                errors: []
+                data:
+                  - id: 439
+                    claveActivo: AF00010
+                    cb23: '100003'
+                    tipo: Laptop
+                    marca: Dell
+                    modelo: Inspiron 15
+                    numeroSerie: CXBF1Z3
+                    sucursal: null
+                    estado: EN_USO
+                    estadoGeneral: null
+                    nombreRed: null
+                    responsable:
+                      id: CT003
+                      nombre: Ernesto Marquez Lopez
+                      email: ernesto.marquez@horbismex.com
+                meta:
+                  page: 1
+                  limit: 10
+                  total: 214
+                  totalPages: 22
+        '400':
+          description: Parametro invalido (page/limit malformados o enum de estado desconocido)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: El parametro "estado" no tiene un valor valido
+                errors:
+                  - campo: estado
+                    valor: BOGUS
+                    permitidos:
+                      - EN_USO
+                      - EN_ALMACEN
+                      - EN_MANTENIMIENTO
+                      - DE_BAJA
+
+    post:
+      tags: [activos]
+      summary: Crear un activo
+      description: >
+        Registra un activo nuevo. Solo "tipo" es obligatorio; si no se envia
+        "estado" se usa EN_USO. Publico (sin token) mientras no se active RBAC.
+      operationId: crearActivo
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActivoCreacion'
+            example:
+              tipo: Laptop
+              claveActivo: AF00100
+              marca: Lenovo
+              modelo: ThinkPad E14
+              numeroSerie: PF2XYZ99
+              sucursal: CANCUN
+              estado: EN_USO
+              responsableId: A010
+      responses:
+        '201':
+          description: Activo creado correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaActivo'
+              example:
+                success: true
+                message: Activo creado correctamente
+                errors: []
+                data:
+                  id: 215
+                  claveActivo: AF00100
+                  cb23: null
+                  tipo: Laptop
+                  marca: Lenovo
+                  modelo: ThinkPad E14
+                  numeroSerie: PF2XYZ99
+                  sucursal: CANCUN
+                  estado: EN_USO
+                  estadoGeneral: null
+                  nombreRed: null
+                  responsable:
+                    id: A010
+                    nombre: Lauriano Antonio Cruz Durante
+                    email: antonio.cruz@horbismex.com
+                  numeroParte: null
+                  anydesk: null
+                  procesador: null
+                  memoria: null
+                  notas: null
+                  asignaciones: []
+        '400':
+          description: >
+            Datos invalidos: falta "tipo", "estado" no pertenece al enum o
+            "responsableId" no existe
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              examples:
+                sinTipo:
+                  summary: Falta el tipo
+                  value:
+                    success: false
+                    message: Faltan campos obligatorios
+                    errors:
+                      - campo: tipo
+                        valor: ''
+                        mensaje: El tipo es obligatorio
+                estadoInvalido:
+                  summary: Estado fuera del enum
+                  value:
+                    success: false
+                    message: El campo "estado" no tiene un valor valido
+                    errors:
+                      - campo: estado
+                        valor: BOGUS
+                        permitidos:
+                          - EN_USO
+                          - EN_ALMACEN
+                          - EN_MANTENIMIENTO
+                          - DE_BAJA
+                responsableInexistente:
+                  summary: Responsable inexistente
+                  value:
+                    success: false
+                    message: El usuario responsable no existe
+                    errors:
+                      - campo: responsableId
+                        valor: ZZZZ
+                        mensaje: El usuario responsable no existe
+        '409':
+          description: Ya existe un activo con esa claveActivo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: Ya existe un activo con esa clave
+                errors:
+                  - campo: claveActivo
+                    valor: AF00010
+
+  /api/activos/{id}:
+    get:
+      tags: [activos]
+      summary: Obtener un activo por id
+      description: Devuelve el activo con su responsable y las asignaciones activas.
+      operationId: obtenerActivo
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Identificador numerico del activo
+          schema:
+            type: integer
+            minimum: 1
+            example: 439
+      responses:
+        '200':
+          description: Activo obtenido correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaActivo'
+        '400':
+          description: El id no es un numero entero
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: El parametro "id" debe ser un numero entero
+                errors:
+                  - campo: id
+                    valor: abc
+        '404':
+          description: No existe un activo con ese id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: Activo no encontrado
+                errors:
+                  - campo: id
+                    valor: '999999'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >
+        Token devuelto por POST /api/auth/login. Enviar como
+        Authorization: Bearer <token>.
+
+  schemas:
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: admin@horbismex.com
+        password:
+          type: string
+          format: password
+          example: "********"
+
+    UsuarioAuth:
+      type: object
+      required: [id, nombre, email]
+      properties:
+        id:
+          type: string
+          example: ADMIN
+        nombre:
+          type: string
+          example: Administrador
+        email:
+          type: [string, 'null']
+          example: admin@horbismex.com
+
+    UsuarioPerfil:
+      allOf:
+        - $ref: '#/components/schemas/UsuarioAuth'
+        - type: object
+          required: [activo, rol]
+          properties:
+            activo:
+              type: boolean
+              example: true
+            rol:
+              type: [string, 'null']
+              description: Nombre del rol RBAC; null mientras no se configuren roles
+              example: null
+
+    UsuarioResumen:
+      type: object
+      required: [id, nombre, email]
+      properties:
+        id:
+          type: string
+          example: A010
+        nombre:
+          type: string
+          example: Lauriano Antonio Cruz Durante
+        email:
+          type: [string, 'null']
+          example: antonio.cruz@horbismex.com
+
+    DepartamentoResumen:
+      type: object
+      required: [id, nombre]
+      properties:
+        id:
+          type: integer
+          example: 1
+        nombre:
+          type: string
+          example: ADMINISTRACION
+
+    RespuestaLogin:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Sesion iniciada correctamente
+        errors:
+          type: array
+          items: {}
+          example: []
+        data:
+          type: object
+          required: [token, tokenTipo, expiraEn, usuario]
+          properties:
+            token:
+              type: string
+              example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+            tokenTipo:
+              type: string
+              enum: [Bearer]
+            expiraEn:
+              type: string
+              example: 8h
+            usuario:
+              $ref: '#/components/schemas/UsuarioAuth'
+
+    RespuestaPerfil:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        errors:
+          type: array
+          items: {}
+        data:
+          $ref: '#/components/schemas/UsuarioPerfil'
+
+    RespuestaError:
+      type: object
+      required: [success, message, errors]
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: Credenciales invalidas
+        errors:
+          type: array
+          items:
+            oneOf:
+              - type: string
+              - $ref: '#/components/schemas/ErrorCampo'
+
+    ErrorCampo:
+      type: object
+      description: Detalle de un campo que causo el error de validacion
+      properties:
+        campo:
+          type: string
+          example: estado
+        valor:
+          type: [string, number, 'null']
+          example: BOGUS
+        mensaje:
+          type: string
+          example: El email es obligatorio
+        permitidos:
+          type: array
+          items:
+            type: string
+          description: Presente cuando el valor debe pertenecer a un enum
+
+    MetaPaginacion:
+      type: object
+      required: [page, limit, total, totalPages]
+      properties:
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 10
+        total:
+          type: integer
+          example: 214
+        totalPages:
+          type: integer
+          example: 22
+
+    EstadoIncidencia:
+      type: string
+      enum: [NUEVO, EN_ANALISIS, EN_CURSO, COMPLETADO, DUPLICADO]
+      example: NUEVO
+
+    Prioridad:
+      type: string
+      enum: [BAJA, NORMAL, ALTA, CRITICA]
+      example: NORMAL
+
+    TipoRequerimiento:
+      type: string
+      enum:
+        - NETSUITE
+        - OTROS
+        - OFFICE
+        - EMAIL
+        - IMPRESION
+        - ERROR_EN_EQUIPO
+        - SOLICITUD_DE_EQUIPO
+        - INTRANET
+        - CONEXION_DE_RED
+      example: CONEXION_DE_RED
+
+    EstadoActivo:
+      type: string
+      enum: [EN_USO, EN_ALMACEN, EN_MANTENIMIENTO, DE_BAJA]
+      example: EN_USO
+
+    Incidencia:
+      type: object
+      required:
+        - id
+        - originalId
+        - titulo
+        - estado
+        - prioridad
+        - tipoRequerimiento
+        - fechaNotificacion
+        - fechaResolucion
+        - solicitante
+        - asignadoA
+        - departamento
+        - totalActualizaciones
+      properties:
+        id:
+          type: integer
+          example: 1
+        originalId:
+          type: [integer, 'null']
+          description: Id original de SharePoint (reimportacion / desduplicado)
+        titulo:
+          type: string
+          maxLength: 500
+          example: Falla de conexion a la red
+        estado:
+          $ref: '#/components/schemas/EstadoIncidencia'
+        prioridad:
+          $ref: '#/components/schemas/Prioridad'
+        tipoRequerimiento:
+          $ref: '#/components/schemas/TipoRequerimiento'
+        fechaNotificacion:
+          type: string
+          format: date-time
+          example: '2026-09-28T15:00:00.000Z'
+        fechaResolucion:
+          type: [string, 'null']
+          format: date-time
+        solicitante:
+          $ref: '#/components/schemas/UsuarioResumen'
+        asignadoA:
+          oneOf:
+            - $ref: '#/components/schemas/UsuarioResumen'
+            - type: 'null'
+        departamento:
+          oneOf:
+            - $ref: '#/components/schemas/DepartamentoResumen'
+            - type: 'null'
+        totalActualizaciones:
+          type: integer
+          description: Numero de actualizaciones del ticket
+          example: 0
+
+    RespuestaIncidenciasPaginada:
+      type: object
+      required: [success, message, errors, data, meta]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: Incidencias obtenidas correctamente
+        errors:
+          type: array
+          items: {}
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Incidencia'
+        meta:
+          $ref: '#/components/schemas/MetaPaginacion'
+
+    Activo:
+      type: object
+      required:
+        - id
+        - claveActivo
+        - cb23
+        - tipo
+        - marca
+        - modelo
+        - numeroSerie
+        - sucursal
+        - estado
+        - estadoGeneral
+        - nombreRed
+        - responsable
+      properties:
+        id:
+          type: integer
+          example: 439
+        claveActivo:
+          type: [string, 'null']
+          description: 'Clave AF del inventario (ej: AF00010); nula para los activos cargados por CODIGO'
+          example: AF00010
+        cb23:
+          type: [string, 'null']
+          description: Codigo interno CB23 / CODIGO
+          example: '100003'
+        tipo:
+          type: string
+          description: Laptop, Desktop, Monitor...; SIN_DATO cuando el Excel no trae tipo
+          example: Laptop
+        marca:
+          type: [string, 'null']
+          example: Dell
+        modelo:
+          type: [string, 'null']
+          example: Inspiron 15
+        numeroSerie:
+          type: [string, 'null']
+          example: CXBF1Z3
+        sucursal:
+          type: [string, 'null']
+          example: CANCUN
+        estado:
+          $ref: '#/components/schemas/EstadoActivo'
+        estadoGeneral:
+          type: [string, 'null']
+          description: Condicion fisica original del Excel (Bien, Regular, NI...)
+          example: Bien
+        nombreRed:
+          type: [string, 'null']
+          example: D16 COMPRAS
+        responsable:
+          oneOf:
+            - $ref: '#/components/schemas/UsuarioResumen'
+            - type: 'null'
+          description: Null cuando no hay match unico con un usuario del catalogo
+
+    ActivoDetalle:
+      allOf:
+        - $ref: '#/components/schemas/Activo'
+        - type: object
+          required: [numeroParte, anydesk, procesador, memoria, notas, asignaciones]
+          properties:
+            numeroParte:
+              type: [string, 'null']
+            anydesk:
+              type: [string, 'null']
+            procesador:
+              type: [string, 'null']
+              example: i5-1133g7
+            memoria:
+              type: [string, 'null']
+              example: 8GB
+            notas:
+              type: [string, 'null']
+            asignaciones:
+              type: array
+              description: Solo asignaciones activas
+              items:
+                type: object
+                required: [id, activa, fechaAsignacion, usuario]
+                properties:
+                  id:
+                    type: integer
+                    example: 3
+                  activa:
+                    type: boolean
+                    example: true
+                  fechaAsignacion:
+                    type: string
+                    format: date-time
+                  usuario:
+                    $ref: '#/components/schemas/UsuarioResumen'
+
+    ActivoCreacion:
+      type: object
+      required: [tipo]
+      description: Cuerpo de POST /api/activos; los campos opcionales van en null o se omiten
+      properties:
+        tipo:
+          type: string
+          description: Obligatorio (Laptop, Desktop, Monitor, Switch...)
+          example: Laptop
+        claveActivo:
+          type: [string, 'null']
+          description: Debe ser unica; si ya existe responde 409
+          example: AF00100
+        cb23:
+          type: [string, 'null']
+        marca:
+          type: [string, 'null']
+          example: Lenovo
+        modelo:
+          type: [string, 'null']
+          example: ThinkPad E14
+        numeroParte:
+          type: [string, 'null']
+        numeroSerie:
+          type: [string, 'null']
+          example: PF2XYZ99
+        sucursal:
+          type: [string, 'null']
+          example: CANCUN
+        anydesk:
+          type: [string, 'null']
+        nombreRed:
+          type: [string, 'null']
+        procesador:
+          type: [string, 'null']
+        memoria:
+          type: [string, 'null']
+        estadoGeneral:
+          type: [string, 'null']
+          description: Condicion fisica original (Bien, Regular...)
+        notas:
+          type: [string, 'null']
+        estado:
+          $ref: '#/components/schemas/EstadoActivo'
+        responsableId:
+          type: string
+          description: Id de un usuario existente; si no existe responde 400
+          example: A010
+
+    RespuestaActivosPaginada:
+      type: object
+      required: [success, message, errors, data, meta]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: Activos obtenidos correctamente
+        errors:
+          type: array
+          items: {}
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Activo'
+        meta:
+          $ref: '#/components/schemas/MetaPaginacion'
+
+    RespuestaActivo:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: Activo obtenido correctamente
+        errors:
+          type: array
+          items: {}
+        data:
+          $ref: '#/components/schemas/ActivoDetalle'

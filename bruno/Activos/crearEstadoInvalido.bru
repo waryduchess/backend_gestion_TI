@@ -1,0 +1,34 @@
+meta {
+  name: Crear activo con estado invalido
+  type: http
+  seq: 12
+}
+
+post {
+  url: {{baseUrl}}/api/activos
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "tipo": "Laptop",
+    "estado": "BOGUS"
+  }
+}
+
+assert {
+  res.status: eq 400
+}
+
+assert {
+  res.body.errors[0].campo: eq estado
+}
+
+assert {
+  res.body.errors[0].permitidos[0]: eq EN_USO
+}
