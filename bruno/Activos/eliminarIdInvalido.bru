@@ -1,0 +1,15 @@
+meta {
+  name: Eliminar activo id invalido
+  type: http
+  seq: 39
+}
+
+delete {
+  url: {{baseUrl}}/api/activos/abc
+  body: json
+  auth: none
+}
+
+assert {
+  res.status: eq 400
+}

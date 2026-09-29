@@ -1,0 +1,19 @@
+meta {
+  name: Listar asignaciones activas
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/api/asignaciones?activa=true&limit=5
+  body: json
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}
+
+assert {
+  res.body.data[0].activa: eq true
+}

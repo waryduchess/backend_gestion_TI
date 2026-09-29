@@ -32,7 +32,7 @@ Verificado: `tsc` limpio, suite Bruno 14/14 requests y 19/19 assertions, spec va
 - [ ] `POST /api/incidencias` - crear ticket (solicitante obligatorio)
 - [ ] `PATCH /api/incidencias/:id` - actualizar estado, prioridad o asignadoA
 - [ ] `POST /api/incidencias/:id/actualizaciones` - agregar comentario/actualizacion
-- [ ] `DELETE /api/incidencias/:id` - baja (confirmar si es fisica o logica)
+- [ ] `DELETE /api/incidencias/:id` - borrado **logico** (nunca borrar filas; mecanismo al descongelar el modulo)
 - [ ] `POST /api/incidencias/:id/evidencia` - subir archivo a S3 (`evidenciaUrl`)
 
 ### 2.2 Inventario de activos - hoy solo lectura
@@ -42,8 +42,8 @@ Verificado: `tsc` limpio, suite Bruno 14/14 requests y 19/19 assertions, spec va
 - [X] `PATCH /api/activos/:id/estado` - transiciones EN_USO / EN_ALMACEN / EN_MANTENIMIENTO / DE_BAJA (libres, 409 si asignacion activa al bajar/almacenar, mismo estado = 200 idempotente, publico)
 - [X] `POST /api/activos/:id/asignaciones` - asignar equipo a usuario (transaccion: 409 si DE_BAJA o con asignacion activa, reactiva fila si el usuario ya lo tuvo, activo pasa a EN_USO con responsable = usuario, 201 con ActivoDetalle, publico)
 - [X] `POST /api/asignaciones/:id/devolucion` - cerrar asignacion (`activa=false`, `fechaDevolucion`, activo -> EN_ALMACEN, limpia responsableId si coincide, 200 idempotente, publico)
-- [ ] `DELETE /api/activos/:id` - baja del activo
-- [ ] `GET /api/asignaciones` - listado de asignaciones activas/historicas
+- [X] `DELETE /api/activos/:id` - baja **logica** (estado `DE_BAJA`, nunca borra filas; 200 idempotente si ya estaba, 409 con asignacion activa, publico)
+- [X] `GET /api/asignaciones` - listado paginado y filtrable (`page`, `limit`, `activa`, `usuarioId`, `activoId`, `q`; sin `bitlocker`; publico)
 
 ### 2.3 Usuarios y catalogos - sin endpoints
 
@@ -98,3 +98,4 @@ Verificado: `tsc` limpio, suite Bruno 14/14 requests y 19/19 assertions, spec va
 3. Seguir `routes -> controllers -> services`, `asyncHandler` + `HttpError`, sin `any`, sin librerias nuevas de validacion.
 4. Al cerrar un modulo: correr `npx tsc --noEmit` y la suite Bruno (`cd bruno && npx @usebruno/cli run . -r --env Local`).
 5. Marcar los checkboxes de este archivo al completar cada item.
+6. **Borrados logicos siempre**: ningun `DELETE` borra filas de la base. En activos se implementa con el estado `DE_BAJA` (sin migracion, 200 idempotente); cada modulo define su mecanismo al implementarse, pero la regla es universal.

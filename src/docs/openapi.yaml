@@ -605,6 +605,77 @@ paths:
                 errors:
                   - campo: claveActivo
                     valor: AF00011
+    delete:
+      tags: [activos]
+      summary: Dar de baja un activo (borrado logico -> estado DE_BAJA)
+      description: >
+        Nunca borra la fila. Marca el activo como DE_BAJA. Es idempotente: si
+        ya estaba DE_BAJA responde 200 sin cambios. Falla con 409 si tiene una
+        asignacion activa (devolver el equipo primero).
+      operationId: eliminarActivo
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Activo dado de baja correctamente (o ya estaba en baja)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaActivo'
+              example:
+                success: true
+                message: Activo dado de baja correctamente
+                errors: []
+                data:
+                  id: 660
+                  claveActivo: AFDEV02
+                  tipo: Dispositivo de prueba
+                  estado: DE_BAJA
+                  responsable: null
+                  asignaciones: []
+        '400':
+          description: id no numerico
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: El parametro "id" debe ser un numero entero
+                errors:
+                  - campo: id
+                    valor: abc
+        '404':
+          description: No existe un activo con ese id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: Activo no encontrado
+                errors:
+                  - campo: id
+                    valor: '999999'
+        '409':
+          description: El activo tiene una asignacion activa
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: El activo tiene una asignacion activa
+                errors:
+                  - campo: estado
+                    valor: EN_USO
+                  - campo: asignacionActiva
+                    valor: '439'
 
   /api/activos/{id}/estado:
     patch:
@@ -853,6 +924,122 @@ paths:
                     errors:
                       - campo: estado
                         valor: DE_BAJA
+
+  /api/asignaciones:
+    get:
+      tags: [asignaciones]
+      summary: Listar asignaciones (paginado y filtrable)
+      operationId: listarAsignaciones
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          description: Elementos por pagina (entre 1 y 100)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+        - name: activa
+          in: query
+          required: false
+          description: Filtrar por asignaciones activas o cerradas
+          schema:
+            type: string
+            enum: ['true', 'false']
+            example: 'true'
+        - name: usuarioId
+          in: query
+          required: false
+          description: Id del usuario asignado
+          schema:
+            type: string
+            example: A010
+        - name: activoId
+          in: query
+          required: false
+          description: Id del activo asignado
+          schema:
+            type: integer
+            example: 439
+        - name: q
+          in: query
+          required: false
+          description: Busqueda libre en nombreEquipo, numeroActivo, observacion, claveActivo y nombreRed
+          schema:
+            type: string
+            example: AF00010
+      responses:
+        '200':
+          description: Asignaciones obtenidas correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaAsignacionesPaginada'
+              example:
+                success: true
+                message: Asignaciones obtenidas correctamente
+                errors: []
+                data:
+                  - id: 1
+                    activa: true
+                    fechaAsignacion: '2025-06-10T14:00:00.000Z'
+                    fechaDevolucion: null
+                    anioCompra: null
+                    numeroActivo: null
+                    nombreEquipo: null
+                    observacion: null
+                    usuario:
+                      id: CT003
+                      nombre: Carmen Torres Ruiz
+                      nombreRed: HORBIS\CT003
+                      correo: null
+                      departamento:
+                        id: 1
+                        nombre: Administracion
+                    activo:
+                      id: 439
+                      claveActivo: AF00010
+                      tipo: Laptop
+                      marca: Dell
+                      modelo: 'Latitude 3540'
+                      numeroSerie: CXBF1Z3
+                      estado: EN_USO
+                meta:
+                  page: 1
+                  limit: 10
+                  total: 1
+                  totalPages: 1
+        '400':
+          description: Parametros de paginacion o filtro invalidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              examples:
+                activaInvalida:
+                  summary: activa fuera de true/false
+                  value:
+                    success: false
+                    message: 'El parametro "activa" debe ser "true" o "false"'
+                    errors:
+                      - parametro: activa
+                        valor: BOGUS
+                limiteInvalido:
+                  summary: limit fuera de 1..100
+                  value:
+                    success: false
+                    message: 'El parametro "limit" debe estar entre 1 y 100'
+                    errors:
+                      - campo: limit
+                        valor: '500'
 
   /api/asignaciones/{id}/devolucion:
     post:
@@ -1435,6 +1622,88 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Activo'
+        meta:
+          $ref: '#/components/schemas/MetaPaginacion'
+
+    AsignacionLista:
+      type: object
+      description: Asignacion de activo con usuario y resumen del activo. No incluye bitlocker.
+      required:
+        [id, activa, fechaAsignacion, usuario, activo]
+      properties:
+        id:
+          type: integer
+          example: 1
+        activa:
+          type: boolean
+          description: true si el equipo sigue entregado
+        fechaAsignacion:
+          type: string
+          format: date-time
+        fechaDevolucion:
+          type: string
+          format: date-time
+          nullable: true
+        anioCompra:
+          type: integer
+          nullable: true
+        numeroActivo:
+          type: string
+          nullable: true
+        nombreEquipo:
+          type: string
+          nullable: true
+          example: MKT-PC-01
+        observacion:
+          type: string
+          nullable: true
+        usuario:
+          $ref: '#/components/schemas/UsuarioResumen'
+        activo:
+          type: object
+          required: [id, tipo, estado]
+          properties:
+            id:
+              type: integer
+              example: 439
+            claveActivo:
+              type: string
+              nullable: true
+              example: AF00010
+            tipo:
+              type: string
+              example: Laptop
+            marca:
+              type: string
+              nullable: true
+              example: Dell
+            modelo:
+              type: string
+              nullable: true
+              example: Latitude 3540
+            numeroSerie:
+              type: string
+              nullable: true
+              example: CXBF1Z3
+            estado:
+              $ref: '#/components/schemas/EstadoActivo'
+
+    RespuestaAsignacionesPaginada:
+      type: object
+      required: [success, message, errors, data, meta]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: Asignaciones obtenidas correctamente
+        errors:
+          type: array
+          items: {}
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AsignacionLista'
         meta:
           $ref: '#/components/schemas/MetaPaginacion'
 

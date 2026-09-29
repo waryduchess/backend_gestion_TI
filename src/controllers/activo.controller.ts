@@ -8,6 +8,7 @@ import {
   actualizar,
   cambiarEstado,
   asignar,
+  eliminar,
   listar,
   obtenerPorId,
 } from '../services/activo.service';
@@ -361,6 +362,27 @@ export const asignarActivo = asyncHandler(
     res.status(201).json({
       success: true,
       message: 'Activo asignado correctamente',
+      errors: [],
+      data: activo,
+    });
+  }
+);
+
+export const eliminarActivo = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const textoId = comoTexto(req.params.id);
+
+    if (!/^\d+$/.test(textoId)) {
+      throw new HttpError(400, 'El parametro "id" debe ser un numero entero', [
+        { campo: 'id', valor: textoId },
+      ]);
+    }
+
+    const activo: ActivoDetalle = await eliminar(Number(textoId));
+
+    res.status(200).json({
+      success: true,
+      message: 'Activo dado de baja correctamente',
       errors: [],
       data: activo,
     });

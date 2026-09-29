@@ -8,7 +8,9 @@ import {
   DatosCreacionActivo,
   DatosEdicionActivo,
   ParametrosListadoActivos,
+  ParametrosListadoAsignaciones,
   ResultadoListadoActivos,
+  ResultadoListadoAsignaciones,
 } from '../models/activo.model';
 
 const SELECT_USUARIO = {
@@ -449,6 +451,84 @@ export const devolver = async (idAsignacion: number): Promise<ActivoDetalle> => 
   }
 
   return obtenerPorId(asignacion.activo.id);
+};
+
+export const eliminar = async (id: number): Promise<ActivoDetalle> =>
+  cambiarEstado(id, 'DE_BAJA');
+
+export const listarAsignaciones = async (
+  parametros: ParametrosListadoAsignaciones
+): Promise<ResultadoListadoAsignaciones> => {
+  const { page, limit, activa, usuarioId, activoId, q } = parametros;
+  const skip = (page - 1) * limit;
+
+  const filtros: Prisma.AsignacionComputoWhereInput = {
+    ...(activa !== undefined ? { activa } : {}),
+    ...(usuarioId ? { usuarioId } : {}),
+    ...(activoId !== undefined ? { activoId } : {}),
+    ...(q
+      ? {
+          OR: [
+            { nombreEquipo: { contains: q } },
+            { numeroActivo: { contains: q } },
+            { observacion: { contains: q } },
+            {
+              activo: {
+                OR: [
+                  { claveActivo: { contains: q } },
+                  { nombreRed: { contains: q } },
+                ],
+              },
+            },
+          ],
+        }
+      : {}),
+  };
+
+  const [filas, total] = await Promise.all([
+    prisma.asignacionComputo.findMany({
+      where: filtros,
+      skip,
+      take: limit,
+      orderBy: [{ fechaAsignacion: 'desc' }, { id: 'desc' }],
+      include: {
+        usuario: SELECT_USUARIO,
+        activo: {
+          select: {
+            id: true,
+            claveActivo: true,
+            tipo: true,
+            marca: true,
+            modelo: true,
+            numeroSerie: true,
+            estado: true,
+          },
+        },
+      },
+    }),
+    prisma.asignacionComputo.count({ where: filtros }),
+  ]);
+
+  return {
+    asignaciones: filas.map((fila) => ({
+      id: fila.id,
+      activa: fila.activa,
+      fechaAsignacion: fila.fechaAsignacion,
+      fechaDevolucion: fila.fechaDevolucion,
+      anioCompra: fila.anioCompra,
+      numeroActivo: fila.numeroActivo,
+      nombreEquipo: fila.nombreEquipo,
+      observacion: fila.observacion,
+      usuario: fila.usuario,
+      activo: fila.activo,
+    })),
+    meta: {
+      page,
+      limit,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
+    },
+  };
 };
 
 export const ESTADOS_DE_ACTIVO: EstadoActivo[] = Object.values(EstadoActivo);

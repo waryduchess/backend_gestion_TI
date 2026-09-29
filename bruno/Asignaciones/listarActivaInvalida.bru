@@ -1,0 +1,23 @@
+meta {
+  name: Listar asignaciones activa invalida
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{baseUrl}}/api/asignaciones?activa=BOGUS
+  body: json
+  auth: none
+}
+
+assert {
+  res.status: eq 400
+}
+
+assert {
+  res.body.message: eq El parametro "activa" no tiene un valor valido
+}
+
+assert {
+  res.body.errors[0].campo: eq activa
+}
