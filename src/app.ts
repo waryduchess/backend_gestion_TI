@@ -3,7 +3,9 @@ import cors from 'cors';
 import express, { Application, Request, Response } from 'express';
 import { errorHandler, notFoundHandler } from './middlewares/error.middleware';
 import authRoutes from './routes/auth.routes';
+import activoRoutes from './routes/activo.routes';
 import incidenciaRoutes from './routes/incidencia.routes';
+import docsRoutes from './docs/docs.routes';
 
 const app: Application = express();
 
@@ -11,7 +13,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-app.get('/health', (_req: Request, res: Response) => {
+app.get('/health', (_req: Request, res: Response): void => {
   res.status(200).json({
     success: true,
     message: 'API operativa',
@@ -20,7 +22,9 @@ app.get('/health', (_req: Request, res: Response) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/activos', activoRoutes);
 app.use('/api/incidencias', incidenciaRoutes);
+app.use('/api/docs', docsRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

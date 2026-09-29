@@ -1,0 +1,38 @@
+meta {
+  name: Crear activo con clave duplicada
+  type: http
+  seq: 13
+}
+
+post {
+  url: {{baseUrl}}/api/activos
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "tipo": "Laptop",
+    "claveActivo": "AF00010"
+  }
+}
+
+assert {
+  res.status: eq 409
+}
+
+assert {
+  res.body.success: eq false
+}
+
+assert {
+  res.body.message: eq Ya existe un activo con esa clave
+}
+
+assert {
+  res.body.errors[0].campo: eq claveActivo
+}

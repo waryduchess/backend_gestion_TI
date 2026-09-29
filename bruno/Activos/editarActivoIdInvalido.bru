@@ -1,0 +1,29 @@
+meta {
+  name: Editar activo id invalido
+  type: http
+  seq: 20
+}
+
+patch {
+  url: {{baseUrl}}/api/activos/abc
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "marca": "Genius"
+  }
+}
+
+assert {
+  res.status: eq 400
+}
+
+assert {
+  res.body.errors[0].campo: eq id
+}

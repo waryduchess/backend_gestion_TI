@@ -1,0 +1,15 @@
+meta {
+  name: Listar activos limite invalido
+  type: http
+  seq: 9
+}
+
+get {
+  url: {{baseUrl}}/api/activos?limit=500
+  body: json
+  auth: none
+}
+
+assert {
+  res.status: eq 400
+}

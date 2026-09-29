@@ -1,0 +1,50 @@
+meta {
+  name: Crear activo
+  type: http
+  seq: 10
+}
+
+script:pre-request {
+  const clave = "AFTEST" + Date.now();
+  bru.setEnvVar("claveActivoPrueba", clave);
+}
+
+post {
+  url: {{baseUrl}}/api/activos
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "tipo": "Dispositivo de prueba",
+    "claveActivo": "{{claveActivoPrueba}}",
+    "marca": "Genius",
+    "numeroSerie": "SN{{claveActivoPrueba}}",
+    "sucursal": "CANCUN"
+  }
+}
+
+script:post-response {
+  bru.setEnvVar("ultimoActivoId", res.body.data.id);
+}
+
+assert {
+  res.status: eq 201
+}
+
+assert {
+  res.body.success: eq true
+}
+
+assert {
+  res.body.data.tipo: eq Dispositivo de prueba
+}
+
+assert {
+  res.body.data.estado: eq EN_USO
+}
