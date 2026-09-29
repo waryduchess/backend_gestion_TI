@@ -713,6 +713,145 @@ paths:
                   - campo: asignacionActiva
                     valor: '1'
 
+  /api/activos/{id}/asignaciones:
+    post:
+      tags: [activos]
+      summary: Asignar el activo a un usuario
+      description: >
+        Entrega el equipo a un usuario. En una sola transaccion: valida que el
+        activo no este DE_BAJA, que el usuario exista y que no haya otra
+        asignacion activa; crea o reactiva la asignacion del par
+        (usuario, activo) y pone el activo en EN_USO con responsable = usuario.
+        Si el usuario ya tuvo ese equipo (fila devuelta) la fila se reactiva.
+        Publico (sin token) mientras no se active RBAC.
+      operationId: asignarActivo
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            example: 439
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AsignacionActivoCreacion'
+            example:
+              usuarioId: A010
+              anioCompra: 2024
+              nombreEquipo: PC-CANCUN-01
+              observacion: Entrega inicial
+      responses:
+        '201':
+          description: Activo asignado correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaActivo'
+              example:
+                success: true
+                message: Activo asignado correctamente
+                errors: []
+                data:
+                  id: 652
+                  claveActivo: AFTEST1770000
+                  tipo: Laptop
+                  estado: EN_USO
+                  responsable:
+                    id: A010
+                    nombre: Lauriano Antonio Cruz Durante
+                    email: antonio.cruz@horbismex.com
+                  asignaciones:
+                    - id: 4
+                      activa: true
+                      fechaAsignacion: '2026-09-29T16:00:00.000Z'
+                      usuario:
+                        id: A010
+                        nombre: Lauriano Antonio Cruz Durante
+                        email: antonio.cruz@horbismex.com
+        '400':
+          description: id no entero, falta usuarioId, usuario inexistente o anioCompra no entero
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              examples:
+                idInvalido:
+                  summary: id no numerico
+                  value:
+                    success: false
+                    message: El parametro "id" debe ser un numero entero
+                    errors:
+                      - campo: id
+                        valor: abc
+                sinUsuario:
+                  summary: Body sin usuarioId
+                  value:
+                    success: false
+                    message: Faltan campos obligatorios
+                    errors:
+                      - campo: usuarioId
+                        valor: ''
+                        mensaje: El usuario es obligatorio
+                usuarioInexistente:
+                  summary: usuarioId sin coincidencia
+                  value:
+                    success: false
+                    message: El usuario no existe
+                    errors:
+                      - campo: usuarioId
+                        valor: ZZZZ99
+                        mensaje: El usuario no existe
+                anioInvalido:
+                  summary: anioCompra no entero
+                  value:
+                    success: false
+                    message: El campo "anioCompra" debe ser un numero entero
+                    errors:
+                      - campo: anioCompra
+                        valor: '2024.5'
+        '404':
+          description: No existe un activo con ese id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: Activo no encontrado
+                errors:
+                  - campo: id
+                    valor: '999999'
+        '409':
+          description: Activo DE_BAJA o con asignacion activa (o carrera con otra asignacion)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              examples:
+                asignacionActiva:
+                  summary: Ya hay una asignacion activa
+                  value:
+                    success: false
+                    message: El activo ya tiene una asignacion activa; devuelvelo antes de reasignarlo
+                    errors:
+                      - campo: activo
+                        valor: '652'
+                      - campo: asignacionActiva
+                        valor: '4'
+                dadoDeBaja:
+                  summary: Activo dado de baja
+                  value:
+                    success: false
+                    message: El activo esta dado de baja; no se puede asignar
+                    errors:
+                      - campo: estado
+                        valor: DE_BAJA
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1188,6 +1327,31 @@ components:
           allOf:
             - $ref: '#/components/schemas/EstadoActivo'
           description: Obligatorio; cualquier transicion entre los 4 estados
+
+    AsignacionActivoCreacion:
+      type: object
+      required: [usuarioId]
+      properties:
+        usuarioId:
+          type: string
+          description: Obligatorio; debe existir en el catalogo de usuarios
+          example: A010
+        anioCompra:
+          type: [integer, 'null']
+          minimum: 0
+          example: 2024
+        numeroActivo:
+          type: [string, 'null']
+        nombreEquipo:
+          type: [string, 'null']
+          description: Hostname del equipo
+          example: PC-CANCUN-01
+        bitlocker:
+          type: [string, 'null']
+          description: Clave de recuperacion (hoy en claro; candidata a cifrado AES-256-GCM)
+        observacion:
+          type: [string, 'null']
+          example: Entrega inicial
 
     RespuestaActivosPaginada:
       type: object

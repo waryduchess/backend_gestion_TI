@@ -1,0 +1,33 @@
+meta {
+  name: Asignar activo a usuario inexistente
+  type: http
+  seq: 31
+}
+
+post {
+  url: {{baseUrl}}/api/activos/{{ultimoActivoId}}/asignaciones
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "usuarioId": "ZZZZ99"
+  }
+}
+
+assert {
+  res.status: eq 400
+}
+
+assert {
+  res.body.message: eq El usuario no existe
+}
+
+assert {
+  res.body.errors[0].campo: eq usuarioId
+}

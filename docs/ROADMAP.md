@@ -1,3 +1,5 @@
+3
+
 # Roadmap - Backend Sistema de Gestion TI
 
 Estado de lo que **falta por desarrollar**. Este archivo es la memoria viva del proyecto:
@@ -7,16 +9,16 @@ conviene revisarlo antes de cada iteracion y actualizarlo al cerrar cada modulo.
 
 ## 1. Estado actual
 
-| Modulo | Endpoints | Documentado en Swagger | Bruno |
-|---|---|---|---|
-| Auth (`/api/auth`) | `POST /login`, `GET /me` | Si | 3 requests |
-| Incidencias (`/api/incidencias`) | `GET /` (listado paginado) | Si | 2 requests |
-| Activos (`/api/activos`) | `GET /`, `GET /:id` | Si | 9 requests |
-| Documentacion | `GET /api/docs`, `GET /api/docs/openapi.yaml` | - | - |
-| Usuarios / catalogos | ninguno | No | No |
-| RBAC / roles | ninguno | No | No |
-| Licencias | ninguno | No | No |
-| Secretos | ninguno | No | No |
+| Modulo                             | Endpoints                                         | Documentado en Swagger | Bruno      |
+| ---------------------------------- | ------------------------------------------------- | ---------------------- | ---------- |
+| Auth (`/api/auth`)               | `POST /login`, `GET /me`                      | Si                     | 3 requests |
+| Incidencias (`/api/incidencias`) | `GET /` (listado paginado)                      | Si                     | 2 requests |
+| Activos (`/api/activos`)         | `GET /`, `GET /:id`                           | Si                     | 9 requests |
+| Documentacion                      | `GET /api/docs`, `GET /api/docs/openapi.yaml` | -                      | -          |
+| Usuarios / catalogos               | ninguno                                           | No                     | No         |
+| RBAC / roles                       | ninguno                                           | No                     | No         |
+| Licencias                          | ninguno                                           | No                     | No         |
+| Secretos                           | ninguno                                           | No                     | No         |
 
 Verificado: `tsc` limpio, suite Bruno 14/14 requests y 19/19 assertions, spec valida con `swagger-cli`.
 
@@ -35,10 +37,10 @@ Verificado: `tsc` limpio, suite Bruno 14/14 requests y 19/19 assertions, spec va
 
 ### 2.2 Inventario de activos - hoy solo lectura
 
-- [x] `POST /api/activos` - registrar activo (solo tipo obligatorio, estado default EN_USO, publico; 409 en clave duplicada, 400 si responsableId no existe)
-- [x] `PATCH /api/activos/:id` - editar datos del activo (edicion parcial, null borra, estado fuera de aqui, responsableId id o null, publico)
+- [X] `POST /api/activos` - registrar activo (solo tipo obligatorio, estado default EN_USO, publico; 409 en clave duplicada, 400 si responsableId no existe)
+- [X] `PATCH /api/activos/:id` - editar datos del activo (edicion parcial, null borra, estado fuera de aqui, responsableId id o null, publico)
 - [X] `PATCH /api/activos/:id/estado` - transiciones EN_USO / EN_ALMACEN / EN_MANTENIMIENTO / DE_BAJA (libres, 409 si asignacion activa al bajar/almacenar, mismo estado = 200 idempotente, publico)
-- [ ] `POST /api/activos/:id/asignaciones` - asignar equipo a usuario (transaccion con estado del activo)
+- [X] `POST /api/activos/:id/asignaciones` - asignar equipo a usuario (transaccion: 409 si DE_BAJA o con asignacion activa, reactiva fila si el usuario ya lo tuvo, activo pasa a EN_USO con responsable = usuario, 201 con ActivoDetalle, publico)
 - [ ] `POST /api/asignaciones/:id/devolucion` - cerrar asignacion (`activa=false`, `fechaDevolucion`)
 - [ ] `DELETE /api/activos/:id` - baja del activo
 - [ ] `GET /api/asignaciones` - listado de asignaciones activas/historicas

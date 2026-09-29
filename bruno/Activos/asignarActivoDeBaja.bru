@@ -1,0 +1,33 @@
+meta {
+  name: Asignar activo dado de baja
+  type: http
+  seq: 34
+}
+
+post {
+  url: {{baseUrl}}/api/activos/{{activoParaBajaId}}/asignaciones
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "usuarioId": "A010"
+  }
+}
+
+assert {
+  res.status: eq 409
+}
+
+assert {
+  res.body.message: eq El activo esta dado de baja; no se puede asignar
+}
+
+assert {
+  res.body.errors[0].campo: eq estado
+}

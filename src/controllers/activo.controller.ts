@@ -7,12 +7,14 @@ import {
   crear,
   actualizar,
   cambiarEstado,
+  asignar,
   listar,
   obtenerPorId,
 } from '../services/activo.service';
 import {
   ActivoDetalle,
   ActivoResumen,
+  DatosAsignacionActivo,
   DatosCreacionActivo,
   DatosEdicionActivo,
   ParametrosListadoActivos,
@@ -298,6 +300,67 @@ export const cambiarEstadoActivo = asyncHandler(
     res.status(200).json({
       success: true,
       message: 'Estado del activo actualizado correctamente',
+      errors: [],
+      data: activo,
+    });
+  }
+);
+
+export const asignarActivo = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const textoId = comoTexto(req.params.id);
+
+    if (!/^\d+$/.test(textoId)) {
+      throw new HttpError(400, 'El parametro "id" debe ser un numero entero', [
+        { campo: 'id', valor: textoId },
+      ]);
+    }
+
+    const cuerpo = (req.body ?? {}) as Record<string, unknown>;
+    const usuarioId = comoTexto(cuerpo.usuarioId);
+
+    if (usuarioId === '') {
+      throw new HttpError(400, 'Faltan campos obligatorios', [
+        { campo: 'usuarioId', valor: '', mensaje: 'El usuario es obligatorio' },
+      ]);
+    }
+
+    let anioCompra: number | null = null;
+
+    if (cuerpo.anioCompra !== undefined && cuerpo.anioCompra !== null) {
+      const textoAnio =
+        typeof cuerpo.anioCompra === 'number'
+          ? String(cuerpo.anioCompra)
+          : comoTexto(cuerpo.anioCompra);
+
+      if (!/^\d+$/.test(textoAnio)) {
+        throw new HttpError(400, 'El campo "anioCompra" debe ser un numero entero', [
+          { campo: 'anioCompra', valor: textoAnio || String(cuerpo.anioCompra) },
+        ]);
+      }
+
+      anioCompra = Number(textoAnio);
+    }
+
+    const comoValor = (campo: string): string | null => {
+      const valor = comoTexto(cuerpo[campo]);
+      return valor === '' ? null : valor;
+    };
+
+    const datos: DatosAsignacionActivo = {
+      usuarioId,
+      anioCompra,
+      numeroActivo: comoValor('numeroActivo'),
+      nombreEquipo: comoValor('nombreEquipo'),
+      bitlocker: comoValor('bitlocker'),
+      observacion: comoValor('observacion'),
+    };
+
+    const activo: ActivoDetalle = await asignar(Number(textoId), datos);
+
+    res.status(201).json({
+      success: true,
+      message: 'Activo asignado correctamente',
       errors: [],
       data: activo,
     });

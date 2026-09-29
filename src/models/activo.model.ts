@@ -83,3 +83,12 @@ export interface DatosEdicionActivo {
   notas?: string | null;
   responsableId?: string | null;
 }
+
+export interface DatosAsignacionActivo {
+  usuarioId: string;
+  anioCompra: number | null;
+  numeroActivo: string | null;
+  nombreEquipo: string | null;
+  bitlocker: string | null;
+  observacion: string | null;
+}

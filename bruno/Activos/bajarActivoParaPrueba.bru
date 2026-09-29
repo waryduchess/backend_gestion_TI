@@ -1,0 +1,29 @@
+meta {
+  name: Dar de baja el activo de prueba
+  type: http
+  seq: 33
+}
+
+patch {
+  url: {{baseUrl}}/api/activos/{{activoParaBajaId}}/estado
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "estado": "DE_BAJA"
+  }
+}
+
+assert {
+  res.status: eq 200
+}
+
+assert {
+  res.body.data.estado: eq DE_BAJA
+}

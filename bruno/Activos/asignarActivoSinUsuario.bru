@@ -1,0 +1,31 @@
+meta {
+  name: Asignar activo sin usuario
+  type: http
+  seq: 30
+}
+
+post {
+  url: {{baseUrl}}/api/activos/{{ultimoActivoId}}/asignaciones
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {}
+}
+
+assert {
+  res.status: eq 400
+}
+
+assert {
+  res.body.message: eq Faltan campos obligatorios
+}
+
+assert {
+  res.body.errors[0].campo: eq usuarioId
+}
