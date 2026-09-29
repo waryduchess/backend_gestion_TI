@@ -41,7 +41,7 @@ Verificado: `tsc` limpio, suite Bruno 14/14 requests y 19/19 assertions, spec va
 - [X] `PATCH /api/activos/:id` - editar datos del activo (edicion parcial, null borra, estado fuera de aqui, responsableId id o null, publico)
 - [X] `PATCH /api/activos/:id/estado` - transiciones EN_USO / EN_ALMACEN / EN_MANTENIMIENTO / DE_BAJA (libres, 409 si asignacion activa al bajar/almacenar, mismo estado = 200 idempotente, publico)
 - [X] `POST /api/activos/:id/asignaciones` - asignar equipo a usuario (transaccion: 409 si DE_BAJA o con asignacion activa, reactiva fila si el usuario ya lo tuvo, activo pasa a EN_USO con responsable = usuario, 201 con ActivoDetalle, publico)
-- [ ] `POST /api/asignaciones/:id/devolucion` - cerrar asignacion (`activa=false`, `fechaDevolucion`)
+- [X] `POST /api/asignaciones/:id/devolucion` - cerrar asignacion (`activa=false`, `fechaDevolucion`, activo -> EN_ALMACEN, limpia responsableId si coincide, 200 idempotente, publico)
 - [ ] `DELETE /api/activos/:id` - baja del activo
 - [ ] `GET /api/asignaciones` - listado de asignaciones activas/historicas
 

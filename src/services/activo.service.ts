@@ -415,4 +415,40 @@ export const asignar = async (
   return obtenerPorId(idActivo);
 };
 
+export const devolver = async (idAsignacion: number): Promise<ActivoDetalle> => {
+  const asignacion = await prisma.asignacionComputo.findUnique({
+    where: { id: idAsignacion },
+    include: {
+      activo: { select: { id: true, responsableId: true } },
+    },
+  });
+
+  if (!asignacion) {
+    throw new HttpError(404, 'Asignacion no encontrada', [
+      { campo: 'id', valor: String(idAsignacion) },
+    ]);
+  }
+
+  if (asignacion.activa) {
+    const limpiarResponsable =
+      asignacion.activo.responsableId === asignacion.usuarioId;
+
+    await prisma.$transaction([
+      prisma.asignacionComputo.update({
+        where: { id: idAsignacion },
+        data: { activa: false, fechaDevolucion: new Date() },
+      }),
+      prisma.activo.update({
+        where: { id: asignacion.activo.id },
+        data: {
+          estado: 'EN_ALMACEN',
+          ...(limpiarResponsable ? { responsableId: null } : {}),
+        },
+      }),
+    ]);
+  }
+
+  return obtenerPorId(asignacion.activo.id);
+};
+
 export const ESTADOS_DE_ACTIVO: EstadoActivo[] = Object.values(EstadoActivo);

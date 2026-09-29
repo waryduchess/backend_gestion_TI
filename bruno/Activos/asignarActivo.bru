@@ -23,6 +23,10 @@ body:json {
   }
 }
 
+script:post-response {
+  bru.setEnvVar("asignacionId", res.body.data.asignaciones[0].id);
+}
+
 assert {
   res.status: eq 201
 }

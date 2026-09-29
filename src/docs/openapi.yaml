@@ -19,6 +19,8 @@ tags:
     description: Listado de tickets / incidencias
   - name: activos
     description: Inventario de activos de computo
+  - name: asignaciones
+    description: Entrega y devolucion de equipos
 
 paths:
   /api/auth/login:
@@ -851,6 +853,70 @@ paths:
                     errors:
                       - campo: estado
                         valor: DE_BAJA
+
+  /api/asignaciones/{id}/devolucion:
+    post:
+      tags: [asignaciones]
+      summary: Devolver un equipo asignado
+      description: >
+        Cierra la asignacion (activa=false, fechaDevolucion=now), pone el
+        activo en EN_ALMACEN y limpia responsableId solo si el responsable sigue
+        siendo el usuario que devuelve. Si la asignacion ya estaba devuelta
+        responde 200 sin modificar nada (idempotente). Publico (sin token)
+        mientras no se active RBAC.
+      operationId: devolverAsignacion
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Id de la asignacion
+          schema:
+            type: integer
+            minimum: 1
+            example: 4
+      responses:
+        '200':
+          description: Asignacion devuelta (o ya devuelta)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaActivo'
+              example:
+                success: true
+                message: Asignacion devuelta correctamente
+                errors: []
+                data:
+                  id: 655
+                  claveActivo: AFASIG01
+                  tipo: Laptop
+                  estado: EN_ALMACEN
+                  responsable: null
+                  asignaciones: []
+        '400':
+          description: El id no es un numero entero
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: El parametro "id" debe ser un numero entero
+                errors:
+                  - campo: id
+                    valor: abc
+        '404':
+          description: No existe una asignacion con ese id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: Asignacion no encontrada
+                errors:
+                  - campo: id
+                    valor: '999999'
 
 components:
   securitySchemes:
