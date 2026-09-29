@@ -467,6 +467,142 @@ paths:
                 errors:
                   - campo: id
                     valor: '999999'
+    patch:
+      tags: [activos]
+      summary: Editar datos de un activo
+      description: >
+        Edicion parcial: solo los campos presentes en el body se modifican;
+        un valor null o cadena vacia borra el dato. "estado" no se puede editar
+        aqui (futuro PATCH /api/activos/{id}/estado) y "responsableId" acepta
+        null para liberar el responsable. Publico (sin token) mientras no se
+        active RBAC.
+      operationId: actualizarActivo
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            example: 439
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActivoEdicion'
+            example:
+              marca: Lenovo
+              modelo: ThinkPad E15
+              notas: Reemplazo de teclado
+              sucursal: CANCUN
+      responses:
+        '200':
+          description: Activo actualizado correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaActivo'
+              example:
+                success: true
+                message: Activo actualizado correctamente
+                errors: []
+                data:
+                  id: 439
+                  claveActivo: AF00010
+                  cb23: '100003'
+                  tipo: Laptop
+                  marca: Lenovo
+                  modelo: ThinkPad E15
+                  numeroSerie: CXBF1Z3
+                  sucursal: CANCUN
+                  estado: EN_USO
+                  estadoGeneral: null
+                  nombreRed: null
+                  responsable:
+                    id: CT003
+                    nombre: Ernesto Marquez Lopez
+                    email: ernesto.marquez@horbismex.com
+                  numeroParte: null
+                  anydesk: null
+                  procesador: null
+                  memoria: null
+                  notas: Reemplazo de teclado
+                  asignaciones: []
+        '400':
+          description: >
+            id no entero, estado presente en el body, tipo vacio, sin campos
+            editables o responsableId inexistente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              examples:
+                idInvalido:
+                  summary: id no numerico
+                  value:
+                    success: false
+                    message: El parametro "id" debe ser un numero entero
+                    errors:
+                      - campo: id
+                        valor: abc
+                estadoNoEditable:
+                  summary: estado no se edita aqui
+                  value:
+                    success: false
+                    message: 'El campo "estado" no se puede editar aqui; use PATCH /api/activos/:id/estado'
+                    errors:
+                      - campo: estado
+                        valor: EN_ALMACEN
+                sinCampos:
+                  summary: Body sin campos editables
+                  value:
+                    success: false
+                    message: No se recibio ningun campo para actualizar
+                    errors: []
+                tipoVacio:
+                  summary: tipo en null o cadena vacia
+                  value:
+                    success: false
+                    message: Faltan campos obligatorios
+                    errors:
+                      - campo: tipo
+                        valor: ''
+                        mensaje: El tipo es obligatorio
+                responsableInexistente:
+                  summary: responsableId sin usuario
+                  value:
+                    success: false
+                    message: El usuario responsable no existe
+                    errors:
+                      - campo: responsableId
+                        valor: ZZZZ99
+                        mensaje: El usuario responsable no existe
+        '404':
+          description: No existe un activo con ese id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: Activo no encontrado
+                errors:
+                  - campo: id
+                    valor: '999999'
+        '409':
+          description: La nueva claveActivo ya pertenece a otro activo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: Ya existe un activo con esa clave
+                errors:
+                  - campo: claveActivo
+                    valor: AF00011
 
 components:
   securitySchemes:
@@ -886,6 +1022,53 @@ components:
         responsableId:
           type: string
           description: Id de un usuario existente; si no existe responde 400
+          example: A010
+
+    ActivoEdicion:
+      type: object
+      description: >
+        Body de PATCH /api/activos/{id}: solo los campos presentes se modifican;
+        null o cadena vacia borra el valor. No incluir "estado".
+      properties:
+        tipo:
+          type: string
+          description: No admite vacio (400); si se omite no se modifica
+          example: Laptop
+        claveActivo:
+          type: [string, 'null']
+          description: Debe ser unica entre activos; null la borra
+          example: AF00101
+        cb23:
+          type: [string, 'null']
+        marca:
+          type: [string, 'null']
+          example: Lenovo
+        modelo:
+          type: [string, 'null']
+          example: ThinkPad E15
+        numeroParte:
+          type: [string, 'null']
+        numeroSerie:
+          type: [string, 'null']
+          example: PF2XYZ99
+        sucursal:
+          type: [string, 'null']
+          example: CANCUN
+        anydesk:
+          type: [string, 'null']
+        nombreRed:
+          type: [string, 'null']
+        procesador:
+          type: [string, 'null']
+        memoria:
+          type: [string, 'null']
+        estadoGeneral:
+          type: [string, 'null']
+        notas:
+          type: [string, 'null']
+        responsableId:
+          type: [string, 'null']
+          description: Usuario existente; null o cadena vacia libera el responsable
           example: A010
 
     RespuestaActivosPaginada:

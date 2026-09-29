@@ -1,0 +1,20 @@
+meta {
+  name: Listar activos
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/activos?page=1&limit=5
+  body: json
+  auth: none
+}
+
+script:post-response {
+  bru.setEnvVar("primerActivoId", res.body.data[0].id);
+  bru.setEnvVar("totalActivos", res.body.meta.total);
+}
+
+assert {
+  res.status: eq 200
+}

@@ -1,0 +1,43 @@
+meta {
+  name: Editar activo
+  type: http
+  seq: 15
+}
+
+patch {
+  url: {{baseUrl}}/api/activos/{{ultimoActivoId}}
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "marca": "Genius editada",
+    "notas": "Editado por suite",
+    "sucursal": "PLAYA"
+  }
+}
+
+assert {
+  res.status: eq 200
+}
+
+assert {
+  res.body.success: eq true
+}
+
+assert {
+  res.body.data.marca: eq Genius editada
+}
+
+assert {
+  res.body.data.notas: eq Editado por suite
+}
+
+assert {
+  res.body.data.sucursal: eq PLAYA
+}

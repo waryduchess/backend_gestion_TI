@@ -1,0 +1,29 @@
+meta {
+  name: Editar activo con clave duplicada
+  type: http
+  seq: 19
+}
+
+patch {
+  url: {{baseUrl}}/api/activos/{{ultimoActivoId}}
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "claveActivo": "AF00010"
+  }
+}
+
+assert {
+  res.status: eq 409
+}
+
+assert {
+  res.body.message: eq Ya existe un activo con esa clave
+}

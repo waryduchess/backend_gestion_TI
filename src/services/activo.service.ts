@@ -5,6 +5,7 @@ import {
   ActivoDetalle,
   ActivoResumen,
   DatosCreacionActivo,
+  DatosEdicionActivo,
   ParametrosListadoActivos,
   ResultadoListadoActivos,
 } from '../models/activo.model';
@@ -189,6 +190,75 @@ export const crear = async (datos: DatosCreacionActivo): Promise<ActivoDetalle> 
     notas: fila.notas,
     asignaciones: [],
   };
+};
+
+export const actualizar = async (
+  id: number,
+  datos: DatosEdicionActivo
+): Promise<ActivoDetalle> => {
+  const existente = await prisma.activo.findUnique({
+    where: { id },
+    select: { id: true },
+  });
+
+  if (!existente) {
+    throw new HttpError(404, 'Activo no encontrado', [
+      { campo: 'id', valor: String(id) },
+    ]);
+  }
+
+  if (datos.responsableId) {
+    const responsable = await prisma.usuario.findUnique({
+      where: { id: datos.responsableId },
+    });
+
+    if (!responsable) {
+      throw new HttpError(400, 'El usuario responsable no existe', [
+        {
+          campo: 'responsableId',
+          valor: datos.responsableId,
+          mensaje: 'El usuario responsable no existe',
+        },
+      ]);
+    }
+  }
+
+  const data: Prisma.ActivoUpdateInput = {
+    ...(datos.tipo !== undefined ? { tipo: datos.tipo } : {}),
+    ...(datos.claveActivo !== undefined ? { claveActivo: datos.claveActivo } : {}),
+    ...(datos.cb23 !== undefined ? { cb23: datos.cb23 } : {}),
+    ...(datos.marca !== undefined ? { marca: datos.marca } : {}),
+    ...(datos.modelo !== undefined ? { modelo: datos.modelo } : {}),
+    ...(datos.numeroParte !== undefined ? { numeroParte: datos.numeroParte } : {}),
+    ...(datos.numeroSerie !== undefined ? { numeroSerie: datos.numeroSerie } : {}),
+    ...(datos.sucursal !== undefined ? { sucursal: datos.sucursal } : {}),
+    ...(datos.anydesk !== undefined ? { anydesk: datos.anydesk } : {}),
+    ...(datos.nombreRed !== undefined ? { nombreRed: datos.nombreRed } : {}),
+    ...(datos.procesador !== undefined ? { procesador: datos.procesador } : {}),
+    ...(datos.memoria !== undefined ? { memoria: datos.memoria } : {}),
+    ...(datos.estadoGeneral !== undefined ? { estadoGeneral: datos.estadoGeneral } : {}),
+    ...(datos.notas !== undefined ? { notas: datos.notas } : {}),
+    ...(datos.responsableId !== undefined
+      ? { responsableId: datos.responsableId }
+      : {}),
+  };
+
+  try {
+    await prisma.activo.update({ where: { id }, data });
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      throw new HttpError(409, 'Ya existe un activo con esa clave', [
+        { campo: 'claveActivo', valor: datos.claveActivo ?? null },
+      ]);
+    }
+
+    throw error;
+  }
+
+  return obtenerPorId(id);
 };
 
 export const ESTADOS_DE_ACTIVO: EstadoActivo[] = Object.values(EstadoActivo);

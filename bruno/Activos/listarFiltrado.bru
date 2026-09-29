@@ -1,0 +1,19 @@
+meta {
+  name: Listar activos filtrado por tipo
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/activos?tipo=Laptop&limit=5
+  body: json
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}
+
+assert {
+  res.body.data[0].tipo: eq Laptop
+}

@@ -5,6 +5,7 @@ import { comoEntero, comoTexto, validarCampoOpcion, validarOpcion } from '../uti
 import {
   ESTADOS_DE_ACTIVO,
   crear,
+  actualizar,
   listar,
   obtenerPorId,
 } from '../services/activo.service';
@@ -12,6 +13,7 @@ import {
   ActivoDetalle,
   ActivoResumen,
   DatosCreacionActivo,
+  DatosEdicionActivo,
   ParametrosListadoActivos,
 } from '../models/activo.model';
 import { RespuestaPaginada } from '../models/comun.model';
@@ -134,6 +136,134 @@ export const crearActivo = asyncHandler(
     res.status(201).json({
       success: true,
       message: 'Activo creado correctamente',
+      errors: [],
+      data: activo,
+    });
+  }
+);
+
+export const actualizarActivo = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const textoId = comoTexto(req.params.id);
+
+    if (!/^\d+$/.test(textoId)) {
+      throw new HttpError(400, 'El parametro "id" debe ser un numero entero', [
+        { campo: 'id', valor: textoId },
+      ]);
+    }
+
+    const id = Number(textoId);
+    const cuerpo = (req.body ?? {}) as Record<string, unknown>;
+
+    if ('estado' in cuerpo) {
+      throw new HttpError(
+        400,
+        'El campo "estado" no se puede editar aqui; use PATCH /api/activos/:id/estado',
+        [{ campo: 'estado', valor: comoTexto(cuerpo.estado) || null }]
+      );
+    }
+
+    const presente = (campo: string): boolean => campo in cuerpo;
+    const comoValor = (campo: string): string | null => {
+      const texto = comoTexto(cuerpo[campo]);
+      return texto === '' ? null : texto;
+    };
+
+    const datos: DatosEdicionActivo = {};
+    let camposRecibidos = 0;
+
+    if (presente('tipo')) {
+      const tipo = comoTexto(cuerpo.tipo);
+
+      if (tipo === '') {
+        throw new HttpError(400, 'Faltan campos obligatorios', [
+          { campo: 'tipo', valor: '', mensaje: 'El tipo es obligatorio' },
+        ]);
+      }
+
+      datos.tipo = tipo;
+      camposRecibidos += 1;
+    }
+
+    if (presente('claveActivo')) {
+      datos.claveActivo = comoValor('claveActivo');
+      camposRecibidos += 1;
+    }
+
+    if (presente('cb23')) {
+      datos.cb23 = comoValor('cb23');
+      camposRecibidos += 1;
+    }
+
+    if (presente('marca')) {
+      datos.marca = comoValor('marca');
+      camposRecibidos += 1;
+    }
+
+    if (presente('modelo')) {
+      datos.modelo = comoValor('modelo');
+      camposRecibidos += 1;
+    }
+
+    if (presente('numeroParte')) {
+      datos.numeroParte = comoValor('numeroParte');
+      camposRecibidos += 1;
+    }
+
+    if (presente('numeroSerie')) {
+      datos.numeroSerie = comoValor('numeroSerie');
+      camposRecibidos += 1;
+    }
+
+    if (presente('sucursal')) {
+      datos.sucursal = comoValor('sucursal');
+      camposRecibidos += 1;
+    }
+
+    if (presente('anydesk')) {
+      datos.anydesk = comoValor('anydesk');
+      camposRecibidos += 1;
+    }
+
+    if (presente('nombreRed')) {
+      datos.nombreRed = comoValor('nombreRed');
+      camposRecibidos += 1;
+    }
+
+    if (presente('procesador')) {
+      datos.procesador = comoValor('procesador');
+      camposRecibidos += 1;
+    }
+
+    if (presente('memoria')) {
+      datos.memoria = comoValor('memoria');
+      camposRecibidos += 1;
+    }
+
+    if (presente('estadoGeneral')) {
+      datos.estadoGeneral = comoValor('estadoGeneral');
+      camposRecibidos += 1;
+    }
+
+    if (presente('notas')) {
+      datos.notas = comoValor('notas');
+      camposRecibidos += 1;
+    }
+
+    if (presente('responsableId')) {
+      datos.responsableId = comoValor('responsableId');
+      camposRecibidos += 1;
+    }
+
+    if (camposRecibidos === 0) {
+      throw new HttpError(400, 'No se recibio ningun campo para actualizar', []);
+    }
+
+    const activo: ActivoDetalle = await actualizar(id, datos);
+
+    res.status(200).json({
+      success: true,
+      message: 'Activo actualizado correctamente',
       errors: [],
       data: activo,
     });

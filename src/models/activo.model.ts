@@ -65,3 +65,21 @@ export interface DatosCreacionActivo {
   estado?: EstadoActivo;
   responsableId?: string;
 }
+
+export interface DatosEdicionActivo {
+  tipo?: string;
+  claveActivo?: string | null;
+  cb23?: string | null;
+  marca?: string | null;
+  modelo?: string | null;
+  numeroParte?: string | null;
+  numeroSerie?: string | null;
+  sucursal?: string | null;
+  anydesk?: string | null;
+  nombreRed?: string | null;
+  procesador?: string | null;
+  memoria?: string | null;
+  estadoGeneral?: string | null;
+  notas?: string | null;
+  responsableId?: string | null;
+}

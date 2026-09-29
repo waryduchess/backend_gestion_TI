@@ -1,0 +1,33 @@
+meta {
+  name: Editar activo con responsable inexistente
+  type: http
+  seq: 18
+}
+
+patch {
+  url: {{baseUrl}}/api/activos/{{ultimoActivoId}}
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "responsableId": "ZZZZ99"
+  }
+}
+
+assert {
+  res.status: eq 400
+}
+
+assert {
+  res.body.message: eq El usuario responsable no existe
+}
+
+assert {
+  res.body.errors[0].campo: eq responsableId
+}

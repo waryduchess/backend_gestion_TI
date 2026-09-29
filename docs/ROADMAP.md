@@ -36,7 +36,7 @@ Verificado: `tsc` limpio, suite Bruno 14/14 requests y 19/19 assertions, spec va
 ### 2.2 Inventario de activos - hoy solo lectura
 
 - [x] `POST /api/activos` - registrar activo (solo tipo obligatorio, estado default EN_USO, publico; 409 en clave duplicada, 400 si responsableId no existe)
-- [ ] `PATCH /api/activos/:id` - editar datos del activo
+- [x] `PATCH /api/activos/:id` - editar datos del activo (edicion parcial, null borra, estado fuera de aqui, responsableId id o null, publico)
 - [ ] `PATCH /api/activos/:id/estado` - transiciones EN_USO / EN_ALMACEN / EN_MANTENIMIENTO / DE_BAJA
 - [ ] `POST /api/activos/:id/asignaciones` - asignar equipo a usuario (transaccion con estado del activo)
 - [ ] `POST /api/asignaciones/:id/devolucion` - cerrar asignacion (`activa=false`, `fechaDevolucion`)

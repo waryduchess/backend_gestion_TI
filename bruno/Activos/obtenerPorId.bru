@@ -1,0 +1,15 @@
+meta {
+  name: Obtener activo por id
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/api/activos/{{primerActivoId}}
+  body: json
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}
