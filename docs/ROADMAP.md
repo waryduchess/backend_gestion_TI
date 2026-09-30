@@ -12,17 +12,17 @@ conviene revisarlo antes de cada iteracion y actualizarlo al cerrar cada modulo.
 | Modulo                             | Endpoints                                         | Documentado en Swagger | Bruno      |
 | ---------------------------------- | ------------------------------------------------- | ---------------------- | ---------- |
 | Auth (`/api/auth`)               | `POST /login`, `GET /me`                      | Si                     | 3 requests |
-| Incidencias (`/api/incidencias`) | `GET /` (listado paginado)                      | Si                     | 2 requests |
-| Activos (`/api/activos`)         | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `PATCH /:id/estado`, `POST /:id/asignaciones`, `DELETE /:id` | Si                     | 40 requests |
+| Incidencias (`/api/incidencias`) | `GET /` (listado paginado)                      | Si                     | 3 requests |
+| Activos (`/api/activos`)       | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `PATCH /:id/estado`, `POST /:id/asignaciones`, `DELETE /:id` | Si                     | 41 requests |
 | Asignaciones (`/api/asignaciones`) | `GET /`, `POST /:id/devolucion`               | Si                     | 8 requests |
 | Usuarios (`/api/usuarios`)       | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `PATCH /:id/password`, `DELETE /:id` | Si                     | 21 requests |
 | Documentacion                      | `GET /api/docs`, `GET /api/docs/openapi.yaml` | -                      | -          |
-| Catalogos (departamentos, etc.)    | ninguno                                           | No                     | No         |
-| RBAC / roles                       | ninguno                                           | No                     | No         |
+| Catalogos (`/api/catalogos`)       | `GET /` (departamentos, ubicaciones, puestos, tipos de usuario y roles) | Si | 1 request |
+| RBAC / roles                       | CRUD `/api/roles`, asignar rol a usuario          | Si                     | Pruebas RBAC |
 | Licencias                          | ninguno                                           | No                     | No         |
 | Secretos                           | ninguno                                           | No                     | No         |
 
-Verificado: `tsc` limpio, spec valida con `swagger-cli` (13 paths), suite Bruno 74/74 requests y 180/180 assertions.
+Verificado tras agregar RBAC: `npx tsc --noEmit`, `prisma validate`, OpenAPI y suite Bruno (91/91 requests, 212/212 assertions).
 
 ---
 
@@ -39,13 +39,13 @@ Verificado: `tsc` limpio, spec valida con `swagger-cli` (13 paths), suite Bruno 
 
 ### 2.2 Inventario de activos - hoy solo lectura
 
-- [X] `POST /api/activos` - registrar activo (solo tipo obligatorio, estado default EN_USO, publico; 409 en clave duplicada, 400 si responsableId no existe)
-- [X] `PATCH /api/activos/:id` - editar datos del activo (edicion parcial, null borra, estado fuera de aqui, responsableId id o null, publico)
-- [X] `PATCH /api/activos/:id/estado` - transiciones EN_USO / EN_ALMACEN / EN_MANTENIMIENTO / DE_BAJA (libres, 409 si asignacion activa al bajar/almacenar, mismo estado = 200 idempotente, publico)
-- [X] `POST /api/activos/:id/asignaciones` - asignar equipo a usuario (transaccion: 409 si DE_BAJA o con asignacion activa, reactiva fila si el usuario ya lo tuvo, activo pasa a EN_USO con responsable = usuario, 201 con ActivoDetalle, publico)
-- [X] `POST /api/asignaciones/:id/devolucion` - cerrar asignacion (`activa=false`, `fechaDevolucion`, activo -> EN_ALMACEN, limpia responsableId si coincide, 200 idempotente, publico)
-- [X] `DELETE /api/activos/:id` - baja **logica** (estado `DE_BAJA`, nunca borra filas; 200 idempotente si ya estaba, 409 con asignacion activa, publico)
-- [X] `GET /api/asignaciones` - listado paginado y filtrable (`page`, `limit`, `activa`, `usuarioId`, `activoId`, `q`; sin `bitlocker`; publico)
+- [X] `POST /api/activos` - registrar activo (solo tipo obligatorio, estado default EN_USO; requiere `activos:crear`; 409 en clave duplicada, 400 si responsableId no existe)
+- [X] `PATCH /api/activos/:id` - editar datos del activo (edicion parcial, null borra; requiere `activos:editar`)
+- [X] `PATCH /api/activos/:id/estado` - transiciones EN_USO / EN_ALMACEN / EN_MANTENIMIENTO / DE_BAJA; requiere `activos:estado`
+- [X] `POST /api/activos/:id/asignaciones` - asignar equipo a usuario; requiere `activos:asignar`
+- [X] `POST /api/asignaciones/:id/devolucion` - cerrar asignacion; requiere `activos:asignar`
+- [X] `DELETE /api/activos/:id` - baja **logica** (estado `DE_BAJA`); requiere `activos:eliminar`
+- [X] `GET /api/asignaciones` - listado paginado y filtrable (sin `bitlocker`); requiere `activos:leer`
 
 ### 2.3 Usuarios y catalogos
 
@@ -55,14 +55,21 @@ Verificado: `tsc` limpio, spec valida con `swagger-cli` (13 paths), suite Bruno 
 - [X] `PATCH /api/usuarios/:id` - editar datos (parcial, null borra, `id` y `password` fuera de aqui -> 400 con hint)
 - [X] `PATCH /api/usuarios/:id/password` - alta/rotacion de password (bcrypt)
 - [X] `DELETE /api/usuarios/:id` - baja **logica** (`activo=false`, 200 idempotente, nunca borra filas)
+- [X] `GET /api/catalogos` - devuelve departamentos, ubicaciones, puestos, tipos de usuario y roles ordenados por nombre
 - [ ] CRUD `/api/departamentos`, `/api/ubicaciones`, `/api/puestos`, `/api/tipos-usuario`
 
-### 2.4 RBAC - modelo `Rol` existe con 0 registros
+### 2.4 RBAC - roles y permisos
 
-- [ ] CRUD `/api/roles` (nombre + permisos)
-- [ ] Middleware `verificarRol(...)` en `src/middlewares/auth.middleware.ts`
-- [ ] Aplicar `verificarToken` a incidencias y activos (hoy estan publicos; solo `/api/auth` lo usa)
-- [ ] Asignar rol a usuario (`Usuario.rolId`)
+- [X] CRUD `/api/roles` (nombre + permisos; permisos validados contra allowlist; baja logica; no permite desactivar roles asignados)
+- [X] Middleware de permisos en `src/middlewares/auth.middleware.ts`; recarga usuario/rol desde BD para aplicar revocaciones de inmediato
+- [X] Aplicar `verificarToken` + permisos a incidencias, activos y asignaciones
+- [X] `PATCH /api/usuarios/:id/rol` para asignar o quitar un rol; solo roles con `roles:administrar`
+- [X] Seed crea/reactiva el rol Administrador, le asigna todos los permisos y lo asigna al usuario `ADMIN`
+
+Permisos iniciales: `incidencias:leer`, `activos:leer`, `activos:crear`,
+`activos:editar`, `activos:estado`, `activos:asignar`, `activos:eliminar` y
+`roles:administrar`. Se protege contra dejar el sistema sin ningun rol capaz de
+administrar roles. El catalogo solo expone nombre e id de roles activos.
 
 ### 2.5 Licencias - modelo `Licencia` existe sin endpoints
 
@@ -101,3 +108,11 @@ Verificado: `tsc` limpio, spec valida con `swagger-cli` (13 paths), suite Bruno 
 4. Al cerrar un modulo: correr `npx tsc --noEmit` y la suite Bruno (`cd bruno && npx @usebruno/cli run . -r --env Local`).
 5. Marcar los checkboxes de este archivo al completar cada item.
 6. **Borrados logicos siempre**: ningun `DELETE` borra filas de la base. En activos se implementa con el estado `DE_BAJA` (sin migracion, 200 idempotente); cada modulo define su mecanismo al implementarse, pero la regla es universal.
+
+## 5. Fuentes Excel y modelo de datos
+
+La comparación documentada de las fuentes externas contra Prisma está en
+[`docs/EXCEL_BD_ANALISIS.md`](EXCEL_BD_ANALISIS.md). Antes de crear un
+importador deben aprobarse la normalización de accesos, proveedores, líneas
+telefónicas y redes Wi-Fi, además del tratamiento de periféricos y filas
+incompletas.

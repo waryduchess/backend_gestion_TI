@@ -57,9 +57,11 @@ enum EstadoActivo {
 // ------------------------------------------------------
 
 model Rol {
-  id       Int       @id @default(autoincrement())
-  nombre   String    @unique
-  usuarios Usuario[]
+  id        Int       @id @default(autoincrement())
+  nombre    String    @unique
+  permisos  Json
+  activo    Boolean   @default(true)
+  usuarios  Usuario[]
 }
 
 model Departamento {

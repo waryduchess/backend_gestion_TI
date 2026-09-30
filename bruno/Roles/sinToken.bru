@@ -1,0 +1,15 @@
+meta {
+  name: Roles requiere autenticacion
+  type: http
+  seq: 13
+}
+
+get {
+  url: {{baseUrl}}/api/roles
+  body: json
+  auth: none
+}
+
+assert {
+  res.status: eq 401
+}

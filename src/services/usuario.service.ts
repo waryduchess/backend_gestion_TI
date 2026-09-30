@@ -142,6 +142,36 @@ export const obtenerPorId = async (id: string): Promise<UsuarioDetalle> => {
   return mapear(fila);
 };
 
+export const asignarRol = async (
+  id: string,
+  rolId: number | null
+): Promise<UsuarioDetalle> => {
+  const usuario = await prisma.usuario.findUnique({ where: { id } });
+  if (!usuario) {
+    throw new HttpError(404, 'Usuario no encontrado', [{ campo: 'id', valor: id }]);
+  }
+
+  if (rolId !== null) {
+    const rol = await prisma.rol.findFirst({
+      where: { id: rolId, activo: true },
+      select: { id: true },
+    });
+    if (!rol) {
+      throw new HttpError(400, 'El rol indicado no existe o esta inactivo', [
+        { campo: 'rolId', valor: rolId },
+      ]);
+    }
+  }
+
+  const fila = await prisma.usuario.update({
+    where: { id },
+    data: { rolId },
+    include: SELECT_CATALOGOS.include,
+  });
+
+  return mapear(fila);
+};
+
 export const crear = async (datos: DatosCreacionUsuario): Promise<UsuarioDetalle> => {
   await verificarCatalogo('departamentoId', datos.departamentoId);
   await verificarCatalogo('ubicacionId', datos.ubicacionId);

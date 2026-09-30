@@ -61,7 +61,8 @@ docker compose up -d
 # El API aplica solo: prisma generate && prisma migrate deploy && npm run dev
 
 docker compose exec api npm run seed
-# crea/actualiza el usuario ADMIN (id: ADMIN) con ADMIN_EMAIL/ADMIN_PASSWORD
+# crea/actualiza el rol Administrador con todos los permisos disponibles
+# y el usuario ADMIN asignado a ese rol
 # salida esperada: "Admin actualizado: ADMIN <email>"
 ```
 
@@ -69,6 +70,9 @@ Verificacion:
 * Swagger: http://localhost:3000/api/docs/
 * Login: `POST /api/auth/login` con `ADMIN_EMAIL` / `ADMIN_PASSWORD` de `.env`
 * phpMyAdmin: http://localhost:8081 (usuario `gestion_ti`)
+* Las rutas de incidencias, activos, asignaciones y administracion de roles
+  requieren JWT y permisos del rol. Los usuarios sin rol activo no tienen
+  acceso a esos modulos.
 
 Notas:
 * La base queda vacia salvo el admin; los datos de ejemplo no se incluyen.
@@ -105,7 +109,11 @@ cd bruno
 cp environments/Local.example.bru environments/Local.bru
 # editar Local.bru: adminEmail y adminPassword = los de tu .env
 npx @usebruno/cli run . -r --env Local            # correr toda la suite
-npx @usebruno/cli run Activos -r --env Local      # solo una carpeta
+npx @usebruno/cli run Roles -r --env Local        # RBAC (requiere seed del admin)
 ```
+
+Los requests protegidos realizan login con `adminEmail` y `adminPassword` antes
+de cada prueba, por lo que también pueden ejecutarse por carpeta. Asegurate de
+haber aplicado migraciones y ejecutado el seed actualizado.
 
 Las demas variables (`ultimoActivoId`, `asignacionId`, ...) las generan los scripts de cada request durante la corrida; no hay que crearlas a mano.

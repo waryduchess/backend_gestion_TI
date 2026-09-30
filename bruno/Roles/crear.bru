@@ -1,0 +1,42 @@
+meta {
+  name: Crear rol RBAC de prueba
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/roles
+  body: json
+  auth: none
+}
+
+script:pre-request {
+  bru.setVar("nombreRolPrueba", `RBAC-${Date.now()}`);
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "nombre": "{{nombreRolPrueba}}",
+    "permisos": ["activos:leer"]
+  }
+}
+
+script:post-response {
+  if (res.status === 201) bru.setVar("rolPruebaId", res.body.data.id);
+}
+
+assert {
+  res.status: eq 201
+}
+
+assert {
+  res.body.data.permisos: isArray
+}
