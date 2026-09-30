@@ -1,0 +1,15 @@
+meta {
+  name: Eliminar activo inexistente
+  type: http
+  seq: 40
+}
+
+delete {
+  url: {{baseUrl}}/api/activos/999999
+  body: json
+  auth: none
+}
+
+assert {
+  res.status: eq 404
+}

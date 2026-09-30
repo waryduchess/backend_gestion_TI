@@ -4,7 +4,9 @@ import express, { Application, Request, Response } from 'express';
 import { errorHandler, notFoundHandler } from './middlewares/error.middleware';
 import authRoutes from './routes/auth.routes';
 import activoRoutes from './routes/activo.routes';
+import asignacionRoutes from './routes/asignacion.routes';
 import incidenciaRoutes from './routes/incidencia.routes';
+import usuarioRoutes from './routes/usuario.routes';
 import docsRoutes from './docs/docs.routes';
 
 const app: Application = express();
@@ -23,7 +25,9 @@ app.get('/health', (_req: Request, res: Response): void => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/activos', activoRoutes);
+app.use('/api/asignaciones', asignacionRoutes);
 app.use('/api/incidencias', incidenciaRoutes);
+app.use('/api/usuarios', usuarioRoutes);
 app.use('/api/docs', docsRoutes);
 
 app.use(notFoundHandler);

@@ -1,0 +1,29 @@
+meta {
+  name: Cambiar estado activo inexistente
+  type: http
+  seq: 26
+}
+
+patch {
+  url: {{baseUrl}}/api/activos/999999/estado
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "estado": "EN_USO"
+  }
+}
+
+assert {
+  res.status: eq 404
+}
+
+assert {
+  res.body.message: eq Activo no encontrado
+}

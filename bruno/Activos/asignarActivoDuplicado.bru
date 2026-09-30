@@ -1,0 +1,37 @@
+meta {
+  name: Asignar activo ya asignado
+  type: http
+  seq: 29
+}
+
+post {
+  url: {{baseUrl}}/api/activos/{{ultimoActivoId}}/asignaciones
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "usuarioId": "A010"
+  }
+}
+
+assert {
+  res.status: eq 409
+}
+
+assert {
+  res.body.success: eq false
+}
+
+assert {
+  res.body.message: eq El activo ya tiene una asignacion activa; devuelvelo antes de reasignarlo
+}
+
+assert {
+  res.body.errors[1].campo: eq asignacionActiva
+}

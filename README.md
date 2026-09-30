@@ -35,5 +35,77 @@ Asegurate de tener instalado lo siguiente en tu entorno local:
 
 ### 1. Clonar el repositorio
 ```bash
-git clone [https://github.com/waryduchess/backend_gestion_TI.git](https://github.com/waryduchess/backend_gestion_TI.git)
+git clone https://github.com/waryduchess/backend_gestion_TI.git
 cd backend_gestion_TI
+```
+
+### 2. Crear el archivo de entorno
+```bash
+cp .env.example .env
+```
+Variables minimas a cambiar en `.env`:
+* `JWT_SECRET` - secreto para firmar los tokens
+* `ADMIN_EMAIL` / `ADMIN_PASSWORD` / `ADMIN_NAME` - credenciales del usuario admin que crea el seed
+
+El resto de variables (`SMTP_*`, `S3_*`, `OLLAMA_*`, `AES_SECRET_KEY`) solo se necesitan al usar esas features.
+
+---
+
+## Primer arranque
+
+Solo requiere git + Docker (Node no es necesario, todo corre en contenedores):
+
+```bash
+docker compose up -d
+# levanta MySQL (healthcheck), phpMyAdmin y el API.
+# El API aplica solo: prisma generate && prisma migrate deploy && npm run dev
+
+docker compose exec api npm run seed
+# crea/actualiza el usuario ADMIN (id: ADMIN) con ADMIN_EMAIL/ADMIN_PASSWORD
+# salida esperada: "Admin actualizado: ADMIN <email>"
+```
+
+Verificacion:
+* Swagger: http://localhost:3000/api/docs/
+* Login: `POST /api/auth/login` con `ADMIN_EMAIL` / `ADMIN_PASSWORD` de `.env`
+* phpMyAdmin: http://localhost:8081 (usuario `gestion_ti`)
+
+Notas:
+* La base queda vacia salvo el admin; los datos de ejemplo no se incluyen.
+* Opcional (IA local): `docker compose --profile ai up -d` levanta el servicio Ollama.
+* Si editas `src/app.ts`, reinicia el contenedor: `docker compose up -d --force-recreate api`
+
+---
+
+## Desarrollo local (sin Docker para el API)
+
+```bash
+npm install
+npm run prisma:generate
+npm run prisma:deploy    # aplica migraciones (requiere MySQL corriendo y DATABASE_URL en .env)
+npm run dev              # ts-node-dev en http://localhost:3000
+npm run seed             # usuario admin
+```
+
+Comandos de verificacion:
+```bash
+npx tsc --noEmit                                   # typecheck
+npx @apidevtools/swagger-cli validate src/docs/openapi.yaml   # spec Swagger
+cd bruno && npx @usebruno/cli run . -r --env Local           # suite Bruno
+```
+
+---
+
+## Coleccion Bruno (pruebas)
+
+`bruno/environments/Local.bru` no se commitea (contiene credenciales); la plantilla si:
+
+```bash
+cd bruno
+cp environments/Local.example.bru environments/Local.bru
+# editar Local.bru: adminEmail y adminPassword = los de tu .env
+npx @usebruno/cli run . -r --env Local            # correr toda la suite
+npx @usebruno/cli run Activos -r --env Local      # solo una carpeta
+```
+
+Las demas variables (`ultimoActivoId`, `asignacionId`, ...) las generan los scripts de cada request durante la corrida; no hay que crearlas a mano.

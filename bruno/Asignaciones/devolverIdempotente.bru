@@ -1,0 +1,23 @@
+meta {
+  name: Devolver equipo ya devuelto
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/asignaciones/{{asignacionId}}/devolucion
+  body: json
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}
+
+assert {
+  res.body.message: eq Asignacion devuelta correctamente
+}
+
+assert {
+  res.body.data.estado: eq EN_ALMACEN
+}

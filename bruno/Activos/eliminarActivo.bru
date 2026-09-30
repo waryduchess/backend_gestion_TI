@@ -1,0 +1,27 @@
+meta {
+  name: Eliminar activo (borrado logico)
+  type: http
+  seq: 36
+}
+
+delete {
+  url: {{baseUrl}}/api/activos/{{activoParaEliminarId}}
+  body: json
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}
+
+assert {
+  res.body.success: eq true
+}
+
+assert {
+  res.body.message: eq Activo dado de baja correctamente
+}
+
+assert {
+  res.body.data.estado: eq DE_BAJA
+}

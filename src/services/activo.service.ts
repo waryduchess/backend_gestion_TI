@@ -4,10 +4,13 @@ import { HttpError } from '../middlewares/error.middleware';
 import {
   ActivoDetalle,
   ActivoResumen,
+  DatosAsignacionActivo,
   DatosCreacionActivo,
   DatosEdicionActivo,
   ParametrosListadoActivos,
+  ParametrosListadoAsignaciones,
   ResultadoListadoActivos,
+  ResultadoListadoAsignaciones,
 } from '../models/activo.model';
 
 const SELECT_USUARIO = {
@@ -259,6 +262,273 @@ export const actualizar = async (
   }
 
   return obtenerPorId(id);
+};
+
+export const cambiarEstado = async (
+  id: number,
+  estado: EstadoActivo
+): Promise<ActivoDetalle> => {
+  const fila = await prisma.activo.findUnique({
+    where: { id },
+    include: {
+      asignaciones: {
+        where: { activa: true },
+        select: { id: true },
+      },
+    },
+  });
+
+  if (!fila) {
+    throw new HttpError(404, 'Activo no encontrado', [
+      { campo: 'id', valor: String(id) },
+    ]);
+  }
+
+  const estadosQueExigenDevolucion: EstadoActivo[] = ['DE_BAJA', 'EN_ALMACEN'];
+
+  if (
+    fila.estado !== estado &&
+    estadosQueExigenDevolucion.includes(estado) &&
+    fila.asignaciones.length > 0
+  ) {
+    throw new HttpError(
+      409,
+      `El activo tiene una asignacion activa; devuelvelo antes de cambiar a ${estado}`,
+      [
+        { campo: 'estado', valor: estado },
+        { campo: 'asignacionActiva', valor: String(fila.asignaciones[0].id) },
+      ]
+    );
+  }
+
+  if (fila.estado !== estado) {
+    await prisma.activo.update({ where: { id }, data: { estado } });
+  }
+
+  return obtenerPorId(id);
+};
+
+export const asignar = async (
+  idActivo: number,
+  datos: DatosAsignacionActivo
+): Promise<ActivoDetalle> => {
+  try {
+    await prisma.$transaction(async (tx) => {
+      const activo = await tx.activo.findUnique({ where: { id: idActivo } });
+
+      if (!activo) {
+        throw new HttpError(404, 'Activo no encontrado', [
+          { campo: 'id', valor: String(idActivo) },
+        ]);
+      }
+
+      if (activo.estado === 'DE_BAJA') {
+        throw new HttpError(409, 'El activo esta dado de baja; no se puede asignar', [
+          { campo: 'estado', valor: activo.estado },
+        ]);
+      }
+
+      const usuario = await tx.usuario.findUnique({
+        where: { id: datos.usuarioId },
+      });
+
+      if (!usuario) {
+        throw new HttpError(400, 'El usuario no existe', [
+          {
+            campo: 'usuarioId',
+            valor: datos.usuarioId,
+            mensaje: 'El usuario no existe',
+          },
+        ]);
+      }
+
+      const asignacionActiva = await tx.asignacionComputo.findFirst({
+        where: { activoId: idActivo, activa: true },
+      });
+
+      if (asignacionActiva) {
+        throw new HttpError(
+          409,
+          'El activo ya tiene una asignacion activa; devuelvelo antes de reasignarlo',
+          [
+            { campo: 'activo', valor: String(idActivo) },
+            { campo: 'asignacionActiva', valor: String(asignacionActiva.id) },
+          ]
+        );
+      }
+
+      const previa = await tx.asignacionComputo.findUnique({
+        where: {
+          usuarioId_activoId: {
+            usuarioId: datos.usuarioId,
+            activoId: idActivo,
+          },
+        },
+      });
+
+      const datosAsignacion = {
+        anioCompra: datos.anioCompra,
+        numeroActivo: datos.numeroActivo,
+        nombreEquipo: datos.nombreEquipo,
+        bitlocker: datos.bitlocker,
+        observacion: datos.observacion,
+      };
+
+      if (previa) {
+        await tx.asignacionComputo.update({
+          where: { id: previa.id },
+          data: {
+            ...datosAsignacion,
+            activa: true,
+            fechaAsignacion: new Date(),
+            fechaDevolucion: null,
+          },
+        });
+      } else {
+        await tx.asignacionComputo.create({
+          data: {
+            usuarioId: datos.usuarioId,
+            activoId: idActivo,
+            ...datosAsignacion,
+            activa: true,
+          },
+        });
+      }
+
+      await tx.activo.update({
+        where: { id: idActivo },
+        data: { estado: 'EN_USO', responsableId: datos.usuarioId },
+      });
+    });
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      throw new HttpError(409, 'La asignacion ya existe; vuelve a intentarlo', [
+        { campo: 'usuarioId', valor: datos.usuarioId },
+        { campo: 'activoId', valor: String(idActivo) },
+      ]);
+    }
+
+    throw error;
+  }
+
+  return obtenerPorId(idActivo);
+};
+
+export const devolver = async (idAsignacion: number): Promise<ActivoDetalle> => {
+  const asignacion = await prisma.asignacionComputo.findUnique({
+    where: { id: idAsignacion },
+    include: {
+      activo: { select: { id: true, responsableId: true } },
+    },
+  });
+
+  if (!asignacion) {
+    throw new HttpError(404, 'Asignacion no encontrada', [
+      { campo: 'id', valor: String(idAsignacion) },
+    ]);
+  }
+
+  if (asignacion.activa) {
+    const limpiarResponsable =
+      asignacion.activo.responsableId === asignacion.usuarioId;
+
+    await prisma.$transaction([
+      prisma.asignacionComputo.update({
+        where: { id: idAsignacion },
+        data: { activa: false, fechaDevolucion: new Date() },
+      }),
+      prisma.activo.update({
+        where: { id: asignacion.activo.id },
+        data: {
+          estado: 'EN_ALMACEN',
+          ...(limpiarResponsable ? { responsableId: null } : {}),
+        },
+      }),
+    ]);
+  }
+
+  return obtenerPorId(asignacion.activo.id);
+};
+
+export const eliminar = async (id: number): Promise<ActivoDetalle> =>
+  cambiarEstado(id, 'DE_BAJA');
+
+export const listarAsignaciones = async (
+  parametros: ParametrosListadoAsignaciones
+): Promise<ResultadoListadoAsignaciones> => {
+  const { page, limit, activa, usuarioId, activoId, q } = parametros;
+  const skip = (page - 1) * limit;
+
+  const filtros: Prisma.AsignacionComputoWhereInput = {
+    ...(activa !== undefined ? { activa } : {}),
+    ...(usuarioId ? { usuarioId } : {}),
+    ...(activoId !== undefined ? { activoId } : {}),
+    ...(q
+      ? {
+          OR: [
+            { nombreEquipo: { contains: q } },
+            { numeroActivo: { contains: q } },
+            { observacion: { contains: q } },
+            {
+              activo: {
+                OR: [
+                  { claveActivo: { contains: q } },
+                  { nombreRed: { contains: q } },
+                ],
+              },
+            },
+          ],
+        }
+      : {}),
+  };
+
+  const [filas, total] = await Promise.all([
+    prisma.asignacionComputo.findMany({
+      where: filtros,
+      skip,
+      take: limit,
+      orderBy: [{ fechaAsignacion: 'desc' }, { id: 'desc' }],
+      include: {
+        usuario: SELECT_USUARIO,
+        activo: {
+          select: {
+            id: true,
+            claveActivo: true,
+            tipo: true,
+            marca: true,
+            modelo: true,
+            numeroSerie: true,
+            estado: true,
+          },
+        },
+      },
+    }),
+    prisma.asignacionComputo.count({ where: filtros }),
+  ]);
+
+  return {
+    asignaciones: filas.map((fila) => ({
+      id: fila.id,
+      activa: fila.activa,
+      fechaAsignacion: fila.fechaAsignacion,
+      fechaDevolucion: fila.fechaDevolucion,
+      anioCompra: fila.anioCompra,
+      numeroActivo: fila.numeroActivo,
+      nombreEquipo: fila.nombreEquipo,
+      observacion: fila.observacion,
+      usuario: fila.usuario,
+      activo: fila.activo,
+    })),
+    meta: {
+      page,
+      limit,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
+    },
+  };
 };
 
 export const ESTADOS_DE_ACTIVO: EstadoActivo[] = Object.values(EstadoActivo);

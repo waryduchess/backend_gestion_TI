@@ -1,0 +1,27 @@
+meta {
+  name: Eliminar activo con asignacion activa
+  type: http
+  seq: 38
+}
+
+delete {
+  url: {{baseUrl}}/api/activos/{{ultimoActivoId}}
+  body: json
+  auth: none
+}
+
+assert {
+  res.status: eq 409
+}
+
+assert {
+  res.body.success: eq false
+}
+
+assert {
+  res.body.message: eq El activo tiene una asignacion activa; devuelvelo antes de cambiar a DE_BAJA
+}
+
+assert {
+  res.body.errors[0].campo: eq estado
+}

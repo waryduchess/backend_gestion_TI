@@ -1,0 +1,19 @@
+meta {
+  name: Listar asignaciones limite invalido
+  type: http
+  seq: 8
+}
+
+get {
+  url: {{baseUrl}}/api/asignaciones?limit=500
+  body: json
+  auth: none
+}
+
+assert {
+  res.status: eq 400
+}
+
+assert {
+  res.body.errors[0].campo: eq limit
+}

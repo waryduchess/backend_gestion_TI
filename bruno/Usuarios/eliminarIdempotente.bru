@@ -1,0 +1,19 @@
+meta {
+  name: Eliminar usuario ya dado de baja (idempotente)
+  type: http
+  seq: 20
+}
+
+delete {
+  url: {{baseUrl}}/api/usuarios/{{usuarioCreadoId}}
+  body: json
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}
+
+assert {
+  res.body.data.activo: eq false
+}

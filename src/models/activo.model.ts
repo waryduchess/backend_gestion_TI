@@ -83,3 +83,47 @@ export interface DatosEdicionActivo {
   notas?: string | null;
   responsableId?: string | null;
 }
+
+export interface DatosAsignacionActivo {
+  usuarioId: string;
+  anioCompra: number | null;
+  numeroActivo: string | null;
+  nombreEquipo: string | null;
+  bitlocker: string | null;
+  observacion: string | null;
+}
+
+export interface AsignacionLista {
+  id: number;
+  activa: boolean;
+  fechaAsignacion: Date;
+  fechaDevolucion: Date | null;
+  anioCompra: number | null;
+  numeroActivo: string | null;
+  nombreEquipo: string | null;
+  observacion: string | null;
+  usuario: UsuarioResumen;
+  activo: {
+    id: number;
+    claveActivo: string | null;
+    tipo: string;
+    marca: string | null;
+    modelo: string | null;
+    numeroSerie: string | null;
+    estado: EstadoActivo;
+  };
+}
+
+export interface ParametrosListadoAsignaciones {
+  page: number;
+  limit: number;
+  activa?: boolean;
+  usuarioId?: string;
+  activoId?: number;
+  q?: string;
+}
+
+export interface ResultadoListadoAsignaciones {
+  asignaciones: AsignacionLista[];
+  meta: MetadatosPaginacion;
+}

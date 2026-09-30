@@ -1,0 +1,35 @@
+meta {
+  name: Crear activo para prueba de baja
+  type: http
+  seq: 32
+}
+
+script:pre-request {
+  const clave = "AFBAJA" + Date.now();
+  bru.setEnvVar("claveActivoBaja", clave);
+}
+
+post {
+  url: {{baseUrl}}/api/activos
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "tipo": "Dispositivo de prueba",
+    "claveActivo": "{{claveActivoBaja}}"
+  }
+}
+
+script:post-response {
+  bru.setEnvVar("activoParaBajaId", res.body.data.id);
+}
+
+assert {
+  res.status: eq 201
+}

@@ -1,0 +1,31 @@
+meta {
+  name: Cambiar estado sin body
+  type: http
+  seq: 23
+}
+
+patch {
+  url: {{baseUrl}}/api/activos/{{ultimoActivoId}}/estado
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {}
+}
+
+assert {
+  res.status: eq 400
+}
+
+assert {
+  res.body.message: eq Faltan campos obligatorios
+}
+
+assert {
+  res.body.errors[0].campo: eq estado
+}

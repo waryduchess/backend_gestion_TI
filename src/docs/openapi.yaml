@@ -19,6 +19,10 @@ tags:
     description: Listado de tickets / incidencias
   - name: activos
     description: Inventario de activos de computo
+  - name: asignaciones
+    description: Entrega y devolucion de equipos
+  - name: usuarios
+    description: Usuarios del sistema y sus datos
 
 paths:
   /api/auth/login:
@@ -603,6 +607,880 @@ paths:
                 errors:
                   - campo: claveActivo
                     valor: AF00011
+    delete:
+      tags: [activos]
+      summary: Dar de baja un activo (borrado logico -> estado DE_BAJA)
+      description: >
+        Nunca borra la fila. Marca el activo como DE_BAJA. Es idempotente: si
+        ya estaba DE_BAJA responde 200 sin cambios. Falla con 409 si tiene una
+        asignacion activa (devolver el equipo primero).
+      operationId: eliminarActivo
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Activo dado de baja correctamente (o ya estaba en baja)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaActivo'
+              example:
+                success: true
+                message: Activo dado de baja correctamente
+                errors: []
+                data:
+                  id: 660
+                  claveActivo: AFDEV02
+                  tipo: Dispositivo de prueba
+                  estado: DE_BAJA
+                  responsable: null
+                  asignaciones: []
+        '400':
+          description: id no numerico
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: El parametro "id" debe ser un numero entero
+                errors:
+                  - campo: id
+                    valor: abc
+        '404':
+          description: No existe un activo con ese id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: Activo no encontrado
+                errors:
+                  - campo: id
+                    valor: '999999'
+        '409':
+          description: El activo tiene una asignacion activa
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: El activo tiene una asignacion activa
+                errors:
+                  - campo: estado
+                    valor: EN_USO
+                  - campo: asignacionActiva
+                    valor: '439'
+
+  /api/activos/{id}/estado:
+    patch:
+      tags: [activos]
+      summary: Cambiar el estado de un activo
+      description: >
+        Transiciones libres entre EN_USO, EN_ALMACEN, EN_MANTENIMIENTO y
+        DE_BAJA. Si el activo tiene una asignacion activa no se permite pasar
+        a DE_BAJA ni a EN_ALMACEN (409); primero debe devolverse. Enviar el
+        mismo estado actual responde 200 sin modificar nada. Publico (sin
+        token) mientras no se active RBAC.
+      operationId: cambiarEstadoActivo
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            example: 439
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CambioEstadoActivo'
+            example:
+              estado: EN_MANTENIMIENTO
+      responses:
+        '200':
+          description: Estado actualizado (o sin cambios si era el mismo)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaActivo'
+              example:
+                success: true
+                message: Estado del activo actualizado correctamente
+                errors: []
+                data:
+                  id: 439
+                  claveActivo: AF00010
+                  tipo: Laptop
+                  estado: EN_MANTENIMIENTO
+                  asignaciones: []
+        '400':
+          description: id no entero, falta "estado" o valor fuera del enum
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              examples:
+                idInvalido:
+                  summary: id no numerico
+                  value:
+                    success: false
+                    message: El parametro "id" debe ser un numero entero
+                    errors:
+                      - campo: id
+                        valor: abc
+                sinEstado:
+                  summary: Body sin estado
+                  value:
+                    success: false
+                    message: Faltan campos obligatorios
+                    errors:
+                      - campo: estado
+                        valor: ''
+                        mensaje: El estado es obligatorio
+                estadoInvalido:
+                  summary: Estado fuera del enum
+                  value:
+                    success: false
+                    message: El campo "estado" no tiene un valor valido
+                    errors:
+                      - campo: estado
+                        valor: BOGUS
+                        permitidos:
+                          - EN_USO
+                          - EN_ALMACEN
+                          - EN_MANTENIMIENTO
+                          - DE_BAJA
+        '404':
+          description: No existe un activo con ese id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: Activo no encontrado
+                errors:
+                  - campo: id
+                    valor: '999999'
+        '409':
+          description: Tiene asignacion activa y el nuevo estado exige devolucion
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: El activo tiene una asignacion activa; devuelvelo antes de cambiar a DE_BAJA
+                errors:
+                  - campo: estado
+                    valor: DE_BAJA
+                  - campo: asignacionActiva
+                    valor: '1'
+
+  /api/activos/{id}/asignaciones:
+    post:
+      tags: [activos]
+      summary: Asignar el activo a un usuario
+      description: >
+        Entrega el equipo a un usuario. En una sola transaccion: valida que el
+        activo no este DE_BAJA, que el usuario exista y que no haya otra
+        asignacion activa; crea o reactiva la asignacion del par
+        (usuario, activo) y pone el activo en EN_USO con responsable = usuario.
+        Si el usuario ya tuvo ese equipo (fila devuelta) la fila se reactiva.
+        Publico (sin token) mientras no se active RBAC.
+      operationId: asignarActivo
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            example: 439
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AsignacionActivoCreacion'
+            example:
+              usuarioId: A010
+              anioCompra: 2024
+              nombreEquipo: PC-CANCUN-01
+              observacion: Entrega inicial
+      responses:
+        '201':
+          description: Activo asignado correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaActivo'
+              example:
+                success: true
+                message: Activo asignado correctamente
+                errors: []
+                data:
+                  id: 652
+                  claveActivo: AFTEST1770000
+                  tipo: Laptop
+                  estado: EN_USO
+                  responsable:
+                    id: A010
+                    nombre: Lauriano Antonio Cruz Durante
+                    email: antonio.cruz@horbismex.com
+                  asignaciones:
+                    - id: 4
+                      activa: true
+                      fechaAsignacion: '2026-09-29T16:00:00.000Z'
+                      usuario:
+                        id: A010
+                        nombre: Lauriano Antonio Cruz Durante
+                        email: antonio.cruz@horbismex.com
+        '400':
+          description: id no entero, falta usuarioId, usuario inexistente o anioCompra no entero
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              examples:
+                idInvalido:
+                  summary: id no numerico
+                  value:
+                    success: false
+                    message: El parametro "id" debe ser un numero entero
+                    errors:
+                      - campo: id
+                        valor: abc
+                sinUsuario:
+                  summary: Body sin usuarioId
+                  value:
+                    success: false
+                    message: Faltan campos obligatorios
+                    errors:
+                      - campo: usuarioId
+                        valor: ''
+                        mensaje: El usuario es obligatorio
+                usuarioInexistente:
+                  summary: usuarioId sin coincidencia
+                  value:
+                    success: false
+                    message: El usuario no existe
+                    errors:
+                      - campo: usuarioId
+                        valor: ZZZZ99
+                        mensaje: El usuario no existe
+                anioInvalido:
+                  summary: anioCompra no entero
+                  value:
+                    success: false
+                    message: El campo "anioCompra" debe ser un numero entero
+                    errors:
+                      - campo: anioCompra
+                        valor: '2024.5'
+        '404':
+          description: No existe un activo con ese id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: Activo no encontrado
+                errors:
+                  - campo: id
+                    valor: '999999'
+        '409':
+          description: Activo DE_BAJA o con asignacion activa (o carrera con otra asignacion)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              examples:
+                asignacionActiva:
+                  summary: Ya hay una asignacion activa
+                  value:
+                    success: false
+                    message: El activo ya tiene una asignacion activa; devuelvelo antes de reasignarlo
+                    errors:
+                      - campo: activo
+                        valor: '652'
+                      - campo: asignacionActiva
+                        valor: '4'
+                dadoDeBaja:
+                  summary: Activo dado de baja
+                  value:
+                    success: false
+                    message: El activo esta dado de baja; no se puede asignar
+                    errors:
+                      - campo: estado
+                        valor: DE_BAJA
+
+  /api/asignaciones:
+    get:
+      tags: [asignaciones]
+      summary: Listar asignaciones (paginado y filtrable)
+      operationId: listarAsignaciones
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          description: Elementos por pagina (entre 1 y 100)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+        - name: activa
+          in: query
+          required: false
+          description: Filtrar por asignaciones activas o cerradas
+          schema:
+            type: string
+            enum: ['true', 'false']
+            example: 'true'
+        - name: usuarioId
+          in: query
+          required: false
+          description: Id del usuario asignado
+          schema:
+            type: string
+            example: A010
+        - name: activoId
+          in: query
+          required: false
+          description: Id del activo asignado
+          schema:
+            type: integer
+            example: 439
+        - name: q
+          in: query
+          required: false
+          description: Busqueda libre en nombreEquipo, numeroActivo, observacion, claveActivo y nombreRed
+          schema:
+            type: string
+            example: AF00010
+      responses:
+        '200':
+          description: Asignaciones obtenidas correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaAsignacionesPaginada'
+              example:
+                success: true
+                message: Asignaciones obtenidas correctamente
+                errors: []
+                data:
+                  - id: 1
+                    activa: true
+                    fechaAsignacion: '2025-06-10T14:00:00.000Z'
+                    fechaDevolucion: null
+                    anioCompra: null
+                    numeroActivo: null
+                    nombreEquipo: null
+                    observacion: null
+                    usuario:
+                      id: CT003
+                      nombre: Carmen Torres Ruiz
+                      nombreRed: HORBIS\CT003
+                      correo: null
+                      departamento:
+                        id: 1
+                        nombre: Administracion
+                    activo:
+                      id: 439
+                      claveActivo: AF00010
+                      tipo: Laptop
+                      marca: Dell
+                      modelo: 'Latitude 3540'
+                      numeroSerie: CXBF1Z3
+                      estado: EN_USO
+                meta:
+                  page: 1
+                  limit: 10
+                  total: 1
+                  totalPages: 1
+        '400':
+          description: Parametros de paginacion o filtro invalidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              examples:
+                activaInvalida:
+                  summary: activa fuera de true/false
+                  value:
+                    success: false
+                    message: 'El parametro "activa" debe ser "true" o "false"'
+                    errors:
+                      - parametro: activa
+                        valor: BOGUS
+                limiteInvalido:
+                  summary: limit fuera de 1..100
+                  value:
+                    success: false
+                    message: 'El parametro "limit" debe estar entre 1 y 100'
+                    errors:
+                      - campo: limit
+                        valor: '500'
+
+  /api/asignaciones/{id}/devolucion:
+    post:
+      tags: [asignaciones]
+      summary: Devolver un equipo asignado
+      description: >
+        Cierra la asignacion (activa=false, fechaDevolucion=now), pone el
+        activo en EN_ALMACEN y limpia responsableId solo si el responsable sigue
+        siendo el usuario que devuelve. Si la asignacion ya estaba devuelta
+        responde 200 sin modificar nada (idempotente). Publico (sin token)
+        mientras no se active RBAC.
+      operationId: devolverAsignacion
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Id de la asignacion
+          schema:
+            type: integer
+            minimum: 1
+            example: 4
+      responses:
+        '200':
+          description: Asignacion devuelta (o ya devuelta)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaActivo'
+              example:
+                success: true
+                message: Asignacion devuelta correctamente
+                errors: []
+                data:
+                  id: 655
+                  claveActivo: AFASIG01
+                  tipo: Laptop
+                  estado: EN_ALMACEN
+                  responsable: null
+                  asignaciones: []
+        '400':
+          description: El id no es un numero entero
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: El parametro "id" debe ser un numero entero
+                errors:
+                  - campo: id
+                    valor: abc
+        '404':
+          description: No existe una asignacion con ese id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: Asignacion no encontrada
+                errors:
+                  - campo: id
+                    valor: '999999'
+
+  /api/usuarios:
+    get:
+      tags: [usuarios]
+      summary: Listar usuarios (paginado y filtrable)
+      operationId: listarUsuarios
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          description: Elementos por pagina (entre 1 y 100)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+        - name: q
+          in: query
+          required: false
+          description: Busqueda libre en id, nombre y email
+          schema:
+            type: string
+            example: Carmen
+        - name: activo
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: ['true', 'false']
+            example: 'true'
+        - name: departamentoId
+          in: query
+          required: false
+          schema:
+            type: integer
+            example: 1
+        - name: ubicacionId
+          in: query
+          required: false
+          schema:
+            type: integer
+            example: 2
+        - name: puestoId
+          in: query
+          required: false
+          schema:
+            type: integer
+            example: 3
+        - name: tipoUsuarioId
+          in: query
+          required: false
+          schema:
+            type: integer
+            example: 1
+      responses:
+        '200':
+          description: Usuarios obtenidos correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaUsuariosPaginada'
+              example:
+                success: true
+                message: Usuarios obtenidos correctamente
+                errors: []
+                data:
+                  - id: CT003
+                    nombre: Carmen Torres Ruiz
+                    email: null
+                    activo: true
+                    fechaInicio: null
+                    fechaFin: null
+                    departamento:
+                      id: 1
+                      nombre: Administracion
+                    ubicacion: null
+                    puesto: null
+                    tipoUsuario: null
+                    rol: null
+                meta:
+                  page: 1
+                  limit: 10
+                  total: 58
+                  totalPages: 6
+        '400':
+          description: Parametros invalidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: El parametro "limit" debe estar entre 1 y 100
+                errors:
+                  - campo: limit
+                    valor: '500'
+    post:
+      tags: [usuarios]
+      summary: Crear usuario
+      description: >
+        El password es opcional: sin el, el usuario queda sin acceso al
+        sistema (passwordHash null). Si se envia, se guarda con bcrypt.
+      operationId: crearUsuario
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UsuarioCreacion'
+            example:
+              id: ZZT01
+              nombre: Usuario De Prueba
+              email: prueba@horbismex.com
+              password: Secreta123
+              departamentoId: 1
+      responses:
+        '201':
+          description: Usuario creado correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaUsuario'
+              example:
+                success: true
+                message: Usuario creado correctamente
+                errors: []
+                data:
+                  id: ZZT01
+                  nombre: Usuario De Prueba
+                  email: prueba@horbismex.com
+                  activo: true
+                  fechaInicio: null
+                  fechaFin: null
+                  departamento:
+                    id: 1
+                    nombre: Administracion
+                  ubicacion: null
+                  puesto: null
+                  tipoUsuario: null
+                  rol: null
+        '400':
+          description: Faltan campos obligatorios o catalogo inexistente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              examples:
+                sinNombre:
+                  summary: nombre vacio
+                  value:
+                    success: false
+                    message: Faltan campos obligatorios
+                    errors:
+                      - campo: nombre
+                        valor: ''
+                        mensaje: El nombre es obligatorio
+                catalogoInexistente:
+                  summary: departamentoId sin catalogo
+                  value:
+                    success: false
+                    message: El catalogo de "departamentoId" no existe
+                    errors:
+                      - campo: departamentoId
+                        valor: 999
+                        mensaje: El catalogo indicado no existe
+        '409':
+          description: El id ya existe
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: Ya existe un usuario con ese id
+                errors:
+                  - campo: id
+                    valor: ADMIN
+
+  /api/usuarios/{id}:
+    get:
+      tags: [usuarios]
+      summary: Obtener un usuario por id
+      operationId: obtenerUsuario
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            example: CT003
+      responses:
+        '200':
+          description: Usuario obtenido correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaUsuario'
+        '400':
+          description: id vacio
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '404':
+          description: No existe un usuario con ese id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: Usuario no encontrado
+                errors:
+                  - campo: id
+                    valor: ZZZZ99
+    patch:
+      tags: [usuarios]
+      summary: Editar datos del usuario (parcial)
+      description: >
+        Edicion parcial; null borra el dato. No se puede editar "id" ni
+        "password" (para eso use PATCH /api/usuarios/{id}/password).
+      operationId: actualizarUsuario
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            example: CT003
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UsuarioEdicion'
+            example:
+              nombre: Carmen T. Ruiz
+              puestoId: null
+      responses:
+        '200':
+          description: Usuario actualizado correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaUsuario'
+        '400':
+          description: Sin campos editables, campo invalido o password en el body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              examples:
+                sinCampos:
+                  summary: Body sin campos
+                  value:
+                    success: false
+                    message: No se recibio ningun campo para actualizar
+                    errors: []
+                passwordEnBody:
+                  summary: password en PATCH /:id
+                  value:
+                    success: false
+                    message: 'El campo "password" no se puede editar aqui; use PATCH /api/usuarios/:id/password'
+                    errors:
+                      - campo: password
+                        valor: null
+        '404':
+          description: No existe un usuario con ese id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+    delete:
+      tags: [usuarios]
+      summary: Dar de baja un usuario (borrado logico)
+      description: >
+        Nunca borra la fila: marca activo=false. Idempotente: si ya estaba
+        inactivo responde 200 sin cambios.
+      operationId: eliminarUsuario
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            example: ZZT01
+      responses:
+        '200':
+          description: Usuario dado de baja correctamente (o ya estaba)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaUsuario'
+              example:
+                success: true
+                message: Usuario dado de baja correctamente
+                errors: []
+                data:
+                  id: ZZT01
+                  nombre: Usuario De Prueba
+                  email: null
+                  activo: false
+                  fechaInicio: null
+                  fechaFin: null
+                  departamento: null
+                  ubicacion: null
+                  puesto: null
+                  tipoUsuario: null
+                  rol: null
+        '400':
+          description: id vacio
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '404':
+          description: No existe un usuario con ese id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+
+  /api/usuarios/{id}/password:
+    patch:
+      tags: [usuarios]
+      summary: Asignar o rotar el password de un usuario
+      operationId: cambiarPasswordUsuario
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            example: CT003
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordEdicion'
+            example:
+              password: NuevaClave123
+      responses:
+        '200':
+          description: Password actualizado correctamente (nunca se devuelve el hash)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaUsuario'
+        '400':
+          description: password vacio
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: Faltan campos obligatorios
+                errors:
+                  - campo: password
+                    valor: ''
+                    mensaje: El password es obligatorio
+        '404':
+          description: No existe un usuario con ese id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
 
 components:
   securitySchemes:
@@ -1071,6 +1949,40 @@ components:
           description: Usuario existente; null o cadena vacia libera el responsable
           example: A010
 
+    CambioEstadoActivo:
+      type: object
+      required: [estado]
+      properties:
+        estado:
+          allOf:
+            - $ref: '#/components/schemas/EstadoActivo'
+          description: Obligatorio; cualquier transicion entre los 4 estados
+
+    AsignacionActivoCreacion:
+      type: object
+      required: [usuarioId]
+      properties:
+        usuarioId:
+          type: string
+          description: Obligatorio; debe existir en el catalogo de usuarios
+          example: A010
+        anioCompra:
+          type: [integer, 'null']
+          minimum: 0
+          example: 2024
+        numeroActivo:
+          type: [string, 'null']
+        nombreEquipo:
+          type: [string, 'null']
+          description: Hostname del equipo
+          example: PC-CANCUN-01
+        bitlocker:
+          type: [string, 'null']
+          description: Clave de recuperacion (hoy en claro; candidata a cifrado AES-256-GCM)
+        observacion:
+          type: [string, 'null']
+          example: Entrega inicial
+
     RespuestaActivosPaginada:
       type: object
       required: [success, message, errors, data, meta]
@@ -1087,6 +1999,265 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Activo'
+        meta:
+          $ref: '#/components/schemas/MetaPaginacion'
+
+    Usuario:
+      type: object
+      description: Usuario del sistema. Nunca incluye passwordHash.
+      required: [id, nombre, activo]
+      properties:
+        id:
+          type: string
+          description: Clave interna del excel
+          example: CT003
+        nombre:
+          type: string
+          example: Carmen Torres Ruiz
+        email:
+          type: string
+          nullable: true
+          description: Sin unique (hay correos compartidos)
+        activo:
+          type: boolean
+          description: false = baja logica
+        fechaInicio:
+          type: string
+          format: date-time
+          nullable: true
+        fechaFin:
+          type: string
+          format: date-time
+          nullable: true
+        departamento:
+          $ref: '#/components/schemas/CatalogoResumen'
+        ubicacion:
+          $ref: '#/components/schemas/CatalogoResumen'
+        puesto:
+          $ref: '#/components/schemas/CatalogoResumen'
+        tipoUsuario:
+          $ref: '#/components/schemas/CatalogoResumen'
+        rol:
+          $ref: '#/components/schemas/RolResumen'
+
+    CatalogoResumen:
+      type: object
+      nullable: true
+      required: [id, nombre]
+      properties:
+        id:
+          type: integer
+          example: 1
+        nombre:
+          type: string
+          example: Administracion
+
+    RolResumen:
+      type: object
+      nullable: true
+      required: [id, nombre]
+      properties:
+        id:
+          type: integer
+          example: 1
+        nombre:
+          type: string
+          example: admin
+
+    UsuarioCreacion:
+      type: object
+      required: [id, nombre]
+      properties:
+        id:
+          type: string
+          description: 'Clave interna (ej: "A006"); 409 si ya existe'
+          example: ZZT01
+        nombre:
+          type: string
+          example: Usuario De Prueba
+        email:
+          type: string
+          nullable: true
+        password:
+          type: string
+          nullable: true
+          description: Opcional; si se omite el usuario queda sin acceso al sistema
+          example: Secreta123
+        departamentoId:
+          type: integer
+          nullable: true
+        ubicacionId:
+          type: integer
+          nullable: true
+        puestoId:
+          type: integer
+          nullable: true
+        tipoUsuarioId:
+          type: integer
+          nullable: true
+        fechaInicio:
+          type: string
+          format: date-time
+          nullable: true
+        fechaFin:
+          type: string
+          format: date-time
+          nullable: true
+
+    UsuarioEdicion:
+      type: object
+      description: Edicion parcial; null borra el dato. No admite id ni password.
+      properties:
+        nombre:
+          type: string
+        email:
+          type: string
+          nullable: true
+        activo:
+          type: boolean
+        departamentoId:
+          type: integer
+          nullable: true
+        ubicacionId:
+          type: integer
+          nullable: true
+        puestoId:
+          type: integer
+          nullable: true
+        tipoUsuarioId:
+          type: integer
+          nullable: true
+        fechaInicio:
+          type: string
+          format: date-time
+          nullable: true
+        fechaFin:
+          type: string
+          format: date-time
+          nullable: true
+
+    PasswordEdicion:
+      type: object
+      required: [password]
+      properties:
+        password:
+          type: string
+          minLength: 1
+          example: NuevaClave123
+
+    RespuestaUsuario:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: Usuario obtenido correctamente
+        errors:
+          type: array
+          items: {}
+        data:
+          $ref: '#/components/schemas/Usuario'
+
+    RespuestaUsuariosPaginada:
+      type: object
+      required: [success, message, errors, data, meta]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: Usuarios obtenidos correctamente
+        errors:
+          type: array
+          items: {}
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Usuario'
+        meta:
+          $ref: '#/components/schemas/MetaPaginacion'
+
+    AsignacionLista:
+      type: object
+      description: Asignacion de activo con usuario y resumen del activo. No incluye bitlocker.
+      required:
+        [id, activa, fechaAsignacion, usuario, activo]
+      properties:
+        id:
+          type: integer
+          example: 1
+        activa:
+          type: boolean
+          description: true si el equipo sigue entregado
+        fechaAsignacion:
+          type: string
+          format: date-time
+        fechaDevolucion:
+          type: string
+          format: date-time
+          nullable: true
+        anioCompra:
+          type: integer
+          nullable: true
+        numeroActivo:
+          type: string
+          nullable: true
+        nombreEquipo:
+          type: string
+          nullable: true
+          example: MKT-PC-01
+        observacion:
+          type: string
+          nullable: true
+        usuario:
+          $ref: '#/components/schemas/UsuarioResumen'
+        activo:
+          type: object
+          required: [id, tipo, estado]
+          properties:
+            id:
+              type: integer
+              example: 439
+            claveActivo:
+              type: string
+              nullable: true
+              example: AF00010
+            tipo:
+              type: string
+              example: Laptop
+            marca:
+              type: string
+              nullable: true
+              example: Dell
+            modelo:
+              type: string
+              nullable: true
+              example: Latitude 3540
+            numeroSerie:
+              type: string
+              nullable: true
+              example: CXBF1Z3
+            estado:
+              $ref: '#/components/schemas/EstadoActivo'
+
+    RespuestaAsignacionesPaginada:
+      type: object
+      required: [success, message, errors, data, meta]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: Asignaciones obtenidas correctamente
+        errors:
+          type: array
+          items: {}
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AsignacionLista'
         meta:
           $ref: '#/components/schemas/MetaPaginacion'
 

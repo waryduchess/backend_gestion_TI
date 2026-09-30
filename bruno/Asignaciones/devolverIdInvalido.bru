@@ -1,0 +1,19 @@
+meta {
+  name: Devolver con id invalido
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/asignaciones/abc/devolucion
+  body: json
+  auth: none
+}
+
+assert {
+  res.status: eq 400
+}
+
+assert {
+  res.body.errors[0].campo: eq id
+}

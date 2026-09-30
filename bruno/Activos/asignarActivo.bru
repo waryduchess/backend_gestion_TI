@@ -1,0 +1,52 @@
+meta {
+  name: Asignar activo a usuario
+  type: http
+  seq: 28
+}
+
+post {
+  url: {{baseUrl}}/api/activos/{{ultimoActivoId}}/asignaciones
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "usuarioId": "A010",
+    "anioCompra": 2024,
+    "nombreEquipo": "PC-TEST-01",
+    "observacion": "Entrega de prueba"
+  }
+}
+
+script:post-response {
+  bru.setEnvVar("asignacionId", res.body.data.asignaciones[0].id);
+}
+
+assert {
+  res.status: eq 201
+}
+
+assert {
+  res.body.success: eq true
+}
+
+assert {
+  res.body.data.estado: eq EN_USO
+}
+
+assert {
+  res.body.data.responsable.id: eq A010
+}
+
+assert {
+  res.body.data.asignaciones[0].activa: eq true
+}
+
+assert {
+  res.body.data.asignaciones[0].usuario.id: eq A010
+}

@@ -1,0 +1,33 @@
+meta {
+  name: Cambiar estado del activo
+  type: http
+  seq: 22
+}
+
+patch {
+  url: {{baseUrl}}/api/activos/{{ultimoActivoId}}/estado
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "estado": "EN_ALMACEN"
+  }
+}
+
+assert {
+  res.status: eq 200
+}
+
+assert {
+  res.body.success: eq true
+}
+
+assert {
+  res.body.data.estado: eq EN_ALMACEN
+}
