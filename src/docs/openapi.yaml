@@ -21,6 +21,8 @@ tags:
     description: Inventario de activos de computo
   - name: asignaciones
     description: Entrega y devolucion de equipos
+  - name: usuarios
+    description: Usuarios del sistema y sus datos
 
 paths:
   /api/auth/login:
@@ -1105,6 +1107,381 @@ paths:
                   - campo: id
                     valor: '999999'
 
+  /api/usuarios:
+    get:
+      tags: [usuarios]
+      summary: Listar usuarios (paginado y filtrable)
+      operationId: listarUsuarios
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          description: Elementos por pagina (entre 1 y 100)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+        - name: q
+          in: query
+          required: false
+          description: Busqueda libre en id, nombre y email
+          schema:
+            type: string
+            example: Carmen
+        - name: activo
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: ['true', 'false']
+            example: 'true'
+        - name: departamentoId
+          in: query
+          required: false
+          schema:
+            type: integer
+            example: 1
+        - name: ubicacionId
+          in: query
+          required: false
+          schema:
+            type: integer
+            example: 2
+        - name: puestoId
+          in: query
+          required: false
+          schema:
+            type: integer
+            example: 3
+        - name: tipoUsuarioId
+          in: query
+          required: false
+          schema:
+            type: integer
+            example: 1
+      responses:
+        '200':
+          description: Usuarios obtenidos correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaUsuariosPaginada'
+              example:
+                success: true
+                message: Usuarios obtenidos correctamente
+                errors: []
+                data:
+                  - id: CT003
+                    nombre: Carmen Torres Ruiz
+                    email: null
+                    activo: true
+                    fechaInicio: null
+                    fechaFin: null
+                    departamento:
+                      id: 1
+                      nombre: Administracion
+                    ubicacion: null
+                    puesto: null
+                    tipoUsuario: null
+                    rol: null
+                meta:
+                  page: 1
+                  limit: 10
+                  total: 58
+                  totalPages: 6
+        '400':
+          description: Parametros invalidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: El parametro "limit" debe estar entre 1 y 100
+                errors:
+                  - campo: limit
+                    valor: '500'
+    post:
+      tags: [usuarios]
+      summary: Crear usuario
+      description: >
+        El password es opcional: sin el, el usuario queda sin acceso al
+        sistema (passwordHash null). Si se envia, se guarda con bcrypt.
+      operationId: crearUsuario
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UsuarioCreacion'
+            example:
+              id: ZZT01
+              nombre: Usuario De Prueba
+              email: prueba@horbismex.com
+              password: Secreta123
+              departamentoId: 1
+      responses:
+        '201':
+          description: Usuario creado correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaUsuario'
+              example:
+                success: true
+                message: Usuario creado correctamente
+                errors: []
+                data:
+                  id: ZZT01
+                  nombre: Usuario De Prueba
+                  email: prueba@horbismex.com
+                  activo: true
+                  fechaInicio: null
+                  fechaFin: null
+                  departamento:
+                    id: 1
+                    nombre: Administracion
+                  ubicacion: null
+                  puesto: null
+                  tipoUsuario: null
+                  rol: null
+        '400':
+          description: Faltan campos obligatorios o catalogo inexistente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              examples:
+                sinNombre:
+                  summary: nombre vacio
+                  value:
+                    success: false
+                    message: Faltan campos obligatorios
+                    errors:
+                      - campo: nombre
+                        valor: ''
+                        mensaje: El nombre es obligatorio
+                catalogoInexistente:
+                  summary: departamentoId sin catalogo
+                  value:
+                    success: false
+                    message: El catalogo de "departamentoId" no existe
+                    errors:
+                      - campo: departamentoId
+                        valor: 999
+                        mensaje: El catalogo indicado no existe
+        '409':
+          description: El id ya existe
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: Ya existe un usuario con ese id
+                errors:
+                  - campo: id
+                    valor: ADMIN
+
+  /api/usuarios/{id}:
+    get:
+      tags: [usuarios]
+      summary: Obtener un usuario por id
+      operationId: obtenerUsuario
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            example: CT003
+      responses:
+        '200':
+          description: Usuario obtenido correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaUsuario'
+        '400':
+          description: id vacio
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '404':
+          description: No existe un usuario con ese id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: Usuario no encontrado
+                errors:
+                  - campo: id
+                    valor: ZZZZ99
+    patch:
+      tags: [usuarios]
+      summary: Editar datos del usuario (parcial)
+      description: >
+        Edicion parcial; null borra el dato. No se puede editar "id" ni
+        "password" (para eso use PATCH /api/usuarios/{id}/password).
+      operationId: actualizarUsuario
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            example: CT003
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UsuarioEdicion'
+            example:
+              nombre: Carmen T. Ruiz
+              puestoId: null
+      responses:
+        '200':
+          description: Usuario actualizado correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaUsuario'
+        '400':
+          description: Sin campos editables, campo invalido o password en el body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              examples:
+                sinCampos:
+                  summary: Body sin campos
+                  value:
+                    success: false
+                    message: No se recibio ningun campo para actualizar
+                    errors: []
+                passwordEnBody:
+                  summary: password en PATCH /:id
+                  value:
+                    success: false
+                    message: 'El campo "password" no se puede editar aqui; use PATCH /api/usuarios/:id/password'
+                    errors:
+                      - campo: password
+                        valor: null
+        '404':
+          description: No existe un usuario con ese id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+    delete:
+      tags: [usuarios]
+      summary: Dar de baja un usuario (borrado logico)
+      description: >
+        Nunca borra la fila: marca activo=false. Idempotente: si ya estaba
+        inactivo responde 200 sin cambios.
+      operationId: eliminarUsuario
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            example: ZZT01
+      responses:
+        '200':
+          description: Usuario dado de baja correctamente (o ya estaba)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaUsuario'
+              example:
+                success: true
+                message: Usuario dado de baja correctamente
+                errors: []
+                data:
+                  id: ZZT01
+                  nombre: Usuario De Prueba
+                  email: null
+                  activo: false
+                  fechaInicio: null
+                  fechaFin: null
+                  departamento: null
+                  ubicacion: null
+                  puesto: null
+                  tipoUsuario: null
+                  rol: null
+        '400':
+          description: id vacio
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '404':
+          description: No existe un usuario con ese id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+
+  /api/usuarios/{id}/password:
+    patch:
+      tags: [usuarios]
+      summary: Asignar o rotar el password de un usuario
+      operationId: cambiarPasswordUsuario
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            example: CT003
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordEdicion'
+            example:
+              password: NuevaClave123
+      responses:
+        '200':
+          description: Password actualizado correctamente (nunca se devuelve el hash)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaUsuario'
+        '400':
+          description: password vacio
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: Faltan campos obligatorios
+                errors:
+                  - campo: password
+                    valor: ''
+                    mensaje: El password es obligatorio
+        '404':
+          description: No existe un usuario con ese id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1622,6 +1999,183 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Activo'
+        meta:
+          $ref: '#/components/schemas/MetaPaginacion'
+
+    Usuario:
+      type: object
+      description: Usuario del sistema. Nunca incluye passwordHash.
+      required: [id, nombre, activo]
+      properties:
+        id:
+          type: string
+          description: Clave interna del excel
+          example: CT003
+        nombre:
+          type: string
+          example: Carmen Torres Ruiz
+        email:
+          type: string
+          nullable: true
+          description: Sin unique (hay correos compartidos)
+        activo:
+          type: boolean
+          description: false = baja logica
+        fechaInicio:
+          type: string
+          format: date-time
+          nullable: true
+        fechaFin:
+          type: string
+          format: date-time
+          nullable: true
+        departamento:
+          $ref: '#/components/schemas/CatalogoResumen'
+        ubicacion:
+          $ref: '#/components/schemas/CatalogoResumen'
+        puesto:
+          $ref: '#/components/schemas/CatalogoResumen'
+        tipoUsuario:
+          $ref: '#/components/schemas/CatalogoResumen'
+        rol:
+          $ref: '#/components/schemas/RolResumen'
+
+    CatalogoResumen:
+      type: object
+      nullable: true
+      required: [id, nombre]
+      properties:
+        id:
+          type: integer
+          example: 1
+        nombre:
+          type: string
+          example: Administracion
+
+    RolResumen:
+      type: object
+      nullable: true
+      required: [id, nombre]
+      properties:
+        id:
+          type: integer
+          example: 1
+        nombre:
+          type: string
+          example: admin
+
+    UsuarioCreacion:
+      type: object
+      required: [id, nombre]
+      properties:
+        id:
+          type: string
+          description: 'Clave interna (ej: "A006"); 409 si ya existe'
+          example: ZZT01
+        nombre:
+          type: string
+          example: Usuario De Prueba
+        email:
+          type: string
+          nullable: true
+        password:
+          type: string
+          nullable: true
+          description: Opcional; si se omite el usuario queda sin acceso al sistema
+          example: Secreta123
+        departamentoId:
+          type: integer
+          nullable: true
+        ubicacionId:
+          type: integer
+          nullable: true
+        puestoId:
+          type: integer
+          nullable: true
+        tipoUsuarioId:
+          type: integer
+          nullable: true
+        fechaInicio:
+          type: string
+          format: date-time
+          nullable: true
+        fechaFin:
+          type: string
+          format: date-time
+          nullable: true
+
+    UsuarioEdicion:
+      type: object
+      description: Edicion parcial; null borra el dato. No admite id ni password.
+      properties:
+        nombre:
+          type: string
+        email:
+          type: string
+          nullable: true
+        activo:
+          type: boolean
+        departamentoId:
+          type: integer
+          nullable: true
+        ubicacionId:
+          type: integer
+          nullable: true
+        puestoId:
+          type: integer
+          nullable: true
+        tipoUsuarioId:
+          type: integer
+          nullable: true
+        fechaInicio:
+          type: string
+          format: date-time
+          nullable: true
+        fechaFin:
+          type: string
+          format: date-time
+          nullable: true
+
+    PasswordEdicion:
+      type: object
+      required: [password]
+      properties:
+        password:
+          type: string
+          minLength: 1
+          example: NuevaClave123
+
+    RespuestaUsuario:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: Usuario obtenido correctamente
+        errors:
+          type: array
+          items: {}
+        data:
+          $ref: '#/components/schemas/Usuario'
+
+    RespuestaUsuariosPaginada:
+      type: object
+      required: [success, message, errors, data, meta]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: Usuarios obtenidos correctamente
+        errors:
+          type: array
+          items: {}
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Usuario'
         meta:
           $ref: '#/components/schemas/MetaPaginacion'
 

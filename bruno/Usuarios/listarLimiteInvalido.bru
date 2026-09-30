@@ -1,0 +1,19 @@
+meta {
+  name: Listar usuarios limite invalido
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/api/usuarios?limit=500
+  body: json
+  auth: none
+}
+
+assert {
+  res.status: eq 400
+}
+
+assert {
+  res.body.errors[0].campo: eq limit
+}

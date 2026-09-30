@@ -1,0 +1,50 @@
+meta {
+  name: Crear usuario
+  type: http
+  seq: 5
+}
+
+script:pre-request {
+  const id = "ZZT" + Date.now();
+  bru.setEnvVar("usuarioNuevoId", id);
+}
+
+post {
+  url: {{baseUrl}}/api/usuarios
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "id": "{{usuarioNuevoId}}",
+    "nombre": "Usuario De Prueba",
+    "email": "prueba@horbismex.com",
+    "password": "Secreta123",
+    "departamentoId": 1
+  }
+}
+
+script:post-response {
+  bru.setEnvVar("usuarioCreadoId", res.body.data.id);
+}
+
+assert {
+  res.status: eq 201
+}
+
+assert {
+  res.body.success: eq true
+}
+
+assert {
+  res.body.data.activo: eq true
+}
+
+assert {
+  res.body.data.departamento.id: eq 1
+}

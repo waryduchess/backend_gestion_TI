@@ -1,0 +1,23 @@
+meta {
+  name: Eliminar usuario (borrado logico)
+  type: http
+  seq: 19
+}
+
+delete {
+  url: {{baseUrl}}/api/usuarios/{{usuarioCreadoId}}
+  body: json
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}
+
+assert {
+  res.body.message: eq Usuario dado de baja correctamente
+}
+
+assert {
+  res.body.data.activo: eq false
+}

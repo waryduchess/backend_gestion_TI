@@ -1,0 +1,40 @@
+meta {
+  name: Crear usuario con catalogo inexistente
+  type: http
+  seq: 8
+}
+
+script:pre-request {
+  const id = "ZZC" + Date.now();
+  bru.setEnvVar("usuarioCatalogoId", id);
+}
+
+post {
+  url: {{baseUrl}}/api/usuarios
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "id": "{{usuarioCatalogoId}}",
+    "nombre": "Usuario Catalogo",
+    "departamentoId": 99999
+  }
+}
+
+assert {
+  res.status: eq 400
+}
+
+assert {
+  res.body.message: eq El catalogo de "departamentoId" no existe
+}
+
+assert {
+  res.body.errors[0].campo: eq departamentoId
+}

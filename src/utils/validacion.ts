@@ -62,3 +62,21 @@ export const validarCampoOpcion = (
 
   return texto;
 };
+
+export const comoFecha = (valor: unknown, nombre: string): Date | null => {
+  const texto = comoTexto(valor);
+
+  if (texto === '') {
+    return null;
+  }
+
+  const fecha = new Date(texto);
+
+  if (Number.isNaN(fecha.getTime())) {
+    throw new HttpError(400, `El campo "${nombre}" debe ser una fecha valida`, [
+      { campo: nombre, valor: texto },
+    ]);
+  }
+
+  return fecha;
+};

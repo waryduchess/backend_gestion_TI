@@ -1,0 +1,23 @@
+meta {
+  name: Obtener usuario por id
+  type: http
+  seq: 10
+}
+
+get {
+  url: {{baseUrl}}/api/usuarios/{{usuarioCreadoId}}
+  body: json
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}
+
+assert {
+  res.body.data.id: eq {{usuarioCreadoId}}
+}
+
+assert {
+  res.body.data.activo: eq true
+}
