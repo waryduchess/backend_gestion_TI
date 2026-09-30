@@ -1,0 +1,32 @@
+meta {
+  name: Denegar operacion sin permiso
+  type: http
+  seq: 9
+}
+
+post {
+  url: {{baseUrl}}/api/activos
+  body: json
+  auth: none
+}
+
+script:pre-request {
+  await bru.runRequest("Roles/loginUsuarioPrueba");
+  const token = bru.getVar("tokenUsuarioRbac");
+  if (typeof token !== "string" || token === "") throw new Error("No fue posible iniciar sesion con el rol limitado");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "tipo": "No debe crearse"
+  }
+}
+
+assert {
+  res.status: eq 403
+}

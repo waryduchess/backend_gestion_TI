@@ -1,0 +1,15 @@
+meta {
+  name: Activos requiere autenticacion
+  type: http
+  seq: 41
+}
+
+get {
+  url: {{baseUrl}}/api/activos
+  body: json
+  auth: none
+}
+
+assert {
+  res.status: eq 401
+}

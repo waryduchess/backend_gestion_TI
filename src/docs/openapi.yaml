@@ -23,6 +23,10 @@ tags:
     description: Entrega y devolucion de equipos
   - name: usuarios
     description: Usuarios del sistema y sus datos
+  - name: catalogos
+    description: Catalogos para usuarios y relaciones del sistema
+  - name: roles
+    description: Roles y permisos de acceso
 
 paths:
   /api/auth/login:
@@ -135,7 +139,10 @@ paths:
     get:
       tags: [incidencias]
       summary: Listar incidencias (paginado)
+      description: Requiere el permiso incidencias:leer.
       operationId: listarIncidencias
+      security:
+        - bearerAuth: []
       parameters:
         - name: page
           in: query
@@ -215,7 +222,10 @@ paths:
     get:
       tags: [activos]
       summary: Listar activos (paginado y filtrable)
+      description: Requiere el permiso activos:leer.
       operationId: listarActivos
+      security:
+        - bearerAuth: []
       parameters:
         - name: page
           in: query
@@ -321,9 +331,10 @@ paths:
       summary: Crear un activo
       description: >
         Registra un activo nuevo. Solo "tipo" es obligatorio; si no se envia
-        "estado" se usa EN_USO. Publico (sin token) mientras no se active RBAC.
+        "estado" se usa EN_USO. Requiere permiso activos:crear.
       operationId: crearActivo
-      security: []
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -429,8 +440,10 @@ paths:
     get:
       tags: [activos]
       summary: Obtener un activo por id
-      description: Devuelve el activo con su responsable y las asignaciones activas.
+      description: Devuelve el activo con su responsable y las asignaciones activas. Requiere activos:leer.
       operationId: obtenerActivo
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -478,10 +491,10 @@ paths:
         Edicion parcial: solo los campos presentes en el body se modifican;
         un valor null o cadena vacia borra el dato. "estado" no se puede editar
         aqui (futuro PATCH /api/activos/{id}/estado) y "responsableId" acepta
-        null para liberar el responsable. Publico (sin token) mientras no se
-        active RBAC.
+        null para liberar el responsable. Requiere permiso activos:editar.
       operationId: actualizarActivo
-      security: []
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -613,8 +626,10 @@ paths:
       description: >
         Nunca borra la fila. Marca el activo como DE_BAJA. Es idempotente: si
         ya estaba DE_BAJA responde 200 sin cambios. Falla con 409 si tiene una
-        asignacion activa (devolver el equipo primero).
+        asignacion activa (devolver el equipo primero). Requiere activos:eliminar.
       operationId: eliminarActivo
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -687,10 +702,11 @@ paths:
         Transiciones libres entre EN_USO, EN_ALMACEN, EN_MANTENIMIENTO y
         DE_BAJA. Si el activo tiene una asignacion activa no se permite pasar
         a DE_BAJA ni a EN_ALMACEN (409); primero debe devolverse. Enviar el
-        mismo estado actual responde 200 sin modificar nada. Publico (sin
-        token) mientras no se active RBAC.
+        mismo estado actual responde 200 sin modificar nada. Requiere permiso
+        activos:estado.
       operationId: cambiarEstadoActivo
-      security: []
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -798,9 +814,10 @@ paths:
         asignacion activa; crea o reactiva la asignacion del par
         (usuario, activo) y pone el activo en EN_USO con responsable = usuario.
         Si el usuario ya tuvo ese equipo (fila devuelta) la fila se reactiva.
-        Publico (sin token) mientras no se active RBAC.
+        Requiere permiso activos:asignar.
       operationId: asignarActivo
-      security: []
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -931,7 +948,10 @@ paths:
     get:
       tags: [asignaciones]
       summary: Listar asignaciones (paginado y filtrable)
+      description: Requiere el permiso activos:leer.
       operationId: listarAsignaciones
+      security:
+        - bearerAuth: []
       parameters:
         - name: page
           in: query
@@ -1051,10 +1071,11 @@ paths:
         Cierra la asignacion (activa=false, fechaDevolucion=now), pone el
         activo en EN_ALMACEN y limpia responsableId solo si el responsable sigue
         siendo el usuario que devuelve. Si la asignacion ya estaba devuelta
-        responde 200 sin modificar nada (idempotente). Publico (sin token)
-        mientras no se active RBAC.
+        responde 200 sin modificar nada (idempotente). Requiere permiso
+        activos:asignar.
       operationId: devolverAsignacion
-      security: []
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -1106,6 +1127,265 @@ paths:
                 errors:
                   - campo: id
                     valor: '999999'
+
+  /api/roles:
+    get:
+      tags: [roles]
+      summary: Listar roles activos
+      operationId: listarRoles
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Roles obtenidos correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaRoles'
+        '401':
+          description: Token ausente, invalido o expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '403':
+          description: Requiere el permiso roles:administrar
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+    post:
+      tags: [roles]
+      summary: Crear un rol
+      operationId: crearRol
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RolCreacion'
+            example:
+              nombre: Soporte
+              permisos: [incidencias:leer, activos:leer, activos:asignar]
+      responses:
+        '201':
+          description: Rol creado correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaRol'
+        '400':
+          description: Nombre o permisos invalidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '403':
+          description: Requiere el permiso roles:administrar
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '409':
+          description: Ya existe un rol con ese nombre
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+  /api/roles/{id}:
+    get:
+      tags: [roles]
+      summary: Obtener un rol activo
+      operationId: obtenerRol
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Rol obtenido correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaRol'
+        '400':
+          description: Id invalido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '403':
+          description: Requiere el permiso roles:administrar
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '404':
+          description: Rol no encontrado o inactivo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+    patch:
+      tags: [roles]
+      summary: Actualizar nombre o permisos de un rol
+      operationId: actualizarRol
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RolEdicion'
+      responses:
+        '200':
+          description: Rol actualizado correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaRol'
+        '400':
+          description: Id, nombre o permisos invalidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '403':
+          description: Requiere el permiso roles:administrar
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '404':
+          description: Rol no encontrado o inactivo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '409':
+          description: Ya existe un rol con ese nombre
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+    delete:
+      tags: [roles]
+      summary: Desactivar un rol
+      description: Borrado logico; no se permite mientras el rol tenga usuarios asignados.
+      operationId: eliminarRol
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Rol desactivado correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaRol'
+        '401':
+          description: Token ausente, invalido o expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '403':
+          description: Requiere el permiso roles:administrar
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '404':
+          description: Rol no encontrado o inactivo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '409':
+          description: Hay usuarios asignados a este rol
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+
+  /api/catalogos:
+    get:
+      tags: [catalogos]
+      summary: Obtener catalogos de referencia
+      operationId: listarCatalogos
+      security: []
+      responses:
+        '200':
+          description: Catalogos obtenidos correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaCatalogos'
+              example:
+                success: true
+                message: Catalogos obtenidos correctamente
+                errors: []
+                data:
+                  departamentos:
+                    - id: 1
+                      nombre: Administracion
+                  ubicaciones:
+                    - id: 1
+                      nombre: Cancun
+                  puestos:
+                    - id: 1
+                      nombre: Gerente
+                  tiposUsuario:
+                    - id: 1
+                      nombre: Administrativo
+                  roles:
+                    - id: 1
+                      nombre: admin
+        '500':
+          description: Error interno del servidor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
 
   /api/usuarios:
     get:
@@ -1430,6 +1710,61 @@ paths:
                 $ref: '#/components/schemas/RespuestaError'
         '404':
           description: No existe un usuario con ese id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+
+  /api/usuarios/{id}/rol:
+    patch:
+      tags: [usuarios]
+      summary: Asignar o quitar el rol de un usuario
+      operationId: asignarRolUsuario
+      description: Requiere permiso roles:administrar. Enviar rolId null para quitar el rol.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            example: CT003
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AsignarRolUsuario'
+            example:
+              rolId: 2
+      responses:
+        '200':
+          description: Rol asignado correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaUsuario'
+        '400':
+          description: rolId invalido o rol inactivo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '403':
+          description: Requiere el permiso roles:administrar
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '404':
+          description: Usuario no encontrado
           content:
             application/json:
               schema:
@@ -2052,6 +2387,101 @@ components:
           type: string
           example: Administracion
 
+    Rol:
+      type: object
+      required: [id, nombre, permisos, activo]
+      properties:
+        id:
+          type: integer
+          example: 2
+        nombre:
+          type: string
+          example: Soporte
+        permisos:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/Permiso'
+        activo:
+          type: boolean
+          example: true
+
+    Permiso:
+      type: string
+      enum:
+        - incidencias:leer
+        - activos:leer
+        - activos:crear
+        - activos:editar
+        - activos:estado
+        - activos:asignar
+        - activos:eliminar
+        - roles:administrar
+
+    RolCreacion:
+      type: object
+      required: [nombre, permisos]
+      properties:
+        nombre:
+          type: string
+          minLength: 1
+          maxLength: 191
+        permisos:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/Permiso'
+
+    RolEdicion:
+      type: object
+      minProperties: 1
+      properties:
+        nombre:
+          type: string
+          minLength: 1
+          maxLength: 191
+        permisos:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/Permiso'
+        activo:
+          type: boolean
+          enum: [true]
+          description: Use true para reactivar un rol previamente desactivado.
+
+    RespuestaRol:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+        errors:
+          type: array
+          items: {}
+        data:
+          $ref: '#/components/schemas/Rol'
+
+    RespuestaRoles:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+        errors:
+          type: array
+          items: {}
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Rol'
+
     RolResumen:
       type: object
       nullable: true
@@ -2063,6 +2493,55 @@ components:
         nombre:
           type: string
           example: admin
+
+    RespuestaCatalogos:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Catalogos obtenidos correctamente
+        errors:
+          type: array
+          items: {}
+        data:
+          type: object
+          required: [departamentos, ubicaciones, puestos, tiposUsuario, roles]
+          properties:
+            departamentos:
+              type: array
+              items:
+                $ref: '#/components/schemas/CatalogoItem'
+            ubicaciones:
+              type: array
+              items:
+                $ref: '#/components/schemas/CatalogoItem'
+            puestos:
+              type: array
+              items:
+                $ref: '#/components/schemas/CatalogoItem'
+            tiposUsuario:
+              type: array
+              items:
+                $ref: '#/components/schemas/CatalogoItem'
+            roles:
+              type: array
+              items:
+                $ref: '#/components/schemas/CatalogoItem'
+
+    CatalogoItem:
+      type: object
+      required: [id, nombre]
+      properties:
+        id:
+          type: integer
+          example: 1
+        nombre:
+          type: string
+          example: Administracion
 
     UsuarioCreacion:
       type: object
@@ -2135,6 +2614,15 @@ components:
           type: string
           format: date-time
           nullable: true
+
+    AsignarRolUsuario:
+      type: object
+      required: [rolId]
+      properties:
+        rolId:
+          type: [integer, 'null']
+          minimum: 1
+          example: 2
 
     PasswordEdicion:
       type: object

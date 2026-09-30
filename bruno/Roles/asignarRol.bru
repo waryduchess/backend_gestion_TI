@@ -1,0 +1,36 @@
+meta {
+  name: Asignar rol RBAC de prueba
+  type: http
+  seq: 6
+}
+
+patch {
+  url: {{baseUrl}}/api/usuarios/{{usuarioRbacId}}/rol
+  body: json
+  auth: none
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "rolId": {{rolPruebaId}}
+  }
+}
+
+assert {
+  res.status: eq 200
+}
+
+assert {
+  res.body.data.rol.nombre: eq {{nombreRolPrueba}}
+}

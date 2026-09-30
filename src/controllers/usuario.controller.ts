@@ -6,6 +6,7 @@ import {
   cambiarPassword,
   crear,
   actualizar,
+  asignarRol,
   eliminar,
   listar,
   obtenerPorId,
@@ -311,6 +312,35 @@ export const cambiarPasswordUsuario = asyncHandler(
     res.status(200).json({
       success: true,
       message: 'Password actualizado correctamente',
+      errors: [],
+      data: usuario,
+    });
+  }
+);
+
+export const asignarRolUsuario = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const textoId = comoTexto(req.params.id);
+    if (textoId === '') {
+      throw new HttpError(400, 'El parametro "id" es obligatorio', [
+        { campo: 'id', valor: textoId },
+      ]);
+    }
+
+    const cuerpo = (req.body ?? {}) as Record<string, unknown>;
+    if (!('rolId' in cuerpo)) {
+      throw new HttpError(400, 'El campo "rolId" es obligatorio; use null para quitar el rol', [
+        { campo: 'rolId', valor: null },
+      ]);
+    }
+
+    const usuario = await asignarRol(
+      textoId,
+      cuerpo.rolId === null ? null : comoNumeroBody(cuerpo.rolId, 'rolId')
+    );
+    res.status(200).json({
+      success: true,
+      message: 'Rol asignado correctamente',
       errors: [],
       data: usuario,
     });

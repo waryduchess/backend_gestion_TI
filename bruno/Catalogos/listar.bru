@@ -1,0 +1,43 @@
+meta {
+  name: Listar catalogos
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/catalogos
+  body: json
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}
+
+assert {
+  res.body.success: eq true
+}
+
+assert {
+  res.body.message: eq Catalogos obtenidos correctamente
+}
+
+assert {
+  res.body.data.departamentos: isArray
+}
+
+assert {
+  res.body.data.ubicaciones: isArray
+}
+
+assert {
+  res.body.data.puestos: isArray
+}
+
+assert {
+  res.body.data.tiposUsuario: isArray
+}
+
+assert {
+  res.body.data.roles: isArray
+}

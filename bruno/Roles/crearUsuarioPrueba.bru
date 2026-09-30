@@ -1,0 +1,33 @@
+meta {
+  name: Crear usuario RBAC de prueba
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/api/usuarios
+  body: json
+  auth: none
+}
+
+script:pre-request {
+  bru.setVar("usuarioRbacId", `RBAC-${Date.now()}`);
+  bru.setVar("emailUsuarioRbac", `rbac-${Date.now()}@example.invalid`);
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "id": "{{usuarioRbacId}}",
+    "nombre": "Usuario de prueba RBAC",
+    "email": "{{emailUsuarioRbac}}",
+    "password": "Rbac-Test-Password-2026"
+  }
+}
+
+assert {
+  res.status: eq 201
+}

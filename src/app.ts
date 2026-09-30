@@ -7,6 +7,8 @@ import activoRoutes from './routes/activo.routes';
 import asignacionRoutes from './routes/asignacion.routes';
 import incidenciaRoutes from './routes/incidencia.routes';
 import usuarioRoutes from './routes/usuario.routes';
+import catalogoRoutes from './routes/catalogo.routes';
+import rolRoutes from './routes/rol.routes';
 import docsRoutes from './docs/docs.routes';
 
 const app: Application = express();
@@ -28,6 +30,8 @@ app.use('/api/activos', activoRoutes);
 app.use('/api/asignaciones', asignacionRoutes);
 app.use('/api/incidencias', incidenciaRoutes);
 app.use('/api/usuarios', usuarioRoutes);
+app.use('/api/catalogos', catalogoRoutes);
+app.use('/api/roles', rolRoutes);
 app.use('/api/docs', docsRoutes);
 
 app.use(notFoundHandler);
