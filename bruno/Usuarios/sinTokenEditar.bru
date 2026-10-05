@@ -1,11 +1,11 @@
 meta {
-  name: Asignar rol requiere autenticacion
+  name: Usuarios editar requiere JWT
   type: http
-  seq: 15
+  seq: 25
 }
 
 patch {
-  url: {{baseUrl}}/api/usuarios/ADMIN/rol
+  url: {{baseUrl}}/api/usuarios/JWT-ANON
   body: json
   auth: none
 }
@@ -16,7 +16,7 @@ headers {
 
 body:json {
   {
-    "rolId": null
+    "nombre": "Anonimo"
   }
 }
 

@@ -70,9 +70,14 @@ Verificacion:
 * Swagger: http://localhost:3000/api/docs/
 * Login: `POST /api/auth/login` con `ADMIN_EMAIL` / `ADMIN_PASSWORD` de `.env`
 * phpMyAdmin: http://localhost:8081 (usuario `gestion_ti`)
-* Las rutas de incidencias, activos, asignaciones y administracion de roles
-  requieren JWT y permisos del rol. Los usuarios sin rol activo no tienen
-  acceso a esos modulos.
+* Las rutas de datos requieren JWT. Incidencias, activos, asignaciones y
+  administracion de roles tambien validan permisos del rol. Los usuarios sin
+  rol activo no tienen acceso a esos modulos.
+* Todas las rutas `/api/usuarios` requieren JWT. Ademas, requieren el permiso
+  `usuarios:administrar`, excepto `PATCH /:id/rol`, que requiere
+  `roles:administrar`.
+* `POST /api/auth/login` es la unica ruta operativa publica; `/health` y la
+  documentacion permanecen publicos para comprobacion y consulta.
 
 Notas:
 * La base queda vacia salvo el admin; los datos de ejemplo no se incluyen.

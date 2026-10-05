@@ -1,11 +1,11 @@
 meta {
-  name: Asignar rol requiere autenticacion
+  name: Usuarios crear requiere JWT
   type: http
-  seq: 15
+  seq: 23
 }
 
-patch {
-  url: {{baseUrl}}/api/usuarios/ADMIN/rol
+post {
+  url: {{baseUrl}}/api/usuarios
   body: json
   auth: none
 }
@@ -16,7 +16,8 @@ headers {
 
 body:json {
   {
-    "rolId": null
+    "id": "JWT-ANON",
+    "nombre": "Anonimo"
   }
 }
 

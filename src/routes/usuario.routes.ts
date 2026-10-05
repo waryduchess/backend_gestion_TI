@@ -11,18 +11,22 @@ import {
 import { verificarPermiso, verificarToken } from '../middlewares/auth.middleware';
 
 const router: Router = Router();
+router.use(verificarToken);
 
-router.get('/', listarUsuarios);
-router.post('/', crearUsuario);
-router.get('/:id', obtenerUsuario);
-router.patch('/:id', actualizarUsuario);
+router.get('/', verificarPermiso('usuarios:administrar'), listarUsuarios);
+router.post('/', verificarPermiso('usuarios:administrar'), crearUsuario);
+router.get('/:id', verificarPermiso('usuarios:administrar'), obtenerUsuario);
+router.patch('/:id', verificarPermiso('usuarios:administrar'), actualizarUsuario);
 router.patch(
   '/:id/rol',
-  verificarToken,
   verificarPermiso('roles:administrar'),
   asignarRolUsuario
 );
-router.patch('/:id/password', cambiarPasswordUsuario);
-router.delete('/:id', eliminarUsuario);
+router.patch(
+  '/:id/password',
+  verificarPermiso('usuarios:administrar'),
+  cambiarPasswordUsuario
+);
+router.delete('/:id', verificarPermiso('usuarios:administrar'), eliminarUsuario);
 
 export default router;

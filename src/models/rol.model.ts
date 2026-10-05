@@ -6,6 +6,7 @@ export const PERMISOS_DISPONIBLES = [
   'activos:estado',
   'activos:asignar',
   'activos:eliminar',
+  'usuarios:administrar',
   'roles:administrar',
 ] as const;
 

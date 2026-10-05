@@ -5,6 +5,10 @@ meta {
 }
 
 script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
   const id = "ZZN" + Date.now();
   bru.setEnvVar("usuarioSinNombreId", id);
 }

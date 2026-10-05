@@ -1,11 +1,11 @@
 meta {
-  name: Roles requiere autenticacion
+  name: Usuarios detalle requiere JWT
   type: http
-  seq: 14
+  seq: 24
 }
 
 get {
-  url: {{baseUrl}}/api/roles
+  url: {{baseUrl}}/api/usuarios/JWT-ANON
   body: json
   auth: none
 }

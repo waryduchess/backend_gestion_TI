@@ -1352,7 +1352,8 @@ paths:
       tags: [catalogos]
       summary: Obtener catalogos de referencia
       operationId: listarCatalogos
-      security: []
+      security:
+        - bearerAuth: []
       responses:
         '200':
           description: Catalogos obtenidos correctamente
@@ -1380,6 +1381,12 @@ paths:
                   roles:
                     - id: 1
                       nombre: admin
+        '401':
+          description: Token ausente o invalido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
         '500':
           description: Error interno del servidor
           content:
@@ -1391,7 +1398,10 @@ paths:
     get:
       tags: [usuarios]
       summary: Listar usuarios (paginado y filtrable)
+      description: Requiere el permiso usuarios:administrar.
       operationId: listarUsuarios
+      security:
+        - bearerAuth: []
       parameters:
         - name: page
           in: query
@@ -1489,13 +1499,20 @@ paths:
                 errors:
                   - campo: limit
                     valor: '500'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso usuarios:administrar
     post:
       tags: [usuarios]
       summary: Crear usuario
       description: >
         El password es opcional: sin el, el usuario queda sin acceso al
         sistema (passwordHash null). Si se envia, se guarda con bcrypt.
+        Requiere el permiso usuarios:administrar.
       operationId: crearUsuario
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -1570,12 +1587,19 @@ paths:
                 errors:
                   - campo: id
                     valor: ADMIN
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso usuarios:administrar
 
   /api/usuarios/{id}:
     get:
       tags: [usuarios]
       summary: Obtener un usuario por id
+      description: Requiere el permiso usuarios:administrar.
       operationId: obtenerUsuario
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -1608,13 +1632,20 @@ paths:
                 errors:
                   - campo: id
                     valor: ZZZZ99
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso usuarios:administrar
     patch:
       tags: [usuarios]
       summary: Editar datos del usuario (parcial)
       description: >
         Edicion parcial; null borra el dato. No se puede editar "id" ni
         "password" (para eso use PATCH /api/usuarios/{id}/password).
+        Requiere el permiso usuarios:administrar.
       operationId: actualizarUsuario
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -1665,13 +1696,20 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso usuarios:administrar
     delete:
       tags: [usuarios]
       summary: Dar de baja un usuario (borrado logico)
       description: >
         Nunca borra la fila: marca activo=false. Idempotente: si ya estaba
-        inactivo responde 200 sin cambios.
+        inactivo responde 200 sin cambios. Requiere el permiso
+        usuarios:administrar.
       operationId: eliminarUsuario
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -1714,6 +1752,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso usuarios:administrar
 
   /api/usuarios/{id}/rol:
     patch:
@@ -1774,7 +1816,10 @@ paths:
     patch:
       tags: [usuarios]
       summary: Asignar o rotar el password de un usuario
+      description: Requiere el permiso usuarios:administrar.
       operationId: cambiarPasswordUsuario
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -1816,6 +1861,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso usuarios:administrar
 
 components:
   securitySchemes:
@@ -2416,6 +2465,7 @@ components:
         - activos:estado
         - activos:asignar
         - activos:eliminar
+        - usuarios:administrar
         - roles:administrar
 
     RolCreacion:

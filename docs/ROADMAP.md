@@ -15,14 +15,15 @@ conviene revisarlo antes de cada iteracion y actualizarlo al cerrar cada modulo.
 | Incidencias (`/api/incidencias`) | `GET /` (listado paginado)                      | Si                     | 3 requests |
 | Activos (`/api/activos`)       | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `PATCH /:id/estado`, `POST /:id/asignaciones`, `DELETE /:id` | Si                     | 41 requests |
 | Asignaciones (`/api/asignaciones`) | `GET /`, `POST /:id/devolucion`               | Si                     | 8 requests |
-| Usuarios (`/api/usuarios`)       | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `PATCH /:id/password`, `DELETE /:id` | Si                     | 21 requests |
+| Usuarios (`/api/usuarios`)       | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `PATCH /:id/password`, `DELETE /:id` | Si                     | Pruebas protegidas |
 | Documentacion                      | `GET /api/docs`, `GET /api/docs/openapi.yaml` | -                      | -          |
 | Catalogos (`/api/catalogos`)       | `GET /` (departamentos, ubicaciones, puestos, tipos de usuario y roles) | Si | 1 request |
-| RBAC / roles                       | CRUD `/api/roles`, asignar rol a usuario          | Si                     | Pruebas RBAC |
+| RBAC / roles                       | CRUD `/api/roles`, asignar rol a usuario          | Si                     | 15 requests |
 | Licencias                          | ninguno                                           | No                     | No         |
 | Secretos                           | ninguno                                           | No                     | No         |
 
-Verificado tras agregar RBAC: `npx tsc --noEmit`, `prisma validate`, OpenAPI y suite Bruno (91/91 requests, 212/212 assertions).
+Verificado tras exigir JWT en las rutas de datos: `npx tsc --noEmit`,
+`prisma validate`, OpenAPI y suite Bruno (100/100 requests, 221/221 assertions).
 
 ---
 
@@ -49,13 +50,14 @@ Verificado tras agregar RBAC: `npx tsc --noEmit`, `prisma validate`, OpenAPI y s
 
 ### 2.3 Usuarios y catalogos
 
-- [X] `GET /api/usuarios` - listado paginado y filtrable (`q`, `activo`, `departamentoId`, `ubicacionId`, `puestoId`, `tipoUsuarioId`; nunca `passwordHash`; publico)
-- [X] `GET /api/usuarios/:id` - detalle con catalogos + rol
-- [X] `POST /api/usuarios` - alta (`id`+`nombre` obligatorios, 409 si id existe, `password` opcional con bcrypt -> sin password = sin acceso, 400 si catalogo no existe, 201)
-- [X] `PATCH /api/usuarios/:id` - editar datos (parcial, null borra, `id` y `password` fuera de aqui -> 400 con hint)
-- [X] `PATCH /api/usuarios/:id/password` - alta/rotacion de password (bcrypt)
-- [X] `DELETE /api/usuarios/:id` - baja **logica** (`activo=false`, 200 idempotente, nunca borra filas)
+- [X] `GET /api/usuarios` - listado paginado y filtrable (`q`, `activo`, `departamentoId`, `ubicacionId`, `puestoId`, `tipoUsuarioId`; nunca `passwordHash`; requiere `usuarios:administrar`)
+- [X] `GET /api/usuarios/:id` - detalle con catalogos + rol; requiere `usuarios:administrar`
+- [X] `POST /api/usuarios` - alta (`id`+`nombre` obligatorios, 409 si id existe, `password` opcional con bcrypt -> sin password = sin acceso, 400 si catalogo no existe, 201; requiere `usuarios:administrar`)
+- [X] `PATCH /api/usuarios/:id` - editar datos (parcial, null borra, `id` y `password` fuera de aqui -> 400 con hint; requiere `usuarios:administrar`)
+- [X] `PATCH /api/usuarios/:id/password` - alta/rotacion de password (bcrypt; requiere `usuarios:administrar`)
+- [X] `DELETE /api/usuarios/:id` - baja **logica** (`activo=false`, 200 idempotente, nunca borra filas; requiere `usuarios:administrar`)
 - [X] `GET /api/catalogos` - devuelve departamentos, ubicaciones, puestos, tipos de usuario y roles ordenados por nombre
+- [X] `/api/catalogos` requiere JWT; login se mantiene publico
 - [ ] CRUD `/api/departamentos`, `/api/ubicaciones`, `/api/puestos`, `/api/tipos-usuario`
 
 ### 2.4 RBAC - roles y permisos
@@ -65,11 +67,18 @@ Verificado tras agregar RBAC: `npx tsc --noEmit`, `prisma validate`, OpenAPI y s
 - [X] Aplicar `verificarToken` + permisos a incidencias, activos y asignaciones
 - [X] `PATCH /api/usuarios/:id/rol` para asignar o quitar un rol; solo roles con `roles:administrar`
 - [X] Seed crea/reactiva el rol Administrador, le asigna todos los permisos y lo asigna al usuario `ADMIN`
+- [X] `verificarToken` se aplica a todo `/api/usuarios`; cada endpoint valida ademas `usuarios:administrar`, excepto asignacion de rol, que requiere `roles:administrar`
 
 Permisos iniciales: `incidencias:leer`, `activos:leer`, `activos:crear`,
 `activos:editar`, `activos:estado`, `activos:asignar`, `activos:eliminar` y
-`roles:administrar`. Se protege contra dejar el sistema sin ningun rol capaz de
-administrar roles. El catalogo solo expone nombre e id de roles activos.
+`usuarios:administrar`, `roles:administrar`. Se protege contra dejar el sistema
+sin ningun rol capaz de administrar roles. El catalogo solo expone nombre e id
+de roles activos.
+
+Todas las operaciones de usuarios (incluyendo listado, detalle y password)
+requieren `usuarios:administrar`. La asignacion de rol sigue requiriendo
+`roles:administrar`. La lectura de `/api/catalogos` requiere JWT, sin permiso
+adicional.
 
 ### 2.5 Licencias - modelo `Licencia` existe sin endpoints
 
