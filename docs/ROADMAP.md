@@ -12,33 +12,37 @@ conviene revisarlo antes de cada iteracion y actualizarlo al cerrar cada modulo.
 | Modulo                             | Endpoints                                         | Documentado en Swagger | Bruno      |
 | ---------------------------------- | ------------------------------------------------- | ---------------------- | ---------- |
 | Auth (`/api/auth`)               | `POST /login`, `GET /me`                      | Si                     | 3 requests |
-| Incidencias (`/api/incidencias`) | `GET /` (listado paginado)                      | Si                     | 3 requests |
+| Incidencias (`/api/incidencias`) | `GET /`, `GET /:id`, `POST /`                  | Si                     | 12 requests |
 | Activos (`/api/activos`)       | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `PATCH /:id/estado`, `POST /:id/asignaciones`, `DELETE /:id` | Si                     | 41 requests |
 | Asignaciones (`/api/asignaciones`) | `GET /`, `POST /:id/devolucion`               | Si                     | 8 requests |
 | Usuarios (`/api/usuarios`)       | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `PATCH /:id/password`, `DELETE /:id` | Si                     | Pruebas protegidas |
 | Documentacion                      | `GET /api/docs`, `GET /api/docs/openapi.yaml` | -                      | -          |
 | Catalogos (`/api/catalogos`)       | `GET /` + CRUD `/api/departamentos`, `/api/ubicaciones`, `/api/puestos`, `/api/tipos-usuario` | Si | CRUD Bruno |
-| RBAC / roles                       | CRUD `/api/roles`, asignar rol a usuario          | Si                     | 17 requests |
+| RBAC / roles                       | CRUD `/api/roles`, asignar rol a usuario          | Si                     | 18 requests |
 | Licencias (`/api/licencias`)       | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `DELETE /:id` | Si | 12 requests |
 | Secretos                           | ninguno                                           | No                     | No         |
 
-Verificado tras Licencias: `npx tsc --noEmit`, `prisma validate`, OpenAPI y
-suite Bruno completa (145/145 requests, 304/304 assertions). El envío SMTP
-real queda pendiente de credenciales válidas y una prueba controlada.
+Regresion completa mas reciente tras Licencias: `npx tsc --noEmit`, `prisma
+validate`, OpenAPI y suite Bruno (145/145 requests, 304/304 assertions). Para
+la fase 2 de incidencias: build, OpenAPI, Bruno de Incidencias (12/12 requests,
+23/23 assertions), Roles (18/18 requests, 26/26 assertions) y prueba de evento
+Socket.IO completados. El envio SMTP real requiere credenciales validas y una
+prueba controlada.
 
 ---
 
 ## 2. Endpoints pendientes por modulo
 
-### 2.1 Incidencias (tickets) - hoy solo lectura
+### 2.1 Incidencias (tickets) - implementacion parcial
 
 - [X] **Fase 1 - Lectura:** conservar `GET /api/incidencias` y agregar `GET /api/incidencias/:id` con descripcion, evidencia, solicitante, asignado, departamento e historial ordenado cronologicamente.
-- [ ] **Fase 2 - Alta:** `POST /api/incidencias`; validar titulo, descripcion, tipo de requerimiento y referencias; tomar `solicitanteId` del usuario autenticado; aplicar estado `NUEVO`, prioridad `NORMAL` y fecha del servidor por defecto; emitir `incidencias:nueva` solo despues de persistir.
+- [X] **Fase 2 - Alta:** `POST /api/incidencias`; validar titulo, descripcion, tipo de requerimiento y departamento activo opcional; tomar `solicitanteId` del usuario autenticado; aplicar estado `NUEVO`, prioridad `NORMAL` y fecha del servidor por defecto; emitir `incidencias:nueva` solo despues de persistir.
 - [ ] **Fase 3 - Gestion:** `PATCH /api/incidencias/:id` para cambios permitidos de estado, prioridad y asignado; validar transiciones/referencias; fijar o limpiar `fechaResolucion` al entrar/salir de `COMPLETADO`; emitir `incidencias:estado-cambiado` solo cuando cambie el estado y despues de persistir.
 - [ ] **Fase 4 - Seguimiento:** `POST /api/incidencias/:id/actualizaciones` para agregar comentario; validar el texto y existencia de incidencia, guardar y devolver la actualizacion.
 - [ ] **Fase 5 - Evidencia:** `POST /api/incidencias/:id/evidencia` e integracion S3, despues de establecer limites de tamano/tipo y configuracion de almacenamiento.
 - [ ] **Baja logica pendiente de diseño:** el modelo `Incidencia` no tiene campo de baja. No implementar `DELETE` hasta definir y migrar un indicador/fecha de baja y acordar como excluir incidencias dadas de baja de consultas e historiales.
-- [ ] **Autorizacion pendiente de diseño:** mantener JWT y `incidencias:leer`; agregar permisos RBAC diferenciados para crear y gestionar incidencias, incluirlos en el seed del administrador y cubrir permitir/denegar en Bruno.
+- [X] RBAC de creacion: nuevo permiso `incidencias:crear`, incluido en el seed del administrador; acceso comprobado con Bruno.
+- [ ] **Autorizacion pendiente:** definir/agregar permiso RBAC para gestionar incidencias y cubrir permitir/denegar en Bruno.
 - [ ] **Validacion de cada fase:** actualizar OpenAPI y Bruno junto con las rutas; probar campos invalidos, relaciones inexistentes/inactivas, 404, permisos, no exponer datos sensibles y emisiones Socket.IO posteriores a escrituras exitosas.
 
 ### 2.2 Inventario de activos - hoy solo lectura

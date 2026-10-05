@@ -42,6 +42,14 @@ export interface IncidenciaDetalle extends IncidenciaLista {
   actualizaciones: ActualizacionIncidenciaDetalle[];
 }
 
+export interface DatosCreacionIncidencia {
+  titulo: string;
+  descripcion: string;
+  tipoRequerimiento: TipoRequerimiento;
+  departamentoId: number | null;
+  solicitanteId: string;
+}
+
 export interface ParametrosListadoIncidencias {
   page: number;
   limit: number;
@@ -66,6 +74,7 @@ export interface RespuestaPaginada<T> {
 
 export const ESTADOS_VALIDOS = Object.values(EstadoIncidencia);
 export const PRIORIDADES_VALIDAS = Object.values(Prioridad);
+export const TIPOS_REQUERIMIENTO_VALIDOS = Object.values(TipoRequerimiento);
 
 export type EstadoIncidenciaValor = EstadoIncidencia;
 export type PrioridadValor = Prioridad;

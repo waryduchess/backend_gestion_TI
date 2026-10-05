@@ -73,6 +73,9 @@ Verificacion:
 * Las rutas de datos requieren JWT. Incidencias, activos, asignaciones y
   administracion de roles tambien validan permisos del rol. Los usuarios sin
   rol activo no tienen acceso a esos modulos.
+* Crear incidencias requiere `incidencias:crear`; listarlas o consultarlas
+  requiere `incidencias:leer`. Vuelve a ejecutar `npm run seed` al agregar
+  permisos nuevos para que el rol Administrador los reciba.
 * Todas las rutas `/api/usuarios` requieren JWT. Ademas, requieren el permiso
   `usuarios:administrar`, excepto `PATCH /:id/rol`, que requiere
   `roles:administrar`.

@@ -1,0 +1,27 @@
+meta {
+  name: Crear incidencia requiere autenticacion
+  type: http
+  seq: 11
+}
+
+post {
+  url: {{baseUrl}}/api/incidencias
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "titulo": "Bruno incidencia sin token",
+    "descripcion": "Esta solicitud debe ser rechazada antes de crear.",
+    "tipoRequerimiento": "OTROS"
+  }
+}
+
+assert {
+  res.status: eq 401
+}

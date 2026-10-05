@@ -1,12 +1,14 @@
 import { prisma } from '../config/prisma';
 import { Prisma } from '../generated/prisma/client';
 import {
+  DatosCreacionIncidencia,
   IncidenciaDetalle,
   IncidenciaLista,
   MetadatosPaginacion,
   ParametrosListadoIncidencias,
 } from '../models/incidencia.model';
 import { HttpError } from '../middlewares/error.middleware';
+import { emitirIncidenciaNueva } from '../config/socket';
 
 interface ResultadoListado {
   incidencias: IncidenciaLista[];
@@ -38,6 +40,47 @@ const mapearIncidenciaLista = (fila: IncidenciaConResumen): IncidenciaLista => (
   departamento: fila.departamento,
   totalActualizaciones: fila._count.actualizaciones,
 });
+
+export const crear = async (
+  datos: DatosCreacionIncidencia
+): Promise<IncidenciaLista> => {
+  if (datos.departamentoId !== null) {
+    const departamento = await prisma.departamento.findFirst({
+      where: { id: datos.departamentoId, activo: true },
+      select: { id: true },
+    });
+
+    if (!departamento) {
+      throw new HttpError(
+        400,
+        'El departamento no existe o esta inactivo',
+        [{ campo: 'departamentoId', valor: datos.departamentoId }]
+      );
+    }
+  }
+
+  const fila = await prisma.incidencia.create({
+    data: {
+      titulo: datos.titulo,
+      descripcion: datos.descripcion,
+      tipoRequerimiento: datos.tipoRequerimiento,
+      solicitanteId: datos.solicitanteId,
+      departamentoId: datos.departamentoId,
+    },
+    include: LISTADO_INCIDENCIAS,
+  });
+  const incidencia = mapearIncidenciaLista(fila);
+
+  emitirIncidenciaNueva({
+    id: incidencia.id,
+    titulo: incidencia.titulo,
+    estado: incidencia.estado,
+    prioridad: incidencia.prioridad,
+    fechaNotificacion: incidencia.fechaNotificacion.toISOString(),
+  });
+
+  return incidencia;
+};
 
 export const obtenerPorId = async (id: number): Promise<IncidenciaDetalle> => {
   const fila = await prisma.incidencia.findUnique({

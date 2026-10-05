@@ -16,7 +16,7 @@ tags:
   - name: auth
     description: Autenticacion JWT (login y perfil)
   - name: incidencias
-    description: Listado de tickets / incidencias
+    description: Consulta y creacion de tickets / incidencias
   - name: activos
     description: Inventario de activos de computo
   - name: asignaciones
@@ -140,6 +140,75 @@ paths:
                 errors: []
 
   /api/incidencias:
+    post:
+      tags: [incidencias]
+      summary: Crear una incidencia
+      description: >
+        Requiere el permiso incidencias:crear. El solicitante se obtiene del
+        JWT. El estado inicia en NUEVO y la prioridad en NORMAL; la fecha de
+        notificacion la establece el servidor. Al guardar se emite el evento
+        Socket.IO incidencias:nueva.
+      operationId: crearIncidencia
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DatosCreacionIncidencia'
+            example:
+              titulo: Falla de conexion a la red
+              descripcion: El equipo no logra conectarse a la red inalambrica.
+              tipoRequerimiento: CONEXION_DE_RED
+              departamentoId: 1
+      responses:
+        '201':
+          description: Incidencia creada correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaIncidencia'
+              example:
+                success: true
+                message: Incidencia creada correctamente
+                errors: []
+                data:
+                  id: 24
+                  originalId: null
+                  titulo: Falla de conexion a la red
+                  estado: NUEVO
+                  prioridad: NORMAL
+                  tipoRequerimiento: CONEXION_DE_RED
+                  fechaNotificacion: '2026-10-05T16:00:00.000Z'
+                  fechaResolucion: null
+                  solicitante:
+                    id: ADMIN
+                    nombre: Administrador
+                    email: admin@example.com
+                  asignadoA: null
+                  departamento:
+                    id: 1
+                    nombre: Sistemas
+                  totalActualizaciones: 0
+        '400':
+          description: Cuerpo invalido, campos obligatorios ausentes o departamento inexistente/inactivo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '403':
+          description: El usuario no tiene permiso para crear incidencias
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
     get:
       tags: [incidencias]
       summary: Listar incidencias (paginado)
@@ -3002,6 +3071,44 @@ components:
               description: Historial en orden cronologico ascendente
               items:
                 $ref: '#/components/schemas/ActualizacionIncidencia'
+
+    DatosCreacionIncidencia:
+      type: object
+      additionalProperties: false
+      required: [titulo, descripcion, tipoRequerimiento]
+      properties:
+        titulo:
+          type: string
+          minLength: 1
+          maxLength: 500
+          example: Falla de conexion a la red
+        descripcion:
+          type: string
+          minLength: 1
+          example: El equipo no logra conectarse a la red inalambrica.
+        tipoRequerimiento:
+          $ref: '#/components/schemas/TipoRequerimiento'
+        departamentoId:
+          type: [integer, 'null']
+          minimum: 1
+          description: Opcional; debe referenciar un departamento activo
+          example: 1
+
+    RespuestaIncidencia:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Incidencia creada correctamente
+        errors:
+          type: array
+          items: {}
+        data:
+          $ref: '#/components/schemas/Incidencia'
 
     RespuestaIncidenciaDetalle:
       type: object

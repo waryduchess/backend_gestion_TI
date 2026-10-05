@@ -1,0 +1,44 @@
+meta {
+  name: Crear incidencia
+  type: http
+  seq: 7
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+  bru.setVar("tituloIncidenciaPrueba", `Bruno incidencia ${Date.now()}`);
+}
+
+post {
+  url: {{baseUrl}}/api/incidencias
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "titulo": "{{tituloIncidenciaPrueba}}",
+    "descripcion": "Incidencia creada durante la prueba automatizada de Bruno.",
+    "tipoRequerimiento": "OTROS"
+  }
+}
+
+script:post-response {
+  if (res.status === 201) bru.setEnvVar("incidenciaCreadaId", res.body.data.id);
+}
+
+assert {
+  res.status: eq 201
+  res.body.data.titulo: eq {{tituloIncidenciaPrueba}}
+  res.body.data.estado: eq NUEVO
+  res.body.data.prioridad: eq NORMAL
+  res.body.data.solicitante.id: eq ADMIN
+  res.body.data.totalActualizaciones: eq 0
+}

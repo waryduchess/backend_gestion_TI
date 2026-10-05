@@ -1,11 +1,19 @@
 import { Router } from 'express';
 import {
+  crearIncidencia,
   listarIncidencias,
   obtenerIncidencia,
 } from '../controllers/incidencia.controller';
 import { verificarPermiso, verificarToken } from '../middlewares/auth.middleware';
 
 const router: Router = Router();
+
+router.post(
+  '/',
+  verificarToken,
+  verificarPermiso('incidencias:crear'),
+  crearIncidencia
+);
 
 router.get(
   '/',

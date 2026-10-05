@@ -1,0 +1,38 @@
+meta {
+  name: Crear incidencia no permite alterar campos del sistema
+  type: http
+  seq: 12
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+post {
+  url: {{baseUrl}}/api/incidencias
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "titulo": "Bruno incidencia no debe alterar el solicitante",
+    "descripcion": "El cliente no puede fijar campos gestionados por el servidor.",
+    "tipoRequerimiento": "OTROS",
+    "solicitanteId": "OTRO-USUARIO",
+    "estado": "COMPLETADO",
+    "prioridad": "CRITICA"
+  }
+}
+
+assert {
+  res.status: eq 400
+  res.body.errors[0].campo: eq campos
+}
