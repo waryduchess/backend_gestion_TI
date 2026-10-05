@@ -1,0 +1,26 @@
+meta {
+  name: Desactivar departamento
+  type: http
+  seq: 6
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+delete {
+  url: {{baseUrl}}/api/departamentos/{{departamentoPruebaId}}
+  body: json
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}
+
+assert {
+  res.body.data.activo: eq false
+}

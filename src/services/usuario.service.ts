@@ -76,24 +76,32 @@ const verificarCatalogo = async (
 
   switch (campo) {
     case 'departamentoId':
-      existe = await prisma.departamento.findUnique({ where: { id: valor } });
+      existe = await prisma.departamento.findFirst({
+        where: { id: valor, activo: true },
+      });
       break;
     case 'ubicacionId':
-      existe = await prisma.ubicacion.findUnique({ where: { id: valor } });
+      existe = await prisma.ubicacion.findFirst({
+        where: { id: valor, activo: true },
+      });
       break;
     case 'puestoId':
-      existe = await prisma.puesto.findUnique({ where: { id: valor } });
+      existe = await prisma.puesto.findFirst({
+        where: { id: valor, activo: true },
+      });
       break;
     case 'tipoUsuarioId':
-      existe = await prisma.tipoUsuario.findUnique({ where: { id: valor } });
+      existe = await prisma.tipoUsuario.findFirst({
+        where: { id: valor, activo: true },
+      });
       break;
     default:
       return;
   }
 
   if (!existe) {
-    throw new HttpError(400, `El catalogo de "${campo}" no existe`, [
-      { campo, valor, mensaje: 'El catalogo indicado no existe' },
+    throw new HttpError(400, `El catalogo de "${campo}" no existe o esta inactivo`, [
+      { campo, valor, mensaje: 'El catalogo indicado no existe o esta inactivo' },
     ]);
   }
 };

@@ -1,0 +1,40 @@
+meta {
+  name: Reactivar departamento existente
+  type: http
+  seq: 7
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+post {
+  url: {{baseUrl}}/api/departamentos
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "nombre": "{{departamentoPrueba}}"
+  }
+}
+
+assert {
+  res.status: eq 200
+}
+
+assert {
+  res.body.message: eq Departamento reactivado correctamente
+}
+
+assert {
+  res.body.data.id: eq {{departamentoPruebaId}}
+}

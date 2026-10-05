@@ -67,6 +67,7 @@ model Rol {
 model Departamento {
   id          Int           @id @default(autoincrement())
   nombre      String        @unique
+  activo      Boolean       @default(true)
   usuarios    Usuario[]
   incidencias Incidencia[]
 }
@@ -74,18 +75,21 @@ model Departamento {
 model Ubicacion {
   id       Int       @id @default(autoincrement())
   nombre   String    @unique
+  activo   Boolean   @default(true)
   usuarios Usuario[]
 }
 
 model Puesto {
   id       Int       @id @default(autoincrement())
   nombre   String    @unique
+  activo   Boolean   @default(true)
   usuarios Usuario[]
 }
 
 model TipoUsuario {
   id       Int       @id @default(autoincrement())
   nombre   String    @unique
+  activo   Boolean   @default(true)
   usuarios Usuario[]
 }
 

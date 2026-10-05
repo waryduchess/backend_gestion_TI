@@ -1,11 +1,11 @@
 meta {
-  name: Asignar rol requiere autenticacion
+  name: Actualizar departamento requiere JWT
   type: http
-  seq: 16
+  seq: 3
 }
 
 patch {
-  url: {{baseUrl}}/api/usuarios/ADMIN/rol
+  url: {{baseUrl}}/api/departamentos/1
   body: json
   auth: none
 }
@@ -16,7 +16,7 @@ headers {
 
 body:json {
   {
-    "rolId": null
+    "nombre": "ANONIMO"
   }
 }
 

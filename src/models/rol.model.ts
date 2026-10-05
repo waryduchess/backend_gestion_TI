@@ -8,6 +8,7 @@ export const PERMISOS_DISPONIBLES = [
   'activos:eliminar',
   'usuarios:administrar',
   'roles:administrar',
+  'catalogos:administrar',
 ] as const;
 
 export type Permiso = (typeof PERMISOS_DISPONIBLES)[number];

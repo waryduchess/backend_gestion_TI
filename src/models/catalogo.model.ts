@@ -10,3 +10,13 @@ export interface Catalogos {
   tiposUsuario: CatalogoItem[];
   roles: CatalogoItem[];
 }
+
+export type TipoCatalogo =
+  | 'departamento'
+  | 'ubicacion'
+  | 'puesto'
+  | 'tipoUsuario';
+
+export interface CatalogoAdministrable extends CatalogoItem {
+  activo: boolean;
+}

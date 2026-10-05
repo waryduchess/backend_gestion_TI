@@ -1,16 +1,14 @@
 meta {
-  name: Crear usuario con catalogo inexistente
+  name: Rechazar asignacion de catalogo inactivo
   type: http
-  seq: 8
+  seq: 10
 }
 
 script:pre-request {
   await bru.runRequest("Auth/login");
   const token = bru.getEnvVar("token");
-  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion");
   req.setHeader("Authorization", "Bearer " + token);
-  const id = "ZZC" + Date.now();
-  bru.setEnvVar("usuarioCatalogoId", id);
 }
 
 post {
@@ -25,9 +23,9 @@ headers {
 
 body:json {
   {
-    "id": "{{usuarioCatalogoId}}",
-    "nombre": "Usuario Catalogo",
-    "departamentoId": 99999
+    "id": "INACTIVO-{{departamentoPruebaId}}",
+    "nombre": "Usuario con catalogo inactivo",
+    "departamentoId": {{departamentoPruebaId}}
   }
 }
 
@@ -37,8 +35,4 @@ assert {
 
 assert {
   res.body.message: eq El catalogo de "departamentoId" no existe o esta inactivo
-}
-
-assert {
-  res.body.errors[0].campo: eq departamentoId
 }

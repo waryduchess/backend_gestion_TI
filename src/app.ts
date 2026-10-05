@@ -8,6 +8,7 @@ import asignacionRoutes from './routes/asignacion.routes';
 import incidenciaRoutes from './routes/incidencia.routes';
 import usuarioRoutes from './routes/usuario.routes';
 import catalogoRoutes from './routes/catalogo.routes';
+import { crearRutasCatalogoAdministrable } from './routes/catalogo-admin.routes';
 import rolRoutes from './routes/rol.routes';
 import docsRoutes from './docs/docs.routes';
 
@@ -31,6 +32,16 @@ app.use('/api/asignaciones', asignacionRoutes);
 app.use('/api/incidencias', incidenciaRoutes);
 app.use('/api/usuarios', usuarioRoutes);
 app.use('/api/catalogos', catalogoRoutes);
+app.use(
+  '/api/departamentos',
+  crearRutasCatalogoAdministrable('departamento')
+);
+app.use('/api/ubicaciones', crearRutasCatalogoAdministrable('ubicacion'));
+app.use('/api/puestos', crearRutasCatalogoAdministrable('puesto'));
+app.use(
+  '/api/tipos-usuario',
+  crearRutasCatalogoAdministrable('tipoUsuario')
+);
 app.use('/api/roles', rolRoutes);
 app.use('/api/docs', docsRoutes);
 

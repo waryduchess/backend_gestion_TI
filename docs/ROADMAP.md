@@ -17,13 +17,13 @@ conviene revisarlo antes de cada iteracion y actualizarlo al cerrar cada modulo.
 | Asignaciones (`/api/asignaciones`) | `GET /`, `POST /:id/devolucion`               | Si                     | 8 requests |
 | Usuarios (`/api/usuarios`)       | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `PATCH /:id/password`, `DELETE /:id` | Si                     | Pruebas protegidas |
 | Documentacion                      | `GET /api/docs`, `GET /api/docs/openapi.yaml` | -                      | -          |
-| Catalogos (`/api/catalogos`)       | `GET /` (departamentos, ubicaciones, puestos, tipos de usuario y roles) | Si | 1 request |
+| Catalogos (`/api/catalogos`)       | `GET /` + CRUD `/api/departamentos`, `/api/ubicaciones`, `/api/puestos`, `/api/tipos-usuario` | Si | CRUD Bruno |
 | RBAC / roles                       | CRUD `/api/roles`, asignar rol a usuario          | Si                     | 15 requests |
 | Licencias                          | ninguno                                           | No                     | No         |
 | Secretos                           | ninguno                                           | No                     | No         |
 
-Verificado tras exigir JWT en las rutas de datos: `npx tsc --noEmit`,
-`prisma validate`, OpenAPI y suite Bruno (100/100 requests, 221/221 assertions).
+Verificado tras el CRUD de catalogos: `npx tsc --noEmit`, `prisma validate`,
+OpenAPI y suite Bruno (132/132 requests, 277/277 assertions).
 
 ---
 
@@ -58,7 +58,7 @@ Verificado tras exigir JWT en las rutas de datos: `npx tsc --noEmit`,
 - [X] `DELETE /api/usuarios/:id` - baja **logica** (`activo=false`, 200 idempotente, nunca borra filas; requiere `usuarios:administrar`)
 - [X] `GET /api/catalogos` - devuelve departamentos, ubicaciones, puestos, tipos de usuario y roles ordenados por nombre
 - [X] `/api/catalogos` requiere JWT; login se mantiene publico
-- [ ] CRUD `/api/departamentos`, `/api/ubicaciones`, `/api/puestos`, `/api/tipos-usuario`
+- [X] CRUD `/api/departamentos`, `/api/ubicaciones`, `/api/puestos`, `/api/tipos-usuario` (JWT + `catalogos:administrar`; baja logica y reactivacion al crear un nombre inactivo; campo `activo` añadido por migracion aditiva)
 
 ### 2.4 RBAC - roles y permisos
 
@@ -71,9 +71,10 @@ Verificado tras exigir JWT en las rutas de datos: `npx tsc --noEmit`,
 
 Permisos iniciales: `incidencias:leer`, `activos:leer`, `activos:crear`,
 `activos:editar`, `activos:estado`, `activos:asignar`, `activos:eliminar` y
-`usuarios:administrar`, `roles:administrar`. Se protege contra dejar el sistema
-sin ningun rol capaz de administrar roles. El catalogo solo expone nombre e id
-de roles activos.
+`usuarios:administrar`, `roles:administrar`, `catalogos:administrar`. Se protege
+contra dejar el sistema sin ningun rol capaz de administrar roles. El catalogo
+solo expone entradas activas y el listado de roles expone nombre e id de roles
+activos.
 
 Todas las operaciones de usuarios (incluyendo listado, detalle y password)
 requieren `usuarios:administrar`. La asignacion de rol sigue requiriendo

@@ -24,7 +24,9 @@ tags:
   - name: usuarios
     description: Usuarios del sistema y sus datos
   - name: catalogos
-    description: Catalogos para usuarios y relaciones del sistema
+    description: >
+      Catalogos para usuarios y relaciones del sistema. GET /api/catalogos
+      requiere JWT; sus CRUD requieren ademas catalogos:administrar.
   - name: roles
     description: Roles y permisos de acceso
 
@@ -1394,6 +1396,538 @@ paths:
               schema:
                 $ref: '#/components/schemas/RespuestaError'
 
+  /api/departamentos:
+    get:
+      tags: [catalogos]
+      summary: Listar departamentos activos
+      description: Requiere el permiso catalogos:administrar.
+      operationId: listarDepartamentos
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Departamentos obtenidos correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaCatalogosAdministrables'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso catalogos:administrar
+    post:
+      tags: [catalogos]
+      summary: Crear o reactivar departamento
+      description: Si el nombre existe inactivo, reactiva ese registro.
+      operationId: crearDepartamento
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CatalogoRequest'
+      responses:
+        '200':
+          description: Departamento reactivado correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaCatalogoAdministrable'
+        '201':
+          description: Departamento creado correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaCatalogoAdministrable'
+        '400':
+          description: Nombre vacio, demasiado largo o campos adicionales
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso catalogos:administrar
+        '409':
+          description: Ya existe un departamento activo con ese nombre
+  /api/departamentos/{id}:
+    get:
+      tags: [catalogos]
+      summary: Obtener departamento activo
+      operationId: obtenerDepartamento
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CatalogoId'
+      responses:
+        '200':
+          description: Departamento obtenido correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaCatalogoAdministrable'
+        '400':
+          description: Identificador invalido
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso catalogos:administrar
+        '404':
+          description: Departamento no encontrado o inactivo
+    patch:
+      tags: [catalogos]
+      summary: Renombrar departamento
+      operationId: actualizarDepartamento
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CatalogoId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CatalogoRequest'
+      responses:
+        '200':
+          description: Departamento actualizado correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaCatalogoAdministrable'
+        '400':
+          description: Nombre invalido
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso catalogos:administrar
+        '404':
+          description: Departamento no encontrado o inactivo
+        '409':
+          description: Ya existe un departamento con ese nombre
+    delete:
+      tags: [catalogos]
+      summary: Desactivar departamento
+      description: Baja logica; conserva las referencias historicas.
+      operationId: eliminarDepartamento
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CatalogoId'
+      responses:
+        '200':
+          description: Departamento desactivado correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaCatalogoAdministrable'
+        '400':
+          description: Identificador invalido
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso catalogos:administrar
+        '404':
+          description: Departamento no encontrado
+
+  /api/ubicaciones:
+    get:
+      tags: [catalogos]
+      summary: Listar ubicaciones activas
+      description: Requiere el permiso catalogos:administrar.
+      operationId: listarUbicaciones
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Ubicaciones obtenidas correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaCatalogosAdministrables'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso catalogos:administrar
+    post:
+      tags: [catalogos]
+      summary: Crear o reactivar ubicacion
+      description: Si el nombre existe inactivo, reactiva ese registro.
+      operationId: crearUbicacion
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CatalogoRequest'
+      responses:
+        '200':
+          description: Ubicacion reactivada correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaCatalogoAdministrable'
+        '201':
+          description: Ubicacion creada correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaCatalogoAdministrable'
+        '400':
+          description: Nombre invalido
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso catalogos:administrar
+        '409':
+          description: Ya existe una ubicacion activa con ese nombre
+  /api/ubicaciones/{id}:
+    get:
+      tags: [catalogos]
+      summary: Obtener ubicacion activa
+      operationId: obtenerUbicacion
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CatalogoId'
+      responses:
+        '200':
+          description: Ubicacion obtenida correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaCatalogoAdministrable'
+        '400':
+          description: Identificador invalido
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso catalogos:administrar
+        '404':
+          description: Ubicacion no encontrada o inactiva
+    patch:
+      tags: [catalogos]
+      summary: Renombrar ubicacion
+      operationId: actualizarUbicacion
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CatalogoId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CatalogoRequest'
+      responses:
+        '200':
+          description: Ubicacion actualizada correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaCatalogoAdministrable'
+        '400':
+          description: Nombre invalido
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso catalogos:administrar
+        '404':
+          description: Ubicacion no encontrada o inactiva
+        '409':
+          description: Ya existe una ubicacion con ese nombre
+    delete:
+      tags: [catalogos]
+      summary: Desactivar ubicacion
+      description: Baja logica; conserva las referencias historicas.
+      operationId: eliminarUbicacion
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CatalogoId'
+      responses:
+        '200':
+          description: Ubicacion desactivada correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaCatalogoAdministrable'
+        '400':
+          description: Identificador invalido
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso catalogos:administrar
+        '404':
+          description: Ubicacion no encontrada
+
+  /api/puestos:
+    get:
+      tags: [catalogos]
+      summary: Listar puestos activos
+      description: Requiere el permiso catalogos:administrar.
+      operationId: listarPuestos
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Puestos obtenidos correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaCatalogosAdministrables'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso catalogos:administrar
+    post:
+      tags: [catalogos]
+      summary: Crear o reactivar puesto
+      description: Si el nombre existe inactivo, reactiva ese registro.
+      operationId: crearPuesto
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CatalogoRequest'
+      responses:
+        '200':
+          description: Puesto reactivado correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaCatalogoAdministrable'
+        '201':
+          description: Puesto creado correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaCatalogoAdministrable'
+        '400':
+          description: Nombre invalido
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso catalogos:administrar
+        '409':
+          description: Ya existe un puesto activo con ese nombre
+  /api/puestos/{id}:
+    get:
+      tags: [catalogos]
+      summary: Obtener puesto activo
+      operationId: obtenerPuesto
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CatalogoId'
+      responses:
+        '200':
+          description: Puesto obtenido correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaCatalogoAdministrable'
+        '400':
+          description: Identificador invalido
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso catalogos:administrar
+        '404':
+          description: Puesto no encontrado o inactivo
+    patch:
+      tags: [catalogos]
+      summary: Renombrar puesto
+      operationId: actualizarPuesto
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CatalogoId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CatalogoRequest'
+      responses:
+        '200':
+          description: Puesto actualizado correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaCatalogoAdministrable'
+        '400':
+          description: Nombre invalido
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso catalogos:administrar
+        '404':
+          description: Puesto no encontrado o inactivo
+        '409':
+          description: Ya existe un puesto con ese nombre
+    delete:
+      tags: [catalogos]
+      summary: Desactivar puesto
+      description: Baja logica; conserva las referencias historicas.
+      operationId: eliminarPuesto
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CatalogoId'
+      responses:
+        '200':
+          description: Puesto desactivado correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaCatalogoAdministrable'
+        '400':
+          description: Identificador invalido
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso catalogos:administrar
+        '404':
+          description: Puesto no encontrado
+
+  /api/tipos-usuario:
+    get:
+      tags: [catalogos]
+      summary: Listar tipos de usuario activos
+      description: Requiere el permiso catalogos:administrar.
+      operationId: listarTiposUsuario
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Tipos de usuario obtenidos correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaCatalogosAdministrables'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso catalogos:administrar
+    post:
+      tags: [catalogos]
+      summary: Crear o reactivar tipo de usuario
+      description: Si el nombre existe inactivo, reactiva ese registro.
+      operationId: crearTipoUsuario
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CatalogoRequest'
+      responses:
+        '200':
+          description: Tipo de usuario reactivado correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaCatalogoAdministrable'
+        '201':
+          description: Tipo de usuario creado correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaCatalogoAdministrable'
+        '400':
+          description: Nombre invalido
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso catalogos:administrar
+        '409':
+          description: Ya existe un tipo de usuario activo con ese nombre
+  /api/tipos-usuario/{id}:
+    get:
+      tags: [catalogos]
+      summary: Obtener tipo de usuario activo
+      operationId: obtenerTipoUsuario
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CatalogoId'
+      responses:
+        '200':
+          description: Tipo de usuario obtenido correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaCatalogoAdministrable'
+        '400':
+          description: Identificador invalido
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso catalogos:administrar
+        '404':
+          description: Tipo de usuario no encontrado o inactivo
+    patch:
+      tags: [catalogos]
+      summary: Renombrar tipo de usuario
+      operationId: actualizarTipoUsuario
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CatalogoId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CatalogoRequest'
+      responses:
+        '200':
+          description: Tipo de usuario actualizado correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaCatalogoAdministrable'
+        '400':
+          description: Nombre invalido
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso catalogos:administrar
+        '404':
+          description: Tipo de usuario no encontrado o inactivo
+        '409':
+          description: Ya existe un tipo de usuario con ese nombre
+    delete:
+      tags: [catalogos]
+      summary: Desactivar tipo de usuario
+      description: Baja logica; conserva las referencias historicas.
+      operationId: eliminarTipoUsuario
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CatalogoId'
+      responses:
+        '200':
+          description: Tipo de usuario desactivado correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaCatalogoAdministrable'
+        '400':
+          description: Identificador invalido
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso catalogos:administrar
+        '404':
+          description: Tipo de usuario no encontrado
+
   /api/usuarios:
     get:
       tags: [usuarios]
@@ -1874,7 +2408,16 @@ components:
       bearerFormat: JWT
       description: >
         Token devuelto por POST /api/auth/login. Enviar como
-        Authorization: Bearer <token>.
+        Authorization: Bearer <token>
+
+  parameters:
+    CatalogoId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1.
 
   schemas:
     LoginRequest:
@@ -2467,6 +3010,7 @@ components:
         - activos:eliminar
         - usuarios:administrar
         - roles:administrar
+        - catalogos:administrar
 
     RolCreacion:
       type: object
@@ -2592,6 +3136,63 @@ components:
         nombre:
           type: string
           example: Administracion
+
+    CatalogoAdministrable:
+      type: object
+      required: [id, nombre, activo]
+      properties:
+        id:
+          type: integer
+          example: 1
+        nombre:
+          type: string
+          example: Administracion
+        activo:
+          type: boolean
+          example: true
+
+    CatalogoRequest:
+      type: object
+      required: [nombre]
+      additionalProperties: false
+      properties:
+        nombre:
+          type: string
+          minLength: 1
+          maxLength: 191
+          example: Administracion
+
+    RespuestaCatalogoAdministrable:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+        errors:
+          type: array
+          items: {}
+        data:
+          $ref: '#/components/schemas/CatalogoAdministrable'
+
+    RespuestaCatalogosAdministrables:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+        errors:
+          type: array
+          items: {}
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/CatalogoAdministrable'
 
     UsuarioCreacion:
       type: object

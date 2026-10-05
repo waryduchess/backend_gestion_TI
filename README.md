@@ -76,6 +76,10 @@ Verificacion:
 * Todas las rutas `/api/usuarios` requieren JWT. Ademas, requieren el permiso
   `usuarios:administrar`, excepto `PATCH /:id/rol`, que requiere
   `roles:administrar`.
+* Los CRUD de `/api/departamentos`, `/api/ubicaciones`, `/api/puestos` y
+  `/api/tipos-usuario` requieren JWT y `catalogos:administrar`. La baja es
+  logica; al crear un nombre inactivo se reactiva el registro existente.
+  `GET /api/catalogos` requiere JWT, pero no ese permiso administrativo.
 * `POST /api/auth/login` es la unica ruta operativa publica; `/health` y la
   documentacion permanecen publicos para comprobacion y consulta.
 

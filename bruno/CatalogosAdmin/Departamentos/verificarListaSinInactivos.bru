@@ -1,0 +1,29 @@
+meta {
+  name: Listado excluye departamento inactivo
+  type: http
+  seq: 11
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+get {
+  url: {{baseUrl}}/api/departamentos
+  body: json
+  auth: none
+}
+
+script:post-response {
+  const nombreInactivo = bru.getVar("departamentoPrueba");
+  if (res.body.data.some((item) => item.nombre === nombreInactivo)) {
+    throw new Error("El listado incluyo un departamento inactivo");
+  }
+}
+
+assert {
+  res.status: eq 200
+}

@@ -1,0 +1,11 @@
+ALTER TABLE `Departamento`
+    ADD COLUMN `activo` BOOLEAN NOT NULL DEFAULT true;
+
+ALTER TABLE `Ubicacion`
+    ADD COLUMN `activo` BOOLEAN NOT NULL DEFAULT true;
+
+ALTER TABLE `Puesto`
+    ADD COLUMN `activo` BOOLEAN NOT NULL DEFAULT true;
+
+ALTER TABLE `TipoUsuario`
+    ADD COLUMN `activo` BOOLEAN NOT NULL DEFAULT true;

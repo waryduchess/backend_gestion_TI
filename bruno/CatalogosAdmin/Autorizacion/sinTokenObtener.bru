@@ -1,0 +1,15 @@
+meta {
+  name: Consultar departamento requiere JWT
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/departamentos/1
+  body: json
+  auth: none
+}
+
+assert {
+  res.status: eq 401
+}
