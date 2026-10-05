@@ -1,0 +1,26 @@
+meta {
+  name: Filtrar licencias por proveedor y fecha
+  type: http
+  seq: 5
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+get {
+  url: {{baseUrl}}/api/licencias?activa=true&proveedor={{proveedorLicenciaPrueba}}&venceDesde=2026-01-01&venceHasta=2099-12-31
+  body: json
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}
+
+assert {
+  res.body.data[0].proveedor: eq {{proveedorLicenciaPrueba}}
+}

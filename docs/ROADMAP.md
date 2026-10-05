@@ -18,12 +18,13 @@ conviene revisarlo antes de cada iteracion y actualizarlo al cerrar cada modulo.
 | Usuarios (`/api/usuarios`)       | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `PATCH /:id/password`, `DELETE /:id` | Si                     | Pruebas protegidas |
 | Documentacion                      | `GET /api/docs`, `GET /api/docs/openapi.yaml` | -                      | -          |
 | Catalogos (`/api/catalogos`)       | `GET /` + CRUD `/api/departamentos`, `/api/ubicaciones`, `/api/puestos`, `/api/tipos-usuario` | Si | CRUD Bruno |
-| RBAC / roles                       | CRUD `/api/roles`, asignar rol a usuario          | Si                     | 15 requests |
-| Licencias                          | ninguno                                           | No                     | No         |
+| RBAC / roles                       | CRUD `/api/roles`, asignar rol a usuario          | Si                     | 17 requests |
+| Licencias (`/api/licencias`)       | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `DELETE /:id` | Si | 12 requests |
 | Secretos                           | ninguno                                           | No                     | No         |
 
-Verificado tras el CRUD de catalogos: `npx tsc --noEmit`, `prisma validate`,
-OpenAPI y suite Bruno (132/132 requests, 277/277 assertions).
+Verificado tras Licencias: `npx tsc --noEmit`, `prisma validate`, OpenAPI y
+suite Bruno completa (145/145 requests, 304/304 assertions). El envío SMTP
+real queda pendiente de credenciales válidas y una prueba controlada.
 
 ---
 
@@ -81,13 +82,14 @@ requieren `usuarios:administrar`. La asignacion de rol sigue requiriendo
 `roles:administrar`. La lectura de `/api/catalogos` requiere JWT, sin permiso
 adicional.
 
-### 2.5 Licencias - modelo `Licencia` existe sin endpoints
+### 2.5 Licencias
 
-- [ ] `GET /api/licencias` - listado con filtros (activa, proveedor, vencimiento)
-- [ ] `POST /api/licencias` - alta (clave cifrada AES-256-GCM antes de guardar)
-- [ ] `PATCH /api/licencias/:id` - editar/reasignar
-- [ ] `DELETE /api/licencias/:id` - baja
-- [ ] Alerta de vencimiento via `node-cron` + Nodemailer
+- [X] `GET /api/licencias` y `GET /api/licencias/:id` - listado paginado con filtros por activa, proveedor, fecha de vencimiento y busqueda; la clave no se expone
+- [X] `POST /api/licencias` - alta con clave cifrada AES-256-GCM
+- [X] `PATCH /api/licencias/:id` - edicion/reasignacion y reactivacion de baja logica
+- [X] `DELETE /api/licencias/:id` - baja logica idempotente
+- [X] Alertas diarias desde 30 dias antes del vencimiento via `node-cron` + Nodemailer; usuario asignado o email de respaldo
+- [X] Autorizacion JWT + permiso `licencias:administrar`
 
 ### 2.6 Secretos - modelo `Secreto` existe sin endpoints
 
@@ -98,15 +100,15 @@ adicional.
 
 ## 3. Features tecnicas pendientes
 
-- [ ] `src/utils/crypto.ts` - AES-256-GCM (clave en `.env`) para `Licencia.clave`, `Secreto.password`
+- [X] `src/utils/crypto.ts` - AES-256-GCM con `AES_SECRET_KEY` para `Licencia.clave`; pendiente usarlo tambien para `Secreto.password`
 - [ ] Socket.io (`src/config/socket.ts`) - notificaciones en tiempo real (nuevos tickets, cambios de estado)
-- [ ] `node-cron` - jobs: vencimiento de licencias, SLA de tickets
-- [ ] Nodemailer (`src/config/mailer.ts`) - correos de alerta y notificacion
+- [X] `node-cron` - job diario de vencimiento de licencias; pendiente SLA de tickets
+- [X] Nodemailer (`src/config/mailer.ts`) - correos de alerta de licencias; pendiente otras notificaciones
 - [ ] S3 (`src/config/s3.ts`, `@aws-sdk/client-s3`) - evidencias de incidencias y adjuntos
 - [ ] Puppeteer - reportes PDF (inventario, tickets cerrados, licencias)
 - [ ] Ollama (`llama3.1:8b`) - asistente IA + Function Calling (servicio `ollama` en docker, profile `ai`)
 - [ ] CORS restrictivo - hoy `app.use(cors())` abierto; restringir a la URL del frontend
-- [ ] Variables de entorno nuevas en `.env.example`: `SMTP_*`, `S3_*`, `OLLAMA_*`, `CORS_ORIGIN`, `CRIPTO_KEY`
+- [X] `.env.example` documenta SMTP y variables de alertas de licencias; quedan pendientes `S3_*`, `OLLAMA_*`, `CORS_ORIGIN` y la revision de nombres previos del roadmap
 
 ---
 

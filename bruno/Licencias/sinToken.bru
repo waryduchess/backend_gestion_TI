@@ -1,0 +1,15 @@
+meta {
+  name: Licencias requiere JWT
+  type: http
+  seq: 11
+}
+
+get {
+  url: {{baseUrl}}/api/licencias
+  body: json
+  auth: none
+}
+
+assert {
+  res.status: eq 401
+}

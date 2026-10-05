@@ -1,0 +1,22 @@
+meta {
+  name: Ocultar licencia inactiva
+  type: http
+  seq: 8
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+get {
+  url: {{baseUrl}}/api/licencias/{{licenciaPruebaId}}
+  body: json
+  auth: none
+}
+
+assert {
+  res.status: eq 404
+}

@@ -11,6 +11,8 @@ import catalogoRoutes from './routes/catalogo.routes';
 import { crearRutasCatalogoAdministrable } from './routes/catalogo-admin.routes';
 import rolRoutes from './routes/rol.routes';
 import docsRoutes from './docs/docs.routes';
+import licenciaRoutes from './routes/licencia.routes';
+import { iniciarJobAlertasLicencias } from './jobs/licencias.job';
 
 const app: Application = express();
 
@@ -43,6 +45,7 @@ app.use(
   crearRutasCatalogoAdministrable('tipoUsuario')
 );
 app.use('/api/roles', rolRoutes);
+app.use('/api/licencias', licenciaRoutes);
 app.use('/api/docs', docsRoutes);
 
 app.use(notFoundHandler);
@@ -52,6 +55,7 @@ const PORT = Number(process.env.PORT) || 3000;
 
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en el puerto ${PORT}`);
+  iniciarJobAlertasLicencias();
 });
 
 export default app;

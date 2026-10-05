@@ -27,6 +27,8 @@ tags:
     description: >
       Catalogos para usuarios y relaciones del sistema. GET /api/catalogos
       requiere JWT; sus CRUD requieren ademas catalogos:administrar.
+  - name: licencias
+    description: Licencias protegidas por el permiso licencias:administrar
   - name: roles
     description: Roles y permisos de acceso
 
@@ -1928,6 +1930,222 @@ paths:
         '404':
           description: Tipo de usuario no encontrado
 
+  /api/licencias:
+    get:
+      tags: [licencias]
+      summary: Listar licencias con filtros
+      description: >
+        Requiere JWT y licencias:administrar. La clave nunca se devuelve;
+        la respuesta solo indica tieneClave.
+      operationId: listarLicencias
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+        - name: activa
+          in: query
+          description: Incluir licencias activas o inactivas
+          schema:
+            type: boolean
+        - name: proveedor
+          in: query
+          schema:
+            type: string
+        - name: venceDesde
+          in: query
+          description: Fecha minima de vencimiento, formato YYYY-MM-DD
+          schema:
+            type: string
+            format: date
+        - name: venceHasta
+          in: query
+          description: Fecha maxima de vencimiento, formato YYYY-MM-DD
+          schema:
+            type: string
+            format: date
+        - name: q
+          in: query
+          description: Busca en software y proveedor
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Licencias obtenidas correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaLicenciasPaginada'
+        '400':
+          description: Filtros o paginacion invalidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso licencias:administrar
+    post:
+      tags: [licencias]
+      summary: Registrar una licencia
+      description: >
+        La clave opcional se cifra con AES-256-GCM. La respuesta nunca la
+        expone; solo informa tieneClave.
+      operationId: crearLicencia
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LicenciaRequest'
+            example:
+              software: Microsoft 365
+              clave: "XXXXX-XXXXX-XXXXX"
+              proveedor: Microsoft
+              fechaCompra: '2026-01-01'
+              fechaVencimiento: '2027-01-01'
+              asignadaAId: ADMIN
+      responses:
+        '201':
+          description: Licencia creada correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaLicencia'
+        '400':
+          description: Datos invalidos o usuario asignado no existe/esta inactivo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso licencias:administrar
+        '500':
+          description: AES_SECRET_KEY invalida o error interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+  /api/licencias/{id}:
+    get:
+      tags: [licencias]
+      summary: Consultar licencia activa
+      operationId: obtenerLicencia
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Licencia obtenida correctamente; no incluye su clave
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaLicencia'
+        '400':
+          description: Identificador invalido
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso licencias:administrar
+        '404':
+          description: Licencia no encontrada o inactiva
+    patch:
+      tags: [licencias]
+      summary: Editar o reasignar una licencia
+      description: Enviar clave null para eliminar la clave cifrada; activa true reactiva una baja logica.
+      operationId: actualizarLicencia
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LicenciaEdicion'
+      responses:
+        '200':
+          description: Licencia actualizada correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaLicencia'
+        '400':
+          description: Campos invalidos o usuario asignado no existe/esta inactivo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso licencias:administrar
+        '404':
+          description: Licencia no encontrada o inactiva
+        '500':
+          description: AES_SECRET_KEY invalida o error interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+    delete:
+      tags: [licencias]
+      summary: Dar de baja una licencia
+      description: Baja logica idempotente; no elimina filas ni claves cifradas.
+      operationId: eliminarLicencia
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Licencia desactivada correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaLicencia'
+        '400':
+          description: Identificador invalido
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso licencias:administrar
+        '404':
+          description: Licencia no encontrada
+
   /api/usuarios:
     get:
       tags: [usuarios]
@@ -3011,6 +3229,7 @@ components:
         - usuarios:administrar
         - roles:administrar
         - catalogos:administrar
+        - licencias:administrar
 
     RolCreacion:
       type: object
@@ -3150,6 +3369,129 @@ components:
         activo:
           type: boolean
           example: true
+
+    LicenciaResumen:
+      type: object
+      required:
+        - id
+        - software
+        - tieneClave
+        - proveedor
+        - fechaCompra
+        - fechaVencimiento
+        - activa
+        - asignadaA
+      properties:
+        id:
+          type: integer
+          example: 1
+        software:
+          type: string
+          example: Microsoft 365
+        tieneClave:
+          type: boolean
+          description: Indica si existe una clave cifrada, sin exponerla.
+          example: true
+        proveedor:
+          type: [string, 'null']
+          example: Microsoft
+        fechaCompra:
+          type: [string, 'null']
+          format: date-time
+        fechaVencimiento:
+          type: string
+          format: date-time
+        activa:
+          type: boolean
+          example: true
+        asignadaA:
+          oneOf:
+            - $ref: '#/components/schemas/UsuarioAuth'
+            - type: 'null'
+
+    LicenciaRequest:
+      type: object
+      additionalProperties: false
+      required: [software, fechaVencimiento]
+      properties:
+        software:
+          type: string
+          minLength: 1
+          maxLength: 191
+        clave:
+          type: [string, 'null']
+          description: Se almacena cifrada con AES-256-GCM y nunca se devuelve.
+        proveedor:
+          type: [string, 'null']
+          maxLength: 191
+        fechaCompra:
+          type: [string, 'null']
+          format: date
+        fechaVencimiento:
+          type: string
+          format: date
+        asignadaAId:
+          type: [string, 'null']
+
+    LicenciaEdicion:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        software:
+          type: string
+          minLength: 1
+          maxLength: 191
+        clave:
+          type: [string, 'null']
+          description: Enviar null para eliminar la clave cifrada.
+        proveedor:
+          type: [string, 'null']
+          maxLength: 191
+        fechaCompra:
+          type: [string, 'null']
+          format: date
+        fechaVencimiento:
+          type: string
+          format: date
+        asignadaAId:
+          type: [string, 'null']
+        activa:
+          type: boolean
+
+    RespuestaLicencia:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+        errors:
+          type: array
+          items: {}
+        data:
+          $ref: '#/components/schemas/LicenciaResumen'
+
+    RespuestaLicenciasPaginada:
+      type: object
+      required: [success, message, errors, data, meta]
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+        errors:
+          type: array
+          items: {}
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/LicenciaResumen'
+        meta:
+          $ref: '#/components/schemas/MetaPaginacion'
 
     CatalogoRequest:
       type: object

@@ -226,8 +226,12 @@ model Licencia {
   fechaVencimiento DateTime // Obligatoria: alimenta el cron de alertas
   activa           Boolean  @default(true)
   asignadaAId      String?
+  ultimaAlertaVencimiento DateTime?
 
   asignadaA Usuario? @relation(fields: [asignadaAId], references: [id])
+
+  @@index([activa, fechaVencimiento])
+  @@index([ultimaAlertaVencimiento])
 }
 
 model Secreto {

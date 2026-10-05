@@ -80,6 +80,13 @@ Verificacion:
   `/api/tipos-usuario` requieren JWT y `catalogos:administrar`. La baja es
   logica; al crear un nombre inactivo se reactiva el registro existente.
   `GET /api/catalogos` requiere JWT, pero no ese permiso administrativo.
+* `/api/licencias` requiere JWT y `licencias:administrar`. Las claves se
+  cifran con AES-256-GCM y nunca se devuelven en las respuestas. El job envia
+  alertas diarias desde 30 dias antes del vencimiento, a la persona asignada o
+  al respaldo `LICENCIAS_ALERTA_EMAIL`; usa SMTP y por defecto corre a las 09:00
+  de `America/Cancun` (`LICENCIAS_ALERTA_CRON`).
+* Genera una clave antes de un entorno real con `openssl rand -hex 32` y
+  configúrala como `AES_SECRET_KEY`; no uses el valor de ejemplo.
 * `POST /api/auth/login` es la unica ruta operativa publica; `/health` y la
   documentacion permanecen publicos para comprobacion y consulta.
 

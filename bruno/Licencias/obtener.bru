@@ -1,0 +1,34 @@
+meta {
+  name: Obtener licencia
+  type: http
+  seq: 3
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+get {
+  url: {{baseUrl}}/api/licencias/{{licenciaPruebaId}}
+  body: json
+  auth: none
+}
+
+script:post-response {
+  if (res.status === 200 && "clave" in res.body.data) throw new Error("La respuesta expuso la clave de licencia");
+}
+
+assert {
+  res.status: eq 200
+}
+
+assert {
+  res.body.data.software: eq {{softwareLicenciaPrueba}}
+}
+
+assert {
+  res.body.data.asignadaA.id: eq ADMIN
+}
