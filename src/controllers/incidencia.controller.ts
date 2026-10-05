@@ -10,9 +10,25 @@ import {
 } from '../models/incidencia.model';
 import { HttpError } from '../middlewares/error.middleware';
 import { asyncHandler } from '../utils/asyncHandler';
-import { listar } from '../services/incidencia.service';
+import { listar, obtenerPorId } from '../services/incidencia.service';
 
 const LIMITE_MAXIMO = 100;
+
+const obtenerIdIncidencia = (valor: unknown): number => {
+  if (typeof valor !== 'string' || !/^[1-9]\d*$/.test(valor)) {
+    throw new HttpError(400, 'El parametro "id" debe ser un numero entero positivo', [
+      { campo: 'id', valor: typeof valor === 'string' ? valor : undefined },
+    ]);
+  }
+
+  const id = Number(valor);
+  if (!Number.isSafeInteger(id)) {
+    throw new HttpError(400, 'El parametro "id" debe ser un numero entero positivo', [
+      { campo: 'id', valor },
+    ]);
+  }
+  return id;
+};
 
 const comoTexto = (valor: unknown): string | undefined =>
   typeof valor === 'string' ? valor : undefined;
@@ -95,5 +111,19 @@ export const listarIncidencias = asyncHandler(
     };
 
     res.status(200).json(respuesta);
+  }
+);
+
+export const obtenerIncidencia = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const id = obtenerIdIncidencia(req.params.id);
+    const incidencia = await obtenerPorId(id);
+
+    res.status(200).json({
+      success: true,
+      message: 'Incidencia obtenida correctamente',
+      errors: [],
+      data: incidencia,
+    });
   }
 );

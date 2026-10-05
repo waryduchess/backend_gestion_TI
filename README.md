@@ -85,6 +85,12 @@ Verificacion:
   alertas diarias desde 30 dias antes del vencimiento, a la persona asignada o
   al respaldo `LICENCIAS_ALERTA_EMAIL`; usa SMTP y por defecto corre a las 09:00
   de `America/Cancun` (`LICENCIAS_ALERTA_CRON`).
+* Socket.IO acepta JWT en `auth.token` y requiere el permiso
+  `incidencias:leer`. Emite `incidencias:nueva` y
+  `incidencias:estado-cambiado` a los clientes autorizados. Configura
+  `SOCKET_CORS_ORIGIN` con los origenes del frontend separados por coma; por
+  defecto permite cualquier origen. Las emisiones se conectaran a las
+  operaciones de escritura cuando se implementen los endpoints de incidencias.
 * Genera una clave antes de un entorno real con `openssl rand -hex 32` y
   configúrala como `AES_SECRET_KEY`; no uses el valor de ejemplo.
 * `POST /api/auth/login` es la unica ruta operativa publica; `/health` y la
@@ -133,3 +139,26 @@ de cada prueba, por lo que también pueden ejecutarse por carpeta. Asegurate de
 haber aplicado migraciones y ejecutado el seed actualizado.
 
 Las demas variables (`ultimoActivoId`, `asignacionId`, ...) las generan los scripts de cada request durante la corrida; no hay que crearlas a mano.
+
+### Socket.IO
+
+Conecta el cliente del frontend al mismo host de la API, enviando el JWT
+obtenido en el login durante el handshake:
+
+```javascript
+const socket = io('http://localhost:3000', {
+  auth: { token: jwt },
+});
+
+socket.on('incidencias:nueva', (incidencia) => {
+  // Actualizar la vista con la incidencia recibida.
+});
+
+socket.on('incidencias:estado-cambiado', (cambio) => {
+  // Refrescar el estado de la incidencia.
+});
+```
+
+`incidencias:nueva` entrega `id`, `titulo`, `estado`, `prioridad` y
+`fechaNotificacion` (ISO 8601). `incidencias:estado-cambiado` entrega `id`,
+`titulo`, `estadoAnterior`, `estado` y `fechaCambio` (ISO 8601).

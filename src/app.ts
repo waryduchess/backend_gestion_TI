@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import cors from 'cors';
 import express, { Application, Request, Response } from 'express';
+import { createServer } from 'node:http';
 import { errorHandler, notFoundHandler } from './middlewares/error.middleware';
 import authRoutes from './routes/auth.routes';
 import activoRoutes from './routes/activo.routes';
@@ -13,8 +14,11 @@ import rolRoutes from './routes/rol.routes';
 import docsRoutes from './docs/docs.routes';
 import licenciaRoutes from './routes/licencia.routes';
 import { iniciarJobAlertasLicencias } from './jobs/licencias.job';
+import { inicializarSocketIo } from './config/socket';
 
 const app: Application = express();
+const servidor = createServer(app);
+inicializarSocketIo(servidor);
 
 app.use(cors());
 app.use(express.json());
@@ -53,7 +57,7 @@ app.use(errorHandler);
 
 const PORT = Number(process.env.PORT) || 3000;
 
-app.listen(PORT, () => {
+servidor.listen(PORT, () => {
   console.log(`Servidor escuchando en el puerto ${PORT}`);
   iniciarJobAlertasLicencias();
 });

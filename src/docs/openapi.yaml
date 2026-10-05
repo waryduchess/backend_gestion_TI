@@ -222,6 +222,93 @@ paths:
                   - campo: limit
                     valor: '500'
 
+  /api/incidencias/{id}:
+    get:
+      tags: [incidencias]
+      summary: Obtener detalle de una incidencia
+      description: Requiere el permiso incidencias:leer. Incluye descripcion e historial de actualizaciones en orden cronologico.
+      operationId: obtenerIncidencia
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Identificador entero positivo de la incidencia
+          schema:
+            type: integer
+            minimum: 1
+          example: 1
+      responses:
+        '200':
+          description: Incidencia obtenida correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaIncidenciaDetalle'
+              example:
+                success: true
+                message: Incidencia obtenida correctamente
+                errors: []
+                data:
+                  id: 1
+                  originalId: null
+                  titulo: Falla de conexion a la red
+                  descripcion: El equipo no logra conectarse a la red inalambrica.
+                  estado: NUEVO
+                  prioridad: ALTA
+                  tipoRequerimiento: CONEXION_DE_RED
+                  fechaNotificacion: '2026-09-28T15:00:00.000Z'
+                  fechaResolucion: null
+                  evidenciaUrl: null
+                  solicitante:
+                    id: A006
+                    nombre: Angelica Maria Buendia Fierro
+                    email: cxc.cancun@horbismex.com
+                  asignadoA: null
+                  departamento: null
+                  totalActualizaciones: 1
+                  actualizaciones:
+                    - id: 1
+                      texto: Se recibio el reporte.
+                      creadaEn: '2026-09-28T15:05:00.000Z'
+        '400':
+          description: El identificador no es un entero positivo seguro
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: El parametro "id" debe ser un numero entero positivo
+                errors:
+                  - campo: id
+                    valor: abc
+        '401':
+          description: Token ausente, invalido o expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '403':
+          description: El usuario no tiene permiso para leer incidencias
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '404':
+          description: Incidencia no encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: Incidencia no encontrada
+                errors:
+                  - campo: id
+                    valor: 99999999
+
   /api/activos:
     get:
       tags: [activos]
@@ -2883,6 +2970,54 @@ components:
           type: integer
           description: Numero de actualizaciones del ticket
           example: 0
+
+    ActualizacionIncidencia:
+      type: object
+      required: [id, texto, creadaEn]
+      properties:
+        id:
+          type: integer
+          example: 1
+        texto:
+          type: string
+          example: Se recibio el reporte.
+        creadaEn:
+          type: string
+          format: date-time
+
+    IncidenciaDetalle:
+      allOf:
+        - $ref: '#/components/schemas/Incidencia'
+        - type: object
+          required: [descripcion, evidenciaUrl, actualizaciones]
+          properties:
+            descripcion:
+              type: string
+              example: El equipo no logra conectarse a la red inalambrica.
+            evidenciaUrl:
+              type: [string, 'null']
+              format: uri
+            actualizaciones:
+              type: array
+              description: Historial en orden cronologico ascendente
+              items:
+                $ref: '#/components/schemas/ActualizacionIncidencia'
+
+    RespuestaIncidenciaDetalle:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Incidencia obtenida correctamente
+        errors:
+          type: array
+          items: {}
+        data:
+          $ref: '#/components/schemas/IncidenciaDetalle'
 
     RespuestaIncidenciasPaginada:
       type: object

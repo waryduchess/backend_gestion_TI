@@ -30,6 +30,18 @@ export interface IncidenciaLista {
   totalActualizaciones: number;
 }
 
+export interface ActualizacionIncidenciaDetalle {
+  id: number;
+  texto: string;
+  creadaEn: Date;
+}
+
+export interface IncidenciaDetalle extends IncidenciaLista {
+  descripcion: string;
+  evidenciaUrl: string | null;
+  actualizaciones: ActualizacionIncidenciaDetalle[];
+}
+
 export interface ParametrosListadoIncidencias {
   page: number;
   limit: number;

@@ -32,12 +32,14 @@ real queda pendiente de credenciales válidas y una prueba controlada.
 
 ### 2.1 Incidencias (tickets) - hoy solo lectura
 
-- [ ] `GET /api/incidencias/:id` - detalle con descripcion y actualizaciones
-- [ ] `POST /api/incidencias` - crear ticket (solicitante obligatorio)
-- [ ] `PATCH /api/incidencias/:id` - actualizar estado, prioridad o asignadoA
-- [ ] `POST /api/incidencias/:id/actualizaciones` - agregar comentario/actualizacion
-- [ ] `DELETE /api/incidencias/:id` - borrado **logico** (nunca borrar filas; mecanismo al descongelar el modulo)
-- [ ] `POST /api/incidencias/:id/evidencia` - subir archivo a S3 (`evidenciaUrl`)
+- [X] **Fase 1 - Lectura:** conservar `GET /api/incidencias` y agregar `GET /api/incidencias/:id` con descripcion, evidencia, solicitante, asignado, departamento e historial ordenado cronologicamente.
+- [ ] **Fase 2 - Alta:** `POST /api/incidencias`; validar titulo, descripcion, tipo de requerimiento y referencias; tomar `solicitanteId` del usuario autenticado; aplicar estado `NUEVO`, prioridad `NORMAL` y fecha del servidor por defecto; emitir `incidencias:nueva` solo despues de persistir.
+- [ ] **Fase 3 - Gestion:** `PATCH /api/incidencias/:id` para cambios permitidos de estado, prioridad y asignado; validar transiciones/referencias; fijar o limpiar `fechaResolucion` al entrar/salir de `COMPLETADO`; emitir `incidencias:estado-cambiado` solo cuando cambie el estado y despues de persistir.
+- [ ] **Fase 4 - Seguimiento:** `POST /api/incidencias/:id/actualizaciones` para agregar comentario; validar el texto y existencia de incidencia, guardar y devolver la actualizacion.
+- [ ] **Fase 5 - Evidencia:** `POST /api/incidencias/:id/evidencia` e integracion S3, despues de establecer limites de tamano/tipo y configuracion de almacenamiento.
+- [ ] **Baja logica pendiente de diseño:** el modelo `Incidencia` no tiene campo de baja. No implementar `DELETE` hasta definir y migrar un indicador/fecha de baja y acordar como excluir incidencias dadas de baja de consultas e historiales.
+- [ ] **Autorizacion pendiente de diseño:** mantener JWT y `incidencias:leer`; agregar permisos RBAC diferenciados para crear y gestionar incidencias, incluirlos en el seed del administrador y cubrir permitir/denegar en Bruno.
+- [ ] **Validacion de cada fase:** actualizar OpenAPI y Bruno junto con las rutas; probar campos invalidos, relaciones inexistentes/inactivas, 404, permisos, no exponer datos sensibles y emisiones Socket.IO posteriores a escrituras exitosas.
 
 ### 2.2 Inventario de activos - hoy solo lectura
 
@@ -101,7 +103,8 @@ adicional.
 ## 3. Features tecnicas pendientes
 
 - [X] `src/utils/crypto.ts` - AES-256-GCM con `AES_SECRET_KEY` para `Licencia.clave`; pendiente usarlo tambien para `Secreto.password`
-- [ ] Socket.io (`src/config/socket.ts`) - notificaciones en tiempo real (nuevos tickets, cambios de estado)
+- [X] Socket.IO autenticado con JWT y permiso `incidencias:leer`; eventos tipados para nuevas incidencias y cambios de estado
+- [ ] Emitir los eventos Socket.IO desde las operaciones de alta y cambio de estado de incidencias cuando se implementen esos endpoints
 - [X] `node-cron` - job diario de vencimiento de licencias; pendiente SLA de tickets
 - [X] Nodemailer (`src/config/mailer.ts`) - correos de alerta de licencias; pendiente otras notificaciones
 - [ ] S3 (`src/config/s3.ts`, `@aws-sdk/client-s3`) - evidencias de incidencias y adjuntos

@@ -1,9 +1,12 @@
 import { prisma } from '../config/prisma';
+import { Prisma } from '../generated/prisma/client';
 import {
+  IncidenciaDetalle,
   IncidenciaLista,
   MetadatosPaginacion,
   ParametrosListadoIncidencias,
 } from '../models/incidencia.model';
+import { HttpError } from '../middlewares/error.middleware';
 
 interface ResultadoListado {
   incidencias: IncidenciaLista[];
@@ -16,6 +19,51 @@ const LISTADO_INCIDENCIAS = {
   departamento: { select: { id: true, nombre: true } },
   _count: { select: { actualizaciones: true } },
 } as const;
+
+type IncidenciaConResumen = Prisma.IncidenciaGetPayload<{
+  include: typeof LISTADO_INCIDENCIAS;
+}>;
+
+const mapearIncidenciaLista = (fila: IncidenciaConResumen): IncidenciaLista => ({
+  id: fila.id,
+  originalId: fila.originalId,
+  titulo: fila.titulo,
+  estado: fila.estado,
+  prioridad: fila.prioridad,
+  tipoRequerimiento: fila.tipoRequerimiento,
+  fechaNotificacion: fila.fechaNotificacion,
+  fechaResolucion: fila.fechaResolucion,
+  solicitante: fila.solicitante,
+  asignadoA: fila.asignadoA,
+  departamento: fila.departamento,
+  totalActualizaciones: fila._count.actualizaciones,
+});
+
+export const obtenerPorId = async (id: number): Promise<IncidenciaDetalle> => {
+  const fila = await prisma.incidencia.findUnique({
+    where: { id },
+    include: {
+      ...LISTADO_INCIDENCIAS,
+      actualizaciones: {
+        select: { id: true, texto: true, creadaEn: true },
+        orderBy: [{ creadaEn: 'asc' }, { id: 'asc' }],
+      },
+    },
+  });
+
+  if (!fila) {
+    throw new HttpError(404, 'Incidencia no encontrada', [
+      { campo: 'id', valor: id },
+    ]);
+  }
+
+  return {
+    ...mapearIncidenciaLista(fila),
+    descripcion: fila.descripcion,
+    evidenciaUrl: fila.evidenciaUrl,
+    actualizaciones: fila.actualizaciones,
+  };
+};
 
 export const listar = async (
   parametros: ParametrosListadoIncidencias
@@ -39,20 +87,7 @@ export const listar = async (
     prisma.incidencia.count({ where: filtros }),
   ]);
 
-  const incidencias: IncidenciaLista[] = filas.map((fila) => ({
-    id: fila.id,
-    originalId: fila.originalId,
-    titulo: fila.titulo,
-    estado: fila.estado,
-    prioridad: fila.prioridad,
-    tipoRequerimiento: fila.tipoRequerimiento,
-    fechaNotificacion: fila.fechaNotificacion,
-    fechaResolucion: fila.fechaResolucion,
-    solicitante: fila.solicitante,
-    asignadoA: fila.asignadoA,
-    departamento: fila.departamento,
-    totalActualizaciones: fila._count.actualizaciones,
-  }));
+  const incidencias: IncidenciaLista[] = filas.map(mapearIncidenciaLista);
 
   return {
     incidencias,

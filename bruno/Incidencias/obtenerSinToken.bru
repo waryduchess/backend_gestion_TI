@@ -1,0 +1,15 @@
+meta {
+  name: Obtener incidencia requiere autenticacion
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/api/incidencias/1
+  body: json
+  auth: none
+}
+
+assert {
+  res.status: eq 401
+}
