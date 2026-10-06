@@ -59,6 +59,11 @@ enum AccionAuditoriaSecreto {
   REVELAR
 }
 
+enum TipoNotificacion {
+  INCIDENCIA_NUEVA
+  LICENCIA_POR_VENCER
+}
+
 // ------------------------------------------------------
 // CATALOGOS
 // ------------------------------------------------------
@@ -177,18 +182,24 @@ model ActualizacionIncidencia {
 }
 
 model Notificacion {
-  id           Int       @id @default(autoincrement())
+  id           Int              @id @default(autoincrement())
   usuarioId    String
-  incidenciaId Int
-  creadaEn     DateTime  @default(now())
+  tipo         TipoNotificacion @default(INCIDENCIA_NUEVA)
+  incidenciaId Int?
+  licenciaId   Int?
+  hitoDias     Int?
+  creadaEn     DateTime         @default(now())
   leidaEn      DateTime?
 
-  usuario    Usuario    @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
-  incidencia Incidencia @relation(fields: [incidenciaId], references: [id], onDelete: Cascade)
+  usuario    Usuario     @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  incidencia Incidencia? @relation(fields: [incidenciaId], references: [id], onDelete: Cascade)
+  licencia   Licencia?   @relation(fields: [licenciaId], references: [id], onDelete: Cascade)
 
   @@unique([usuarioId, incidenciaId])
+  @@unique([usuarioId, licenciaId, hitoDias])
   @@index([usuarioId, leidaEn, creadaEn])
   @@index([incidenciaId])
+  @@index([licenciaId])
 }
 
 // ------------------------------------------------------
@@ -254,6 +265,7 @@ model Licencia {
   ultimaAlertaVencimiento DateTime?
 
   asignadaA Usuario? @relation(fields: [asignadaAId], references: [id])
+  notificaciones Notificacion[]
 
   @@index([activa, fechaVencimiento])
   @@index([ultimaAlertaVencimiento])

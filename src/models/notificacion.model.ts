@@ -3,6 +3,10 @@ import {
   Prioridad,
 } from '../generated/prisma/client';
 
+export type TipoNotificacionValor =
+  | 'INCIDENCIA_NUEVA'
+  | 'LICENCIA_POR_VENCER';
+
 export interface IncidenciaNotificacion {
   id: number;
   titulo: string;
@@ -11,13 +15,24 @@ export interface IncidenciaNotificacion {
   fechaNotificacion: Date;
 }
 
+export interface LicenciaNotificacion {
+  id: number;
+  software: string;
+  proveedor: string | null;
+  fechaVencimiento: Date;
+}
+
 export interface NotificacionLista {
   id: number;
-  incidenciaId: number;
+  tipo: TipoNotificacionValor;
+  incidenciaId: number | null;
+  licenciaId: number | null;
+  hitoDias: number | null;
   creadaEn: Date;
   leidaEn: Date | null;
   leida: boolean;
-  incidencia: IncidenciaNotificacion;
+  incidencia: IncidenciaNotificacion | null;
+  licencia: LicenciaNotificacion | null;
 }
 
 export interface ParametrosListadoNotificaciones {

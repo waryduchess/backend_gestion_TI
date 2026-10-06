@@ -49,7 +49,8 @@ const tienePermisoParaLeerIncidencias = (permisos: Prisma.JsonValue): boolean =>
       typeof permiso === 'string' &&
       PERMISOS_DISPONIBLES.some((permitido) => permitido === permiso)
   ) &&
-  permisos.includes('incidencias:leer');
+  permisos.includes('incidencias:leer') &&
+  permisos.includes('notificaciones:leer');
 
 export const crear = async (
   datos: DatosCreacionIncidencia

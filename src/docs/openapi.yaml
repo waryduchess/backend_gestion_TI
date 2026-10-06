@@ -18,7 +18,7 @@ tags:
   - name: incidencias
     description: Consulta y creacion de tickets / incidencias
   - name: notificaciones
-    description: Historial persistente de notificaciones del usuario autenticado
+    description: Historial persistente de incidencias y vencimientos de licencias
   - name: activos
     description: Inventario de activos de computo
   - name: asignaciones
@@ -153,9 +153,12 @@ paths:
         Requiere el permiso incidencias:crear. El solicitante se obtiene del
         JWT. El estado inicia en NUEVO y la prioridad en NORMAL; la fecha de
         notificacion la establece el servidor. Al guardar, se crean
-        notificaciones persistentes para usuarios con incidencias:leer y se
+        notificaciones persistentes para usuarios con incidencias:leer y
+        notificaciones:leer, y se
         emite incidencias:nueva por Socket.IO con el notificacionId destinado
-        a cada usuario.
+        a cada usuario. Los recordatorios de licencias se persisten para el
+        usuario asignado, o para usuarios con licencias:administrar cuando no
+        hay un asignado elegible; se emiten como licencias:por-vencer.
       operationId: crearIncidencia
       security:
         - bearerAuth: []
@@ -391,8 +394,9 @@ paths:
       tags: [notificaciones]
       summary: Listar notificaciones propias
       description: >
-        Requiere JWT e incidencias:leer. Solo devuelve notificaciones del
-        usuario autenticado. meta.noLeidas siempre cuenta todas sus
+        Requiere JWT y notificaciones:leer. Solo devuelve notificaciones del
+        usuario autenticado. Incluye incidencias y recordatorios de licencias.
+        meta.noLeidas siempre cuenta todas sus
         notificaciones pendientes, incluso cuando se filtra por leida.
       operationId: listarNotificaciones
       security:
@@ -439,7 +443,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/RespuestaError'
         '403':
-          description: Se requiere el permiso incidencias:leer
+          description: Se requiere el permiso notificaciones:leer
           content:
             application/json:
               schema:
@@ -449,7 +453,7 @@ paths:
     patch:
       tags: [notificaciones]
       summary: Marcar todas las notificaciones propias como leidas
-      description: Requiere JWT e incidencias:leer. Solo actualiza registros del usuario autenticado.
+      description: Requiere JWT y notificaciones:leer. Solo actualiza registros del usuario autenticado.
       operationId: marcarTodasNotificacionesLeidas
       security:
         - bearerAuth: []
@@ -467,7 +471,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/RespuestaError'
         '403':
-          description: Se requiere el permiso incidencias:leer
+          description: Se requiere el permiso notificaciones:leer
           content:
             application/json:
               schema:
@@ -477,7 +481,7 @@ paths:
     patch:
       tags: [notificaciones]
       summary: Marcar una notificacion propia como leida
-      description: Requiere JWT e incidencias:leer. Un registro ajeno se trata como no encontrado.
+      description: Requiere JWT y notificaciones:leer. Un registro ajeno se trata como no encontrado.
       operationId: marcarNotificacionLeida
       security:
         - bearerAuth: []
@@ -508,7 +512,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/RespuestaError'
         '403':
-          description: Se requiere el permiso incidencias:leer
+          description: Se requiere el permiso notificaciones:leer
           content:
             application/json:
               schema:
@@ -3567,12 +3571,30 @@ components:
 
     Notificacion:
       type: object
-      required: [id, incidenciaId, creadaEn, leidaEn, leida, incidencia]
+      required:
+        - id
+        - tipo
+        - incidenciaId
+        - licenciaId
+        - hitoDias
+        - creadaEn
+        - leidaEn
+        - leida
+        - incidencia
+        - licencia
       properties:
         id:
           type: integer
+        tipo:
+          type: string
+          enum: [INCIDENCIA_NUEVA, LICENCIA_POR_VENCER]
         incidenciaId:
-          type: integer
+          type: [integer, 'null']
+        licenciaId:
+          type: [integer, 'null']
+        hitoDias:
+          type: [integer, 'null']
+          description: Hito de vencimiento (30, 7 o 1 dia); null para notificaciones de incidencias.
         creadaEn:
           type: string
           format: date-time
@@ -3582,20 +3604,37 @@ components:
         leida:
           type: boolean
         incidencia:
-          type: object
-          required: [id, titulo, estado, prioridad, fechaNotificacion]
-          properties:
-            id:
-              type: integer
-            titulo:
-              type: string
-            estado:
-              $ref: '#/components/schemas/EstadoIncidencia'
-            prioridad:
-              $ref: '#/components/schemas/Prioridad'
-            fechaNotificacion:
-              type: string
-              format: date-time
+          oneOf:
+            - type: object
+              required: [id, titulo, estado, prioridad, fechaNotificacion]
+              properties:
+                id:
+                  type: integer
+                titulo:
+                  type: string
+                estado:
+                  $ref: '#/components/schemas/EstadoIncidencia'
+                prioridad:
+                  $ref: '#/components/schemas/Prioridad'
+                fechaNotificacion:
+                  type: string
+                  format: date-time
+            - type: 'null'
+        licencia:
+          oneOf:
+            - type: object
+              required: [id, software, proveedor, fechaVencimiento]
+              properties:
+                id:
+                  type: integer
+                software:
+                  type: string
+                proveedor:
+                  type: [string, 'null']
+                fechaVencimiento:
+                  type: string
+                  format: date-time
+            - type: 'null'
 
     MetaNotificaciones:
       type: object
@@ -3999,6 +4038,7 @@ components:
       type: string
       enum:
         - incidencias:leer
+        - notificaciones:leer
         - activos:leer
         - activos:crear
         - activos:editar
