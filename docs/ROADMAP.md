@@ -52,6 +52,9 @@ prueba controlada.
 - [X] `POST /api/asignaciones/:id/devolucion` - cerrar asignacion; requiere `activos:asignar`
 - [X] `DELETE /api/activos/:id` - baja **logica** (estado `DE_BAJA`); requiere `activos:eliminar`
 - [X] `GET /api/asignaciones` - listado paginado y filtrable (sin `bitlocker`); requiere `activos:leer`
+- [ ] **Importacion masiva futura desde CSV/Excel:** permitir subir un archivo para extraer filas y construir los datos equivalentes a las altas individuales de activos. Procesarlo temporalmente, validar estructura, campos, catalogos y duplicados, y presentar una vista previa con errores por fila antes de confirmar; reutilizar las reglas de `POST /api/activos`, sin almacenar permanentemente el archivo ni omitir las validaciones existentes.
+- [ ] **Definir contrato y comportamiento de importacion:** plantilla/encabezados soportados, formatos y tamano maximo, normalizacion de valores, tratamiento de filas invalidas y duplicados, limites por lote y si el guardado sera atomico o permitira resultados parciales. Devolver un resumen de creados/rechazados sin exponer informacion sensible.
+- [ ] **Seguridad y pruebas de archivos:** autenticar y autorizar la importacion con RBAC de activos; validar extension, MIME y contenido real, limitar recursos, evitar ejecucion de formulas al generar reportes de errores y eliminar cualquier archivo temporal incluso ante fallos. Cubrir archivo invalido, filas parciales, duplicados, permisos y lotes grandes en Bruno.
 
 ### 2.3 Usuarios y catalogos
 
@@ -99,6 +102,9 @@ adicional.
 
 - [ ] CRUD `/api/secretos` (`password` cifrado AES-256-GCM; lectura solo con rol autorizado)
 - [ ] Candidato a cifrado: `AsignacionComputo.bitlocker`
+- [ ] **Importacion masiva futura de secretos desde CSV/Excel:** permitir subir temporalmente un archivo con credenciales para extraer y validar sus filas y construir los datos equivalentes a las altas individuales de secretos; no conservar el archivo ni sus contenidos despues del procesamiento.
+- [ ] Antes de habilitarla, definir permisos RBAC especificos, acceso de lectura/descifrado, auditoria de consulta y cambios, formato de plantilla, duplicados, errores por fila y atomicidad del lote. Reutilizar el cifrado AES-256-GCM de `src/utils/crypto.ts`; nunca incluir contrasenas en logs, mensajes de error, vista previa persistente o respuestas normales. Evitar devolver valores descifrados salvo en una operacion expresamente autorizada.
+- [ ] **Flujo recomendado:** carga temporal -> validacion de formato y filas -> vista previa con errores que no revele contrasenas -> confirmacion explicita -> persistencia cifrada reutilizando las validaciones/servicios de alta -> eliminacion del temporal; limitar tamano y cantidad de filas, y garantizar limpieza tambien ante errores.
 
 ---
 
