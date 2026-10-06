@@ -14,6 +14,7 @@ interface IncidenciaNueva {
   estado: EstadoIncidenciaValor;
   prioridad: PrioridadValor;
   fechaNotificacion: string;
+  notificacionId: number;
 }
 
 interface CambioEstadoIncidencia {
@@ -34,7 +35,6 @@ interface DatosSocket {
 }
 
 const SALA_INCIDENCIAS = 'incidencias';
-
 type SocketIo = SocketIoServer<
   Record<string, never>,
   EventosServidor,
@@ -43,6 +43,8 @@ type SocketIo = SocketIoServer<
 >;
 
 let socketIo: SocketIo | undefined;
+
+const salaUsuario = (usuarioId: string): string => `usuario:${usuarioId}`;
 
 const esPermiso = (valor: unknown): valor is Permiso =>
   typeof valor === 'string' &&
@@ -141,6 +143,7 @@ export const inicializarSocketIo = (servidor: HttpServer): SocketIo => {
   });
 
   io.on('connection', (socket) => {
+    socket.join(salaUsuario(socket.data.usuarioId));
     socket.join(SALA_INCIDENCIAS);
   });
 
@@ -155,8 +158,13 @@ const obtenerSocketIo = (): SocketIo => {
   return socketIo;
 };
 
-export const emitirIncidenciaNueva = (incidencia: IncidenciaNueva): void => {
-  obtenerSocketIo().to(SALA_INCIDENCIAS).emit('incidencias:nueva', incidencia);
+export const emitirIncidenciaNueva = (
+  usuarioId: string,
+  incidencia: IncidenciaNueva
+): void => {
+  obtenerSocketIo()
+    .to(salaUsuario(usuarioId))
+    .emit('incidencias:nueva', incidencia);
 };
 
 export const emitirCambioEstadoIncidencia = (

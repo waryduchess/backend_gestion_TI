@@ -1,0 +1,33 @@
+meta {
+  name: Listar notificaciones no leidas
+  type: http
+  seq: 2
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+get {
+  url: {{baseUrl}}/api/notificaciones?page=1&limit=20&leida=false
+  body: json
+  auth: none
+}
+
+script:post-response {
+  if (res.status !== 200) return;
+  const incidenciaId = bru.getEnvVar("incidenciaNotificacionFixtureId");
+  const notificacion = res.body.data.find((item) => String(item.incidencia.id) === String(incidenciaId));
+  if (!notificacion) throw new Error("No se encontro la notificacion persistida de la incidencia fixture");
+  if (typeof res.body.meta.noLeidas !== "number" || res.body.meta.noLeidas < 1) throw new Error("El conteo de no leidas debe incluir la notificacion fixture");
+  bru.setEnvVar("notificacionPropiaId", notificacion.id);
+}
+
+assert {
+  res.status: eq 200
+  res.body.data: isArray
+  res.body.meta.noLeidas: isNumber
+}

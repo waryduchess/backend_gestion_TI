@@ -1,4 +1,3 @@
-3
 
 # Roadmap - Backend Sistema de Gestion TI
 
@@ -9,21 +8,20 @@ conviene revisarlo antes de cada iteracion y actualizarlo al cerrar cada modulo.
 
 ## 1. Estado actual
 
-| Modulo                             | Endpoints                                         | Documentado en Swagger | Bruno      |
-| ---------------------------------- | ------------------------------------------------- | ---------------------- | ---------- |
-| Auth (`/api/auth`)               | `POST /login`, `GET /me`                      | Si                     | 3 requests |
-| Incidencias (`/api/incidencias`) | `GET /`, `GET /:id`, `POST /`                  | Si                     | 12 requests |
-| Activos (`/api/activos`)       | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `PATCH /:id/estado`, `POST /:id/asignaciones`, `DELETE /:id` | Si                     | 41 requests |
-| Asignaciones (`/api/asignaciones`) | `GET /`, `POST /:id/devolucion`               | Si                     | 8 requests |
-| Usuarios (`/api/usuarios`)       | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `PATCH /:id/password`, `DELETE /:id` | Si                     | Pruebas protegidas |
-| Documentacion                      | `GET /api/docs`, `GET /api/docs/openapi.yaml` | -                      | -          |
-| Catalogos (`/api/catalogos`)       | `GET /` + CRUD `/api/departamentos`, `/api/ubicaciones`, `/api/puestos`, `/api/tipos-usuario` | Si | CRUD Bruno |
-| RBAC / roles                       | CRUD `/api/roles`, asignar rol a usuario          | Si                     | 18 requests |
-| Licencias (`/api/licencias`)       | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `DELETE /:id` | Si | 12 requests |
-| Secretos                           | ninguno                                           | No                     | No         |
+| Modulo                               | Endpoints                                                                                                               | Documentado en Swagger | Bruno              |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- | ---------------------- | ------------------ |
+| Auth (`/api/auth`)                 | `POST /login`, `GET /me`                                                                                            | Si                     | 3 requests         |
+| Incidencias (`/api/incidencias`)   | `GET /`, `GET /:id`, `POST /`                                                                                     | Si                     | 12 requests        |
+| Activos (`/api/activos`)           | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `PATCH /:id/estado`, `POST /:id/asignaciones`, `DELETE /:id` | Si                     | 41 requests        |
+| Asignaciones (`/api/asignaciones`) | `GET /`, `POST /:id/devolucion`                                                                                     | Si                     | 8 requests         |
+| Usuarios (`/api/usuarios`)         | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `PATCH /:id/password`, `DELETE /:id`                           | Si                     | Pruebas protegidas |
+| Documentacion                        | `GET /api/docs`, `GET /api/docs/openapi.yaml`                                                                       | -                      | -                  |
+| Catalogos (`/api/catalogos`)       | `GET /` + CRUD `/api/departamentos`, `/api/ubicaciones`, `/api/puestos`, `/api/tipos-usuario`                 | Si                     | CRUD Bruno         |
+| RBAC / roles                         | CRUD`/api/roles`, asignar rol a usuario                                                                               | Si                     | 18 requests        |
+| Licencias (`/api/licencias`)       | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `DELETE /:id`                                                    | Si                     | 12 requests        |
+| Secretos                             | ninguno                                                                                                                 | No                     | No                 |
 
-Regresion completa mas reciente tras Licencias: `npx tsc --noEmit`, `prisma
-validate`, OpenAPI y suite Bruno (145/145 requests, 304/304 assertions). Para
+Regresion completa mas reciente tras Licencias: `npx tsc --noEmit`, `prisma validate`, OpenAPI y suite Bruno (145/145 requests, 304/304 assertions). Para
 la fase 2 de incidencias: build, OpenAPI, Bruno de Incidencias (12/12 requests,
 23/23 assertions), Roles (18/18 requests, 26/26 assertions) y prueba de evento
 Socket.IO completados. El envio SMTP real requiere credenciales validas y una
@@ -103,6 +101,14 @@ adicional.
 - [ ] Candidato a cifrado: `AsignacionComputo.bitlocker`
 
 ---
+
+### 2.7 Notificaciones persistentes
+
+- [X] Persistir notificaciones de nuevas incidencias por usuario activo con `incidencias:leer`, con lectura individual y masiva.
+- [X] `GET /api/notificaciones` paginado, filtro `leida` y conteo propio `meta.noLeidas`; `PATCH /api/notificaciones/:id/leer` y `PATCH /api/notificaciones/leer-todas`.
+- [X] Emision Socket.IO por sala privada de usuario despues de persistir; el evento incluye `notificacionId`.
+- [X] Recuperacion REST de notificaciones no leidas al reconectar; Socket.IO no reproduce eventos perdidos.
+- [ ] Politica de retencion/limpieza; por ahora los registros se conservan sin expiracion.
 
 ## 3. Features tecnicas pendientes
 

@@ -1,13 +1,7 @@
 meta {
-  name: Dar de baja usuario RBAC de prueba
+  name: Marcar notificacion propia como leida
   type: http
-  seq: 16
-}
-
-delete {
-  url: {{baseUrl}}/api/usuarios/{{usuarioRbacId}}
-  body: json
-  auth: none
+  seq: 3
 }
 
 script:pre-request {
@@ -15,12 +9,16 @@ script:pre-request {
   const token = bru.getEnvVar("token");
   if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
   req.setHeader("Authorization", "Bearer " + token);
+  if (!bru.getEnvVar("notificacionPropiaId")) throw new Error("Ejecuta primero Notificaciones/listar");
+}
+
+patch {
+  url: {{baseUrl}}/api/notificaciones/{{notificacionPropiaId}}/leer
+  body: json
+  auth: none
 }
 
 assert {
   res.status: eq 200
-}
-
-assert {
-  res.body.data.activo: eq false
+  res.body.data.leida: eq true
 }

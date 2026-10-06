@@ -17,6 +17,8 @@ tags:
     description: Autenticacion JWT (login y perfil)
   - name: incidencias
     description: Consulta y creacion de tickets / incidencias
+  - name: notificaciones
+    description: Historial persistente de notificaciones del usuario autenticado
   - name: activos
     description: Inventario de activos de computo
   - name: asignaciones
@@ -146,8 +148,10 @@ paths:
       description: >
         Requiere el permiso incidencias:crear. El solicitante se obtiene del
         JWT. El estado inicia en NUEVO y la prioridad en NORMAL; la fecha de
-        notificacion la establece el servidor. Al guardar se emite el evento
-        Socket.IO incidencias:nueva.
+        notificacion la establece el servidor. Al guardar, se crean
+        notificaciones persistentes para usuarios con incidencias:leer y se
+        emite incidencias:nueva por Socket.IO con el notificacionId destinado
+        a cada usuario.
       operationId: crearIncidencia
       security:
         - bearerAuth: []
@@ -377,6 +381,140 @@ paths:
                 errors:
                   - campo: id
                     valor: 99999999
+
+  /api/notificaciones:
+    get:
+      tags: [notificaciones]
+      summary: Listar notificaciones propias
+      description: >
+        Requiere JWT e incidencias:leer. Solo devuelve notificaciones del
+        usuario autenticado. meta.noLeidas siempre cuenta todas sus
+        notificaciones pendientes, incluso cuando se filtra por leida.
+      operationId: listarNotificaciones
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: leida
+          in: query
+          required: false
+          description: Filtra notificaciones leidas o pendientes
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Notificaciones obtenidas correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaNotificacionesPaginada'
+        '400':
+          description: Parametros de paginacion o filtro invalidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '403':
+          description: Se requiere el permiso incidencias:leer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+
+  /api/notificaciones/leer-todas:
+    patch:
+      tags: [notificaciones]
+      summary: Marcar todas las notificaciones propias como leidas
+      description: Requiere JWT e incidencias:leer. Solo actualiza registros del usuario autenticado.
+      operationId: marcarTodasNotificacionesLeidas
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Notificaciones marcadas como leidas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaMarcarTodasNotificacionesLeidas'
+        '401':
+          description: Token ausente, invalido o expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '403':
+          description: Se requiere el permiso incidencias:leer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+
+  /api/notificaciones/{id}/leer:
+    patch:
+      tags: [notificaciones]
+      summary: Marcar una notificacion propia como leida
+      description: Requiere JWT e incidencias:leer. Un registro ajeno se trata como no encontrado.
+      operationId: marcarNotificacionLeida
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Notificacion marcada como leida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaNotificacion'
+        '400':
+          description: Identificador invalido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '403':
+          description: Se requiere el permiso incidencias:leer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '404':
+          description: Notificacion inexistente o perteneciente a otro usuario
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
 
   /api/activos:
     get:
@@ -3125,6 +3263,104 @@ components:
           items: {}
         data:
           $ref: '#/components/schemas/IncidenciaDetalle'
+
+    Notificacion:
+      type: object
+      required: [id, incidenciaId, creadaEn, leidaEn, leida, incidencia]
+      properties:
+        id:
+          type: integer
+        incidenciaId:
+          type: integer
+        creadaEn:
+          type: string
+          format: date-time
+        leidaEn:
+          type: [string, 'null']
+          format: date-time
+        leida:
+          type: boolean
+        incidencia:
+          type: object
+          required: [id, titulo, estado, prioridad, fechaNotificacion]
+          properties:
+            id:
+              type: integer
+            titulo:
+              type: string
+            estado:
+              $ref: '#/components/schemas/EstadoIncidencia'
+            prioridad:
+              $ref: '#/components/schemas/Prioridad'
+            fechaNotificacion:
+              type: string
+              format: date-time
+
+    MetaNotificaciones:
+      type: object
+      required: [page, limit, total, totalPages, noLeidas]
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+        totalPages:
+          type: integer
+        noLeidas:
+          type: integer
+          description: Total no leido del usuario, independiente del filtro leida
+
+    RespuestaNotificacionesPaginada:
+      type: object
+      required: [success, message, errors, data, meta]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        errors:
+          type: array
+          items: {}
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Notificacion'
+        meta:
+          $ref: '#/components/schemas/MetaNotificaciones'
+
+    RespuestaNotificacion:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        errors:
+          type: array
+          items: {}
+        data:
+          $ref: '#/components/schemas/Notificacion'
+
+    RespuestaMarcarTodasNotificacionesLeidas:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        errors:
+          type: array
+          items: {}
+        data:
+          type: object
+          required: [marcadasComoLeidas]
+          properties:
+            marcadasComoLeidas:
+              type: integer
 
     RespuestaIncidenciasPaginada:
       type: object

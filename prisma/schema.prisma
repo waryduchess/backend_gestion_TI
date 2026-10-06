@@ -124,6 +124,7 @@ model Usuario {
   activosResponsables Activo[]               @relation("Responsable")
   asignaciones        AsignacionComputo[]
   licencias           Licencia[]
+  notificaciones      Notificacion[]
 
   @@index([email])
 }
@@ -152,6 +153,7 @@ model Incidencia {
   asignadoA    Usuario?     @relation("AsignadoA", fields: [asignadoAId], references: [id])
   departamento Departamento? @relation(fields: [departamentoId], references: [id])
   actualizaciones ActualizacionIncidencia[]
+  notificaciones Notificacion[]
 
   @@index([estado, fechaNotificacion])
   @@index([solicitanteId])
@@ -164,6 +166,21 @@ model ActualizacionIncidencia {
   creadaEn     DateTime @default(now())
 
   incidencia Incidencia @relation(fields: [incidenciaId], references: [id], onDelete: Cascade)
+}
+
+model Notificacion {
+  id           Int       @id @default(autoincrement())
+  usuarioId    String
+  incidenciaId Int
+  creadaEn     DateTime  @default(now())
+  leidaEn      DateTime?
+
+  usuario    Usuario    @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  incidencia Incidencia @relation(fields: [incidenciaId], references: [id], onDelete: Cascade)
+
+  @@unique([usuarioId, incidenciaId])
+  @@index([usuarioId, leidaEn, creadaEn])
+  @@index([incidenciaId])
 }
 
 // ------------------------------------------------------

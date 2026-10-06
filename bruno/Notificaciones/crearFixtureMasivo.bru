@@ -1,13 +1,7 @@
 meta {
-  name: Quitar rol RBAC de prueba
+  name: Crear otra notificacion no leida
   type: http
-  seq: 15
-}
-
-patch {
-  url: {{baseUrl}}/api/usuarios/{{usuarioRbacId}}/rol
-  body: json
-  auth: none
+  seq: 5
 }
 
 script:pre-request {
@@ -17,20 +11,24 @@ script:pre-request {
   req.setHeader("Authorization", "Bearer " + token);
 }
 
+post {
+  url: {{baseUrl}}/api/incidencias
+  body: json
+  auth: none
+}
+
 headers {
   Content-Type: application/json
 }
 
 body:json {
   {
-    "rolId": null
+    "titulo": "Bruno notificacion para marcar todas",
+    "descripcion": "Fixture para validar el marcado masivo.",
+    "tipoRequerimiento": "OTROS"
   }
 }
 
 assert {
-  res.status: eq 200
-}
-
-assert {
-  res.body.data.rol: eq null
+  res.status: eq 201
 }

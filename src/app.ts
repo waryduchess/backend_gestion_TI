@@ -13,6 +13,7 @@ import { crearRutasCatalogoAdministrable } from './routes/catalogo-admin.routes'
 import rolRoutes from './routes/rol.routes';
 import docsRoutes from './docs/docs.routes';
 import licenciaRoutes from './routes/licencia.routes';
+import notificacionRoutes from './routes/notificacion.routes';
 import { iniciarJobAlertasLicencias } from './jobs/licencias.job';
 import { inicializarSocketIo } from './config/socket';
 
@@ -50,6 +51,7 @@ app.use(
 );
 app.use('/api/roles', rolRoutes);
 app.use('/api/licencias', licenciaRoutes);
+app.use('/api/notificaciones', notificacionRoutes);
 app.use('/api/docs', docsRoutes);
 
 app.use(notFoundHandler);

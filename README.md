@@ -88,12 +88,14 @@ Verificacion:
   alertas diarias desde 30 dias antes del vencimiento, a la persona asignada o
   al respaldo `LICENCIAS_ALERTA_EMAIL`; usa SMTP y por defecto corre a las 09:00
   de `America/Cancun` (`LICENCIAS_ALERTA_CRON`).
-* Socket.IO acepta JWT en `auth.token` y requiere el permiso
-  `incidencias:leer`. Emite `incidencias:nueva` y
-  `incidencias:estado-cambiado` a los clientes autorizados. Configura
-  `SOCKET_CORS_ORIGIN` con los origenes del frontend separados por coma; por
-  defecto permite cualquier origen. Las emisiones se conectaran a las
-  operaciones de escritura cuando se implementen los endpoints de incidencias.
+* `/api/notificaciones` requiere JWT y `incidencias:leer`; cada nueva incidencia
+  crea un aviso persistente para cada usuario activo con ese permiso. La API
+  permite listar los avisos propios (`GET /api/notificaciones?leida=false`),
+  marcarlos individualmente (`PATCH /:id/leer`) o en conjunto
+  (`PATCH /leer-todas`). Socket.IO emite `incidencias:nueva` a cada usuario
+  autorizado después de guardar el aviso; si estaba desconectado, puede
+  recuperar el historial con la API. `SOCKET_CORS_ORIGIN` acepta una lista de
+  origenes separados por coma; por defecto permite cualquier origen.
 * Genera una clave antes de un entorno real con `openssl rand -hex 32` y
   configúrala como `AES_SECRET_KEY`; no uses el valor de ejemplo.
 * `POST /api/auth/login` es la unica ruta operativa publica; `/health` y la
@@ -162,6 +164,22 @@ socket.on('incidencias:estado-cambiado', (cambio) => {
 });
 ```
 
-`incidencias:nueva` entrega `id`, `titulo`, `estado`, `prioridad` y
-`fechaNotificacion` (ISO 8601). `incidencias:estado-cambiado` entrega `id`,
-`titulo`, `estadoAnterior`, `estado` y `fechaCambio` (ISO 8601).
+`incidencias:nueva` entrega `notificacionId`, `id`, `titulo`, `estado`,
+`prioridad` y `fechaNotificacion` (ISO 8601). El campo `id` es el identificador
+de la incidencia. `incidencias:estado-cambiado` tiene un contrato preparado,
+pero aún no se emite desde una operación de actualización.
+
+La consulta REST incluye `meta.noLeidas` para el badge y solo devuelve avisos
+del usuario autenticado. Los registros se conservan sin expiración automática;
+Socket.IO no recupera eventos emitidos mientras el cliente estaba desconectado,
+por lo que la API es la fuente de verdad para ese historial.
+
+Endpoints disponibles:
+
+* `GET /api/notificaciones?page=1&limit=20&leida=false`
+* `PATCH /api/notificaciones/:id/leer`
+* `PATCH /api/notificaciones/leer-todas`
+
+Todos requieren JWT y `incidencias:leer`. La respuesta del listado incluye
+`meta.noLeidas`, el total pendiente del usuario aunque se aplique el filtro
+`leida`.

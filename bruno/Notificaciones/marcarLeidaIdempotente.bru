@@ -1,13 +1,7 @@
 meta {
-  name: Dar de baja usuario RBAC de prueba
+  name: Marcar notificacion leida de forma idempotente
   type: http
-  seq: 16
-}
-
-delete {
-  url: {{baseUrl}}/api/usuarios/{{usuarioRbacId}}
-  body: json
-  auth: none
+  seq: 4
 }
 
 script:pre-request {
@@ -17,10 +11,13 @@ script:pre-request {
   req.setHeader("Authorization", "Bearer " + token);
 }
 
-assert {
-  res.status: eq 200
+patch {
+  url: {{baseUrl}}/api/notificaciones/{{notificacionPropiaId}}/leer
+  body: json
+  auth: none
 }
 
 assert {
-  res.body.data.activo: eq false
+  res.status: eq 200
+  res.body.data.leida: eq true
 }

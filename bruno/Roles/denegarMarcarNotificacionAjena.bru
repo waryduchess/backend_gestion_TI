@@ -1,0 +1,28 @@
+meta {
+  name: No permitir marcar notificacion de otro usuario
+  type: http
+  seq: 7
+}
+
+script:pre-request {
+  await bru.runRequest("Notificaciones/crearFixture");
+  await bru.runRequest("Notificaciones/listar");
+  const notificacionId = bru.getEnvVar("notificacionPropiaId");
+  if (!notificacionId) throw new Error("No fue posible preparar la notificacion del administrador");
+  bru.setEnvVar("notificacionAjenaAdminId", notificacionId);
+  await bru.runRequest("Roles/loginUsuarioPrueba");
+  const token = bru.getVar("tokenUsuarioRbac");
+  if (typeof token !== "string" || token === "") throw new Error("No fue posible iniciar sesion con el rol limitado");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+patch {
+  url: {{baseUrl}}/api/notificaciones/{{notificacionAjenaAdminId}}/leer
+  body: json
+  auth: none
+}
+
+assert {
+  res.status: eq 404
+  res.body.message: eq Notificacion no encontrada
+}

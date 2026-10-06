@@ -1,5 +1,6 @@
 import { prisma } from '../config/prisma';
 import { Prisma } from '../generated/prisma/client';
+import { PERMISOS_DISPONIBLES } from '../models/rol.model';
 import {
   DatosCreacionIncidencia,
   IncidenciaDetalle,
@@ -41,6 +42,15 @@ const mapearIncidenciaLista = (fila: IncidenciaConResumen): IncidenciaLista => (
   totalActualizaciones: fila._count.actualizaciones,
 });
 
+const tienePermisoParaLeerIncidencias = (permisos: Prisma.JsonValue): boolean =>
+  Array.isArray(permisos) &&
+  permisos.every(
+    (permiso) =>
+      typeof permiso === 'string' &&
+      PERMISOS_DISPONIBLES.some((permitido) => permitido === permiso)
+  ) &&
+  permisos.includes('incidencias:leer');
+
 export const crear = async (
   datos: DatosCreacionIncidencia
 ): Promise<IncidenciaLista> => {
@@ -59,25 +69,70 @@ export const crear = async (
     }
   }
 
-  const fila = await prisma.incidencia.create({
-    data: {
-      titulo: datos.titulo,
-      descripcion: datos.descripcion,
-      tipoRequerimiento: datos.tipoRequerimiento,
-      solicitanteId: datos.solicitanteId,
-      departamentoId: datos.departamentoId,
+  const usuariosActivos = await prisma.usuario.findMany({
+    where: {
+      activo: true,
+      rol: { is: { activo: true } },
     },
-    include: LISTADO_INCIDENCIAS,
+    select: {
+      id: true,
+      rol: { select: { permisos: true } },
+    },
   });
-  const incidencia = mapearIncidenciaLista(fila);
+  const destinatarios = usuariosActivos
+    .filter(
+      (usuario) =>
+        usuario.rol !== null &&
+        tienePermisoParaLeerIncidencias(usuario.rol.permisos)
+    )
+    .map((usuario) => usuario.id);
 
-  emitirIncidenciaNueva({
-    id: incidencia.id,
-    titulo: incidencia.titulo,
-    estado: incidencia.estado,
-    prioridad: incidencia.prioridad,
-    fechaNotificacion: incidencia.fechaNotificacion.toISOString(),
+  const { fila, notificaciones } = await prisma.$transaction(async (tx) => {
+    const incidenciaCreada = await tx.incidencia.create({
+      data: {
+        titulo: datos.titulo,
+        descripcion: datos.descripcion,
+        tipoRequerimiento: datos.tipoRequerimiento,
+        solicitanteId: datos.solicitanteId,
+        departamentoId: datos.departamentoId,
+      },
+      include: LISTADO_INCIDENCIAS,
+    });
+
+    if (destinatarios.length === 0) {
+      return { fila: incidenciaCreada, notificaciones: [] };
+    }
+
+    await tx.notificacion.createMany({
+      data: destinatarios.map((usuarioId) => ({
+        usuarioId,
+        incidenciaId: incidenciaCreada.id,
+      })),
+    });
+
+    const filasNotificacion = await tx.notificacion.findMany({
+      where: {
+        incidenciaId: incidenciaCreada.id,
+        usuarioId: { in: destinatarios },
+      },
+      select: { id: true, usuarioId: true },
+    });
+
+    return { fila: incidenciaCreada, notificaciones: filasNotificacion };
   });
+
+  const incidencia = mapearIncidenciaLista(fila);
+  const fechaNotificacion = incidencia.fechaNotificacion.toISOString();
+  for (const notificacion of notificaciones) {
+    emitirIncidenciaNueva(notificacion.usuarioId, {
+      id: incidencia.id,
+      titulo: incidencia.titulo,
+      estado: incidencia.estado,
+      prioridad: incidencia.prioridad,
+      fechaNotificacion,
+      notificacionId: notificacion.id,
+    });
+  }
 
   return incidencia;
 };
