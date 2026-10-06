@@ -1,13 +1,7 @@
 meta {
-  name: Actualizar rol RBAC de prueba
+  name: Obtener metadatos sin password
   type: http
-  seq: 4
-}
-
-patch {
-  url: {{baseUrl}}/api/roles/{{rolPruebaId}}
-  body: json
-  auth: none
+  seq: 3
 }
 
 script:pre-request {
@@ -17,20 +11,17 @@ script:pre-request {
   req.setHeader("Authorization", "Bearer " + token);
 }
 
-headers {
-  Content-Type: application/json
+get {
+  url: {{baseUrl}}/api/secretos/{{secretoPruebaId}}
+  body: json
+  auth: none
 }
 
-body:json {
-  {
-    "permisos": ["activos:leer", "incidencias:leer", "secretos:leer"]
-  }
+script:post-response {
+  if (res.status === 200 && "password" in res.body.data) throw new Error("El detalle expuso el password");
 }
 
 assert {
   res.status: eq 200
-}
-
-assert {
-  res.body.data.permisos: isArray
+  res.body.data.id: eq {{secretoPruebaId}}
 }

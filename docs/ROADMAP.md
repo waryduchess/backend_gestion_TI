@@ -19,7 +19,7 @@ conviene revisarlo antes de cada iteracion y actualizarlo al cerrar cada modulo.
 | Catalogos (`/api/catalogos`)       | `GET /` + CRUD `/api/departamentos`, `/api/ubicaciones`, `/api/puestos`, `/api/tipos-usuario`                 | Si                     | CRUD Bruno         |
 | RBAC / roles                         | CRUD`/api/roles`, asignar rol a usuario                                                                               | Si                     | 18 requests        |
 | Licencias (`/api/licencias`)       | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `DELETE /:id`                                                    | Si                     | 12 requests        |
-| Secretos                             | ninguno                                                                                                                 | No                     | No                 |
+| Secretos (`/api/secretos`)         | `GET /`, `POST /`, `GET /:id`, `GET /:id/password`, `GET /:id/auditoria`, `PATCH /:id`, `DELETE /:id`                  | Si                     | 13 requests        |
 
 Regresion completa mas reciente tras Licencias: `npx tsc --noEmit`, `prisma validate`, OpenAPI y suite Bruno (145/145 requests, 304/304 assertions). Para
 la fase 2 de incidencias: build, OpenAPI, Bruno de Incidencias (12/12 requests,
@@ -98,10 +98,13 @@ adicional.
 - [X] Alertas diarias desde 30 dias antes del vencimiento via `node-cron` + Nodemailer; usuario asignado o email de respaldo
 - [X] Autorizacion JWT + permiso `licencias:administrar`
 
-### 2.6 Secretos - modelo `Secreto` existe sin endpoints
+### 2.6 Secretos - modelo `Secreto`
 
-- [ ] CRUD `/api/secretos` (`password` cifrado AES-256-GCM; lectura solo con rol autorizado)
-- [ ] Candidato a cifrado: `AsignacionComputo.bitlocker`
+- [X] CRUD `/api/secretos`: listado y detalle solo exponen metadatos; alta y cambios cifran `password` con AES-256-GCM; baja logica con reactivacion explicita.
+- [X] Separacion RBAC: `secretos:leer` para metadatos, `secretos:revelar` para recuperar un password activo en una ruta dedicada y `secretos:administrar` para altas, cambios, bajas y consulta de auditoria.
+- [X] Auditoria atomica de creacion, cambios, baja y revelacion; almacena usuario, accion y nombres de campos, nunca valores de passwords. Consulta paginada disponible en `GET /api/secretos/:id/auditoria`.
+- [X] Revelacion explicita responde `Cache-Control: no-store`; requiere registrar el acceso y no se permite para secretos inactivos.
+- [X] Preflight de la base local: no habia filas previas de secretos ni claves de licencias; revisar cualquier entorno con datos antes de rotar `AES_SECRET_KEY`.
 - [ ] **Importacion masiva futura de secretos desde CSV/Excel:** permitir subir temporalmente un archivo con credenciales para extraer y validar sus filas y construir los datos equivalentes a las altas individuales de secretos; no conservar el archivo ni sus contenidos despues del procesamiento.
 - [ ] Antes de habilitarla, definir permisos RBAC especificos, acceso de lectura/descifrado, auditoria de consulta y cambios, formato de plantilla, duplicados, errores por fila y atomicidad del lote. Reutilizar el cifrado AES-256-GCM de `src/utils/crypto.ts`; nunca incluir contrasenas en logs, mensajes de error, vista previa persistente o respuestas normales. Evitar devolver valores descifrados salvo en una operacion expresamente autorizada.
 - [ ] **Flujo recomendado:** carga temporal -> validacion de formato y filas -> vista previa con errores que no revele contrasenas -> confirmacion explicita -> persistencia cifrada reutilizando las validaciones/servicios de alta -> eliminacion del temporal; limitar tamano y cantidad de filas, y garantizar limpieza tambien ante errores.

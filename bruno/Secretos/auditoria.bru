@@ -1,0 +1,30 @@
+meta {
+  name: Consultar auditoria sin valores sensibles
+  type: http
+  seq: 6
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+get {
+  url: {{baseUrl}}/api/secretos/{{secretoPruebaId}}/auditoria
+  body: json
+  auth: none
+}
+
+script:post-response {
+  const cuerpo = JSON.stringify(res.body);
+  if (cuerpo.includes(bru.getVar("passwordSecretoPrueba"))) throw new Error("La auditoria incluyo el password original");
+  if (cuerpo.includes(bru.getVar("passwordSecretoActualizado"))) throw new Error("La auditoria incluyo el password");
+}
+
+assert {
+  res.status: eq 200
+  res.body.data: isArray
+  res.body.data[0].accion: eq REVELAR
+}

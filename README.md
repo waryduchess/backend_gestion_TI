@@ -88,6 +88,13 @@ Verificacion:
   alertas diarias desde 30 dias antes del vencimiento, a la persona asignada o
   al respaldo `LICENCIAS_ALERTA_EMAIL`; usa SMTP y por defecto corre a las 09:00
   de `America/Cancun` (`LICENCIAS_ALERTA_CRON`).
+* `/api/secretos` separa los permisos `secretos:leer` (metadatos),
+  `secretos:revelar` (password de un secreto activo en una operacion explicita)
+  y `secretos:administrar` (altas, cambios, bajas y auditoria). Los passwords
+  se cifran con AES-256-GCM; nunca aparecen en listados, detalles, cambios ni
+  registros de auditoria. La ruta `GET /:id/password` audita cada revelacion y
+  responde con `Cache-Control: no-store`. Al agregar estos permisos al
+  Administrador, vuelve a ejecutar `npm run seed`.
 * `/api/notificaciones` requiere JWT y `incidencias:leer`; cada nueva incidencia
   crea un aviso persistente para cada usuario activo con ese permiso. La API
   permite listar los avisos propios (`GET /api/notificaciones?leida=false`),
@@ -97,7 +104,9 @@ Verificacion:
   recuperar el historial con la API. `SOCKET_CORS_ORIGIN` acepta una lista de
   origenes separados por coma; por defecto permite cualquier origen.
 * Genera una clave antes de un entorno real con `openssl rand -hex 32` y
-  configúrala como `AES_SECRET_KEY`; no uses el valor de ejemplo.
+  configúrala como `AES_SECRET_KEY`; no uses el valor de ejemplo. Manténla
+  fuera de Git y respáldala de forma segura: cambiarla o perderla impide
+  descifrar secretos y claves existentes.
 * `POST /api/auth/login` es la unica ruta operativa publica; `/health` y la
   documentacion permanecen publicos para comprobacion y consulta.
 

@@ -1,13 +1,7 @@
 meta {
-  name: Actualizar rol RBAC de prueba
+  name: Dar de baja secreto
   type: http
-  seq: 4
-}
-
-patch {
-  url: {{baseUrl}}/api/roles/{{rolPruebaId}}
-  body: json
-  auth: none
+  seq: 7
 }
 
 script:pre-request {
@@ -17,20 +11,13 @@ script:pre-request {
   req.setHeader("Authorization", "Bearer " + token);
 }
 
-headers {
-  Content-Type: application/json
-}
-
-body:json {
-  {
-    "permisos": ["activos:leer", "incidencias:leer", "secretos:leer"]
-  }
+delete {
+  url: {{baseUrl}}/api/secretos/{{secretoPruebaId}}
+  body: json
+  auth: none
 }
 
 assert {
   res.status: eq 200
-}
-
-assert {
-  res.body.data.permisos: isArray
+  res.body.data.activo: eq false
 }

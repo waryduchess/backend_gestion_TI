@@ -31,6 +31,10 @@ tags:
       requiere JWT; sus CRUD requieren ademas catalogos:administrar.
   - name: licencias
     description: Licencias protegidas por el permiso licencias:administrar
+  - name: secretos
+    description: >
+      Credenciales cifradas. Lectura de metadatos, revelacion de passwords y
+      administracion requieren permisos independientes.
   - name: roles
     description: Roles y permisos de acceso
 
@@ -2440,6 +2444,303 @@ paths:
         '404':
           description: Licencia no encontrada
 
+  /api/secretos:
+    get:
+      tags: [secretos]
+      summary: Listar metadatos de secretos
+      description: >
+        Requiere JWT y secretos:leer. Nunca devuelve passwords, cifrados ni en
+        texto plano.
+      operationId: listarSecretos
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+        - name: activo
+          in: query
+          schema:
+            type: boolean
+        - name: tipo
+          in: query
+          schema:
+            type: string
+        - name: proyecto
+          in: query
+          schema:
+            type: string
+        - name: q
+          in: query
+          description: Busca en tipo, proyecto, nombre y usuario
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Secretos obtenidos correctamente, sin passwords
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaSecretosPaginada'
+        '400':
+          description: Filtros o paginacion invalidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso secretos:leer
+    post:
+      tags: [secretos]
+      summary: Crear un secreto
+      description: >
+        Requiere secretos:administrar. El password se cifra con AES-256-GCM;
+        la respuesta solo contiene metadatos. La operacion queda auditada sin
+        registrar el valor del password.
+      operationId: crearSecreto
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SecretoRequest'
+      responses:
+        '201':
+          description: Secreto creado correctamente, sin devolver el password
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaSecreto'
+        '400':
+          description: Datos invalidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso secretos:administrar
+        '500':
+          description: AES_SECRET_KEY invalida o error interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+
+  /api/secretos/{id}/password:
+    get:
+      tags: [secretos]
+      summary: Revelar password de un secreto activo
+      description: >
+        Requiere secretos:revelar. Cada revelacion exitosa se audita. La
+        respuesta usa Cache-Control no-store y contiene el password en texto
+        plano unicamente para esta operacion explicita.
+      operationId: revelarPasswordSecreto
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Password revelado; respuesta no almacenable en cache
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaPasswordSecreto'
+        '400':
+          description: Identificador invalido
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso secretos:revelar
+        '404':
+          description: Secreto no encontrado o inactivo
+        '500':
+          description: AES_SECRET_KEY invalida o password cifrado ilegible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+
+  /api/secretos/{id}/auditoria:
+    get:
+      tags: [secretos]
+      summary: Consultar auditoria de un secreto
+      description: >
+        Requiere secretos:administrar. Registra acciones y nombres de campos,
+        nunca los valores de passwords.
+      operationId: listarAuditoriaSecreto
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        '200':
+          description: Auditoria obtenida correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaAuditoriaSecretosPaginada'
+        '400':
+          description: Identificador o paginacion invalida
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso secretos:administrar
+        '404':
+          description: Secreto no encontrado
+
+  /api/secretos/{id}:
+    get:
+      tags: [secretos]
+      summary: Consultar metadatos de un secreto
+      description: Requiere secretos:leer; nunca devuelve el password.
+      operationId: obtenerSecreto
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Metadatos obtenidos correctamente, sin password
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaSecreto'
+        '400':
+          description: Identificador invalido
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso secretos:leer
+        '404':
+          description: Secreto no encontrado
+    patch:
+      tags: [secretos]
+      summary: Actualizar metadatos o password de un secreto
+      description: >
+        Requiere secretos:administrar. Un password enviado se vuelve a cifrar.
+        activo:true reactiva un registro desactivado. El cambio queda auditado
+        sin guardar valores sensibles en la auditoria ni la respuesta.
+      operationId: actualizarSecreto
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SecretoEdicion'
+      responses:
+        '200':
+          description: Secreto actualizado correctamente, sin password
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaSecreto'
+        '400':
+          description: Campos invalidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso secretos:administrar
+        '404':
+          description: Secreto no encontrado o inactivo
+        '500':
+          description: AES_SECRET_KEY invalida o error interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+    delete:
+      tags: [secretos]
+      summary: Dar de baja un secreto
+      description: Baja logica idempotente; no elimina el registro y queda auditada.
+      operationId: desactivarSecreto
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Secreto desactivado correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaSecreto'
+        '400':
+          description: Identificador invalido
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso secretos:administrar
+        '404':
+          description: Secreto no encontrado
+
   /api/usuarios:
     get:
       tags: [usuarios]
@@ -3708,6 +4009,9 @@ components:
         - roles:administrar
         - catalogos:administrar
         - licencias:administrar
+        - secretos:leer
+        - secretos:revelar
+        - secretos:administrar
 
     RolCreacion:
       type: object
@@ -3968,6 +4272,189 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/LicenciaResumen'
+        meta:
+          $ref: '#/components/schemas/MetaPaginacion'
+
+    SecretoResumen:
+      type: object
+      required:
+        - id
+        - tipo
+        - proyecto
+        - nombre
+        - usuario
+        - comentario
+        - activo
+      properties:
+        id:
+          type: integer
+          example: 1
+        tipo:
+          type: [string, 'null']
+        proyecto:
+          type: [string, 'null']
+        nombre:
+          type: [string, 'null']
+        usuario:
+          type: [string, 'null']
+        comentario:
+          type: [string, 'null']
+        activo:
+          type: boolean
+      description: No incluye el password ni su contenido cifrado.
+
+    SecretoRequest:
+      type: object
+      additionalProperties: false
+      required: [password]
+      properties:
+        tipo:
+          type: [string, 'null']
+          maxLength: 191
+        proyecto:
+          type: [string, 'null']
+          maxLength: 191
+        nombre:
+          type: [string, 'null']
+          maxLength: 191
+        usuario:
+          type: [string, 'null']
+          maxLength: 191
+        password:
+          type: string
+          minLength: 1
+          description: Se cifra antes de persistir y nunca se incluye en esta respuesta.
+        comentario:
+          type: [string, 'null']
+          maxLength: 10000
+
+    SecretoEdicion:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        tipo:
+          type: [string, 'null']
+          maxLength: 191
+        proyecto:
+          type: [string, 'null']
+          maxLength: 191
+        nombre:
+          type: [string, 'null']
+          maxLength: 191
+        usuario:
+          type: [string, 'null']
+          maxLength: 191
+        password:
+          type: string
+          minLength: 1
+          description: Se cifra antes de persistir y nunca se incluye en la respuesta.
+        comentario:
+          type: [string, 'null']
+          maxLength: 10000
+        activo:
+          type: boolean
+          const: true
+          description: Reactiva un secreto dado de baja logicamente.
+
+    AccionAuditoriaSecreto:
+      type: string
+      enum: [CREAR, ACTUALIZAR, DESACTIVAR, REVELAR]
+
+    AuditoriaSecreto:
+      type: object
+      required: [id, secretoId, accion, campos, realizadaEn, usuario]
+      properties:
+        id:
+          type: integer
+        secretoId:
+          type: integer
+        accion:
+          $ref: '#/components/schemas/AccionAuditoriaSecreto'
+        campos:
+          type: [array, 'null']
+          items:
+            type: string
+          description: Nombres de campos modificados; nunca contiene valores sensibles.
+        realizadaEn:
+          type: string
+          format: date-time
+        usuario:
+          type: object
+          required: [id, nombre]
+          properties:
+            id:
+              type: string
+            nombre:
+              type: string
+
+    RespuestaSecreto:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        errors:
+          type: array
+          items: {}
+        data:
+          $ref: '#/components/schemas/SecretoResumen'
+
+    RespuestaSecretosPaginada:
+      type: object
+      required: [success, message, errors, data, meta]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        errors:
+          type: array
+          items: {}
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/SecretoResumen'
+        meta:
+          $ref: '#/components/schemas/MetaPaginacion'
+
+    RespuestaPasswordSecreto:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        errors:
+          type: array
+          items: {}
+        data:
+          type: object
+          required: [id, password]
+          properties:
+            id:
+              type: integer
+            password:
+              type: string
+
+    RespuestaAuditoriaSecretosPaginada:
+      type: object
+      required: [success, message, errors, data, meta]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        errors:
+          type: array
+          items: {}
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditoriaSecreto'
         meta:
           $ref: '#/components/schemas/MetaPaginacion'
 

@@ -1,13 +1,7 @@
 meta {
-  name: Actualizar rol RBAC de prueba
+  name: Reactivar secreto
   type: http
-  seq: 4
-}
-
-patch {
-  url: {{baseUrl}}/api/roles/{{rolPruebaId}}
-  body: json
-  auth: none
+  seq: 9
 }
 
 script:pre-request {
@@ -17,20 +11,23 @@ script:pre-request {
   req.setHeader("Authorization", "Bearer " + token);
 }
 
+patch {
+  url: {{baseUrl}}/api/secretos/{{secretoPruebaId}}
+  body: json
+  auth: none
+}
+
 headers {
   Content-Type: application/json
 }
 
 body:json {
   {
-    "permisos": ["activos:leer", "incidencias:leer", "secretos:leer"]
+    "activo": true
   }
 }
 
 assert {
   res.status: eq 200
-}
-
-assert {
-  res.body.data.permisos: isArray
+  res.body.data.activo: eq true
 }

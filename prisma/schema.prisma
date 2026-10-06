@@ -52,6 +52,13 @@ enum EstadoActivo {
   DE_BAJA
 }
 
+enum AccionAuditoriaSecreto {
+  CREAR
+  ACTUALIZAR
+  DESACTIVAR
+  REVELAR
+}
+
 // ------------------------------------------------------
 // CATALOGOS
 // ------------------------------------------------------
@@ -125,6 +132,7 @@ model Usuario {
   asignaciones        AsignacionComputo[]
   licencias           Licencia[]
   notificaciones      Notificacion[]
+  auditoriasSecretos  AuditoriaSecreto[]
 
   @@index([email])
 }
@@ -259,4 +267,22 @@ model Secreto {
   usuario    String?
   password   String  @db.Text // Cifrar con AES-256-GCM antes de guardar
   comentario String? @db.Text
+  activo     Boolean @default(true)
+
+  auditorias AuditoriaSecreto[]
+}
+
+model AuditoriaSecreto {
+  id          Int                    @id @default(autoincrement())
+  secretoId   Int
+  usuarioId   String
+  accion      AccionAuditoriaSecreto
+  campos      Json?
+  realizadaEn DateTime               @default(now())
+
+  secreto Secreto @relation(fields: [secretoId], references: [id], onDelete: Restrict)
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+
+  @@index([secretoId, realizadaEn])
+  @@index([usuarioId, realizadaEn])
 }
