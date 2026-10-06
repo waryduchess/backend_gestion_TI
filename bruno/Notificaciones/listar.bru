@@ -20,8 +20,9 @@ get {
 script:post-response {
   if (res.status !== 200) return;
   const incidenciaId = bru.getEnvVar("incidenciaNotificacionFixtureId");
-  const notificacion = res.body.data.find((item) => String(item.incidencia.id) === String(incidenciaId));
+  const notificacion = res.body.data.find((item) => String(item.incidencia?.id) === String(incidenciaId));
   if (!notificacion) throw new Error("No se encontro la notificacion persistida de la incidencia fixture");
+  if (notificacion.tipo !== "INCIDENCIA_NUEVA" || notificacion.licencia !== null) throw new Error("La notificacion de incidencia tiene un tipo o payload incorrecto");
   if (typeof res.body.meta.noLeidas !== "number" || res.body.meta.noLeidas < 1) throw new Error("El conteo de no leidas debe incluir la notificacion fixture");
   bru.setEnvVar("notificacionPropiaId", notificacion.id);
 }

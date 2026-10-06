@@ -20,6 +20,7 @@ conviene revisarlo antes de cada iteracion y actualizarlo al cerrar cada modulo.
 | RBAC / roles                         | CRUD`/api/roles`, asignar rol a usuario                                                                               | Si                     | 18 requests        |
 | Licencias (`/api/licencias`)       | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `DELETE /:id`                                                    | Si                     | 12 requests        |
 | Secretos (`/api/secretos`)         | `GET /`, `POST /`, `GET /:id`, `GET /:id/password`, `GET /:id/auditoria`, `PATCH /:id`, `DELETE /:id`                  | Si                     | 13 requests        |
+| Notificaciones (`/api/notificaciones`) | `GET /`, `PATCH /:id/leer`, `PATCH /leer-todas`; incidencias y recordatorios de licencias                         | Si                     | 10 requests        |
 
 Regresion completa mas reciente tras Licencias: `npx tsc --noEmit`, `prisma validate`, OpenAPI y suite Bruno (145/145 requests, 304/304 assertions). Para
 la fase 2 de incidencias: build, OpenAPI, Bruno de Incidencias (12/12 requests,
@@ -77,9 +78,12 @@ prueba controlada.
 - [X] Seed crea/reactiva el rol Administrador, le asigna todos los permisos y lo asigna al usuario `ADMIN`
 - [X] `verificarToken` se aplica a todo `/api/usuarios`; cada endpoint valida ademas `usuarios:administrar`, excepto asignacion de rol, que requiere `roles:administrar`
 
-Permisos iniciales: `incidencias:leer`, `activos:leer`, `activos:crear`,
+Permisos iniciales: `incidencias:leer`, `notificaciones:leer`,
+`activos:leer`, `activos:crear`,
 `activos:editar`, `activos:estado`, `activos:asignar`, `activos:eliminar` y
-`usuarios:administrar`, `roles:administrar`, `catalogos:administrar`. Se protege
+`usuarios:administrar`, `roles:administrar`, `catalogos:administrar`,
+`licencias:administrar`, `secretos:leer`, `secretos:revelar` y
+`secretos:administrar`. Se protege
 contra dejar el sistema sin ningun rol capaz de administrar roles. El catalogo
 solo expone entradas activas y el listado de roles expone nombre e id de roles
 activos.
@@ -115,16 +119,19 @@ adicional.
 
 - [X] Persistir notificaciones de nuevas incidencias por usuario activo con `incidencias:leer`, con lectura individual y masiva.
 - [X] `GET /api/notificaciones` paginado, filtro `leida` y conteo propio `meta.noLeidas`; `PATCH /api/notificaciones/:id/leer` y `PATCH /api/notificaciones/leer-todas`.
+- [X] Permiso `notificaciones:leer` independiente; migracion lo agrega a roles existentes con `incidencias:leer` para conservar su acceso.
 - [X] Emision Socket.IO por sala privada de usuario despues de persistir; el evento incluye `notificacionId`.
 - [X] Recuperacion REST de notificaciones no leidas al reconectar; Socket.IO no reproduce eventos perdidos.
+- [X] Recordatorios persistentes de licencias en los hitos de 30, 7 y 1 dia, deduplicados por destinatario/licencia/hito; al asignado activo con `notificaciones:leer`, o usuarios activos con `licencias:administrar` y `notificaciones:leer` si no hay asignado elegible.
+- [X] El evento `licencias:por-vencer` se emite despues de persistir y solo a la sala privada de cada destinatario; el payload incluye `notificacionId`, licencia, vencimiento e hito. La lista REST contiene la informacion para recuperar eventos perdidos.
 - [ ] Politica de retencion/limpieza; por ahora los registros se conservan sin expiracion.
 
 ## 3. Features tecnicas pendientes
 
-- [X] `src/utils/crypto.ts` - AES-256-GCM con `AES_SECRET_KEY` para `Licencia.clave`; pendiente usarlo tambien para `Secreto.password`
-- [X] Socket.IO autenticado con JWT y permiso `incidencias:leer`; eventos tipados para nuevas incidencias y cambios de estado
+- [X] `src/utils/crypto.ts` - AES-256-GCM con `AES_SECRET_KEY` para `Licencia.clave` y `Secreto.password`
+- [X] Socket.IO autenticado con JWT y `notificaciones:leer`; separa sala/evento de incidencias y recordatorios privados de licencias
 - [ ] Emitir los eventos Socket.IO desde las operaciones de alta y cambio de estado de incidencias cuando se implementen esos endpoints
-- [X] `node-cron` - job diario de vencimiento de licencias; pendiente SLA de tickets
+- [X] `node-cron` - job diario de correo y recordatorios persistentes de vencimiento de licencias; pendiente SLA de tickets
 - [X] Nodemailer (`src/config/mailer.ts`) - correos de alerta de licencias; pendiente otras notificaciones
 - [ ] S3 (`src/config/s3.ts`, `@aws-sdk/client-s3`) - evidencias de incidencias y adjuntos
 - [ ] Puppeteer - reportes PDF (inventario, tickets cerrados, licencias)
