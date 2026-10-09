@@ -1,0 +1,15 @@
+meta {
+  name: Resumen del dashboard sin token
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/api/dashboard/summary
+  body: json
+  auth: none
+}
+
+assert {
+  res.status: eq 401
+}

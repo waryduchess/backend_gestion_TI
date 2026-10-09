@@ -21,13 +21,13 @@ conviene revisarlo antes de cada iteracion y actualizarlo al cerrar cada modulo.
 | Proyectos                           | Sin modelo ni endpoints                                                                                              | No                     | No                 |
 | Secretos (`/api/secretos`)         | `GET /`, `POST /`, `GET /:id`, `GET /:id/password`, `GET /:id/auditoria`, `PATCH /:id`, `DELETE /:id`                  | Si                     | 13 requests        |
 | Notificaciones (`/api/notificaciones`) | `GET /`, `PATCH /:id/leer`, `PATCH /leer-todas`; incidencias y recordatorios de licencias                         | Si                     | 10 requests        |
-| Dashboard (`/api/dashboard`)       | ninguno (propuesto `GET /summary`)                                                                                      | No                     | No                 |
+| Dashboard (`/api/dashboard`)       | `GET /summary`                                                                                                          | Si                     | 5 requests         |
 | Recordatorios                      | sin modelo ni endpoints                                                                                                 | No                     | No                 |
 | Sucursal (normalizacion)           | sin catalogo; `Activo.sucursal` es texto libre                                                                          | No                     | No                 |
 
-Regresion completa mas reciente tras Licencias: `npx tsc --noEmit`, `prisma validate`, OpenAPI y suite Bruno (145/145 requests, 304/304 assertions). Para
+Regresion completa mas reciente tras el Dashboard: `npx tsc --noEmit`, OpenAPI valido y suite Bruno (188/188 requests, 390/390 assertions). Para
 la fase 2 de incidencias: build, OpenAPI, Bruno de Incidencias (12/12 requests,
-23/23 assertions), Roles (18/18 requests, 26/26 assertions) y prueba de evento
+23/23 assertions), Roles (19/19 requests, 27/27 assertions) y prueba de evento
 Socket.IO completados. El envio SMTP real requiere credenciales validas y una
 prueba controlada.
 
@@ -152,35 +152,31 @@ de proyectos.
 - [ ] Documentar rutas y esquemas en OpenAPI; cubrir validaciones, relaciones,
   permisos, baja logica y compatibilidad de datos con Bruno.
 
-### 2.9 Dashboard / KPIs (idea, por definir)
+### 2.9 Dashboard / KPIs
 
-Objetivo: el frontend del dashboard hace **una sola peticion HTTP** al cargar y
-recibe un JSON diminuto (<2 KB) con todos los indicadores, en lugar de 5
-llamadas pesadas. La base resuelve los conteos con **agregaciones**
-(`COUNT(*)`, `COUNT(*) GROUP BY tipo`), sin transferir filas completas.
+Implementado. El frontend del dashboard hace **una sola peticion HTTP** al cargar
+y recibe un JSON diminuto con todos los indicadores, calculados con
+**agregaciones** en la base (`COUNT(*)`, `GROUP BY tipo`), sin transferir filas.
 
-- [ ] Endpoint unico **`GET /api/dashboard/summary?sucursal=CANCUN`** (alternativa
-  evaluada: `/api/dashboard/kpis`). Solo lectura/agregacion: no escribe.
-- [ ] Filtro `sucursal` nativo (`WHERE sucursalId = ...`) aplicado a **todos** los
-  bloques; depende de la normalizacion de §2.11.
-- [ ] Definiciones de KPI (conteos directos):
+- [X] Endpoint unico **`GET /api/dashboard/summary?sucursal=CANCUN`** (respuesta en
+  `data`). Solo lectura/agregacion: no escribe.
+- [X] Definiciones de KPI (conteos directos):
   - `totalActivos` = activos con `estado != DE_BAJA`.
   - `equiposAsignados` = activos con `responsableId` distinto de null.
   - `ticketsPendientes` = incidencias con `estado != COMPLETADO`.
-- [ ] Forma de la respuesta:
-  ```json
-  {
-    "kpis": { "ticketsPendientes": 42, "totalActivos": 187, "equiposAsignados": 134 },
-    "activosPorTipo": [ { "tipo": "Laptop", "total": 85 }, { "tipo": "Desktop", "total": 45 } ],
-    "licenciasPorVencer": [ /* solo las 5 mas criticas */ ],
-    "recordatorios": [ /* pendientes, ver §2.10 */ ]
-  }
-  ```
-- [ ] `licenciasPorVencer`: top 5 por `fechaVencimiento` mas cercana entre las
-  activas; minimo imprescindible por fila (software, fecha, asignado).
-- [ ] RBAC por definir (candidato `dashboard:leer`); documentar en OpenAPI y
-  cubrir permisos, filtro por sucursal, sucursal inexistente y respuesta vacia
-  con Bruno.
+- [X] Forma de la respuesta: `data` = `{ kpis, activosPorTipo, licenciasPorVencer, recordatorios }`.
+- [X] `activosPorTipo` con `GROUP BY tipo`, ordenado por total descendente.
+- [X] `licenciasPorVencer`: top 5 por `fechaVencimiento` mas cercana entre las
+  activas (incluye vencidas), con software, proveedor, fecha y asignado.
+- [X] `recordatorios: []` reservado hasta implementar §2.10.
+- [X] RBAC JWT + permiso `dashboard:leer` (migracion lo agrega a roles con
+  `activos:leer`); documentado en OpenAPI y cubierto en Bruno (200/400/401/403).
+- [ ] **Filtro de sucursal parcial (temporal):** hoy el filtro se aplica solo a los
+  KPIs y al desglose de **activos**, leyendo `Activo.sucursal` (string) con el
+  mapeo `CANCUN = {CANCUN, STOCK CUN}` y `PLAYA = {PLAYA, STOCK}`; `NULL` cuenta
+  solo en "Ambos". `ticketsPendientes` y `licenciasPorVencer` son **globales**
+  hasta completar §2.11 (normalizacion), momento en que el filtro cubrira todos
+  los bloques.
 
 ### 2.10 Recordatorios (idea, por definir)
 

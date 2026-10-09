@@ -37,6 +37,8 @@ tags:
       administracion requieren permisos independientes.
   - name: roles
     description: Roles y permisos de acceso
+  - name: dashboard
+    description: Resumen agregado de KPIs para el panel principal
 
 paths:
   /api/auth/login:
@@ -3217,6 +3219,74 @@ paths:
         '403':
           description: Requiere el permiso usuarios:administrar
 
+  /api/dashboard/summary:
+    get:
+      tags: [dashboard]
+      summary: Resumen del dashboard (KPIs agregados)
+      description: >
+        Devuelve en una sola peticion un JSON diminuto con los indicadores del
+        panel, calculados con agregaciones en la base (no transfiere filas).
+        El filtro `sucursal` aplica a los KPIs y al desglose de activos; los
+        tickets pendientes y las licencias por vencer son globales mientras no
+        exista la normalizacion de sucursal en incidencias/licencias.
+        Requiere el permiso `dashboard:leer`.
+      operationId: obtenerResumenDashboard
+      parameters:
+        - name: sucursal
+          in: query
+          required: false
+          description: >
+            Filtra por sede. `CANCUN` incluye CANCUN y STOCK CUN; `PLAYA`
+            incluye PLAYA y STOCK. Sin parametro devuelve ambas (Ambos).
+          schema:
+            type: string
+            enum: [CANCUN, PLAYA]
+            example: CANCUN
+      responses:
+        '200':
+          description: Resumen del dashboard obtenido correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaResumenDashboard'
+              example:
+                success: true
+                message: Resumen del dashboard obtenido correctamente
+                errors: []
+                data:
+                  kpis:
+                    ticketsPendientes: 42
+                    totalActivos: 187
+                    equiposAsignados: 134
+                  activosPorTipo:
+                    - tipo: Laptop
+                      total: 85
+                    - tipo: Desktop
+                      total: 45
+                  licenciasPorVencer:
+                    - id: 1
+                      software: Microsoft 365
+                      proveedor: Licenciamiento
+                      fechaVencimiento: '2026-11-01T00:00:00.000Z'
+                      asignadaA: null
+                  recordatorios: []
+        '400':
+          description: Parametro sucursal invalido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: El parametro "sucursal" debe ser "CANCUN" o "PLAYA"
+                errors:
+                  - campo: sucursal
+                    valor: BOGUS
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso dashboard:leer
+
 components:
   securitySchemes:
     bearerAuth:
@@ -4034,11 +4104,96 @@ components:
           type: boolean
           example: true
 
+    RespuestaResumenDashboard:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: Resumen del dashboard obtenido correctamente
+        errors:
+          type: array
+          items: {}
+        data:
+          $ref: '#/components/schemas/ResumenDashboard'
+
+    ResumenDashboard:
+      type: object
+      required: [kpis, activosPorTipo, licenciasPorVencer, recordatorios]
+      properties:
+        kpis:
+          $ref: '#/components/schemas/KpisDashboard'
+        activosPorTipo:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActivoPorTipo'
+        licenciasPorVencer:
+          type: array
+          description: Hasta 5 licencias activas mas cercanas a vencer (incluye vencidas)
+          items:
+            $ref: '#/components/schemas/LicenciaPorVencer'
+        recordatorios:
+          type: array
+          description: Reservado (modulo Recordatorio aun no implementado)
+          items: {}
+
+    KpisDashboard:
+      type: object
+      required: [ticketsPendientes, totalActivos, equiposAsignados]
+      properties:
+        ticketsPendientes:
+          type: integer
+          description: Incidencias con estado distinto de COMPLETADO (global)
+          example: 42
+        totalActivos:
+          type: integer
+          description: Activos con estado distinto de DE_BAJA
+          example: 187
+        equiposAsignados:
+          type: integer
+          description: Activos no dados de baja con responsable asignado
+          example: 134
+
+    ActivoPorTipo:
+      type: object
+      required: [tipo, total]
+      properties:
+        tipo:
+          type: string
+          example: Laptop
+        total:
+          type: integer
+          example: 85
+
+    LicenciaPorVencer:
+      type: object
+      required: [id, software, fechaVencimiento]
+      properties:
+        id:
+          type: integer
+          example: 1
+        software:
+          type: string
+          example: Microsoft 365
+        proveedor:
+          type: string
+          nullable: true
+          example: Licenciamiento
+        fechaVencimiento:
+          type: string
+          format: date-time
+        asignadaA:
+          $ref: '#/components/schemas/UsuarioResumen'
+
     Permiso:
       type: string
       enum:
         - incidencias:leer
+        - incidencias:crear
         - notificaciones:leer
+        - dashboard:leer
         - activos:leer
         - activos:crear
         - activos:editar
