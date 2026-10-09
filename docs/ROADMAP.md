@@ -1,4 +1,3 @@
-
 # Roadmap - Backend Sistema de Gestion TI
 
 Estado de lo que **falta por desarrollar**. Este archivo es la memoria viva del proyecto:
@@ -161,6 +160,12 @@ de proyectos.
 - [ ] Ollama (`llama3.1:8b`) - asistente IA + Function Calling (servicio `ollama` en docker, profile `ai`)
 - [ ] CORS restrictivo - hoy `app.use(cors())` abierto; restringir a la URL del frontend
 - [X] `.env.example` documenta SMTP y variables de alertas de licencias; quedan pendientes `S3_*`, `OLLAMA_*`, `CORS_ORIGIN` y la revision de nombres previos del roadmap
+- [ ] agregar en licencias el tipo (suscripción, perpetua).
+- [ ] Devolver en la consulta de licencias la clave
+- [ ] creacion de endPoints del modulo de auditoria
+- [ ] creacion de endPoints del modulo de mantenimiento de equipos
+- [ ] simular subtareas  para documentar a la memoria
+- [ ] **Recordatorios (Tareas Programadas):** Notificaciones automáticas de vencimientos
 
 ---
 
