@@ -1,0 +1,77 @@
+meta {
+  name: Confirmar importacion de activos
+  type: http
+  seq: 5
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+  const lote = Date.now();
+  bru.setVar("impConCb23a", "IMPC" + lote + "A");
+  bru.setVar("impConSeriea", "IMPSNC" + lote + "A");
+  bru.setVar("impConCb23b", "IMPC" + lote + "B");
+  bru.setVar("impConSerieb", "IMPSNC" + lote + "B");
+}
+
+post {
+  url: {{baseUrl}}/api/activos/importaciones/confirmar
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "filas": [
+      {
+        "fila": 30,
+        "CB23": "{{impConCb23a}}",
+        "Tipo": "Laptop",
+        "Marca": "Lenovo",
+        "Número de serie": "{{impConSeriea}}",
+        "Sucursal": "PLAYA",
+        "Estado": "EN_USO"
+      },
+      {
+        "fila": 31,
+        "CB23": "{{impConCb23b}}",
+        "Tipo": "Desktop",
+        "Número de serie": "{{impConSerieb}}"
+      }
+    ]
+  }
+}
+
+assert {
+  res.status: eq 200
+}
+
+assert {
+  res.body.success: eq true
+}
+
+assert {
+  res.body.data.resumen.total: eq 2
+}
+
+assert {
+  res.body.data.resumen.creadas: eq 2
+}
+
+assert {
+  res.body.data.resumen.rechazadas: eq 0
+}
+
+assert {
+  res.body.data.filas[0].creado: eq true
+}
+
+assert {
+  res.body.data.filas[1].creado: eq true
+}

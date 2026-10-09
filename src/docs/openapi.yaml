@@ -744,6 +744,172 @@ paths:
                   - campo: claveActivo
                     valor: AF00010
 
+  /api/activos/importaciones/validar:
+    post:
+      tags: [activos]
+      summary: Validar una importacion masiva de activos (sin escribir)
+      description: >
+        Recibe las filas ya parseadas por el frontend (con los encabezados de la
+        plantilla `plantilla_registro_activos.csv`) y devuelve, sin escribir en
+        la base, el resultado por fila (validas e invalidas) y un resumen.
+        Requiere el permiso activos:crear. Maximo 500 filas por peticion.
+      operationId: validarImportacionActivos
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportacionActivosPeticion'
+            example:
+              filas:
+                - fila: 2
+                  CB23: '100003'
+                  Tipo: Laptop
+                  Marca: Dell
+                  Modelo: Inspiron 15
+                  Número de serie: CXBF1Z3
+                  Sucursal: CANCUN
+                  Estado: EN_USO
+                  Estado general: Bien
+                  Red: CUN-LT-01
+                  Correo responsable: ernesto.marquez@horbismex.com
+                - fila: 3
+                  CB23: '100004'
+                  Tipo: Desktop
+                  Estado: EN_ALMACEN
+      responses:
+        '200':
+          description: Resultado de la validacion por fila
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaValidacionImportacion'
+              example:
+                success: true
+                message: Validacion de importacion completada
+                errors: []
+                data:
+                  resumen:
+                    total: 2
+                    validas: 1
+                    invalidas: 1
+                  filas:
+                    - fila: 2
+                      valido: true
+                      errores: []
+                      advertencias: []
+                      datos:
+                        tipo: Laptop
+                        cb23: '100003'
+                        marca: Dell
+                        modelo: Inspiron 15
+                        numeroSerie: CXBF1Z3
+                        sucursal: CANCUN
+                        estadoGeneral: Bien
+                        nombreRed: CUN-LT-01
+                        estado: EN_USO
+                        responsableId: CT003
+                    - fila: 3
+                      valido: false
+                      errores:
+                        - Ya existe un activo con el CB23 "100004"
+                      advertencias:
+                        - La fila no trae "Correo responsable"; se importara sin responsable
+                      datos: null
+        '400':
+          description: Cuerpo invalido (filas ausentes o vacias, o mas de 500 filas)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: El lote no puede superar las 500 filas
+                errors:
+                  - campo: filas
+                    valor: 501
+                    maximo: 500
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso activos:crear
+
+  /api/activos/importaciones/confirmar:
+    post:
+      tags: [activos]
+      summary: Confirmar una importacion masiva de activos
+      description: >
+        Revalida el lote y crea unicamente las filas validas (importacion
+        parcial: las invalidas o con error se rechazan sin abortar el resto).
+        No actualiza activos existentes. Requiere el permiso activos:crear.
+        Maximo 500 filas por peticion.
+      operationId: confirmarImportacionActivos
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportacionActivosPeticion'
+            example:
+              filas:
+                - fila: 2
+                  CB23: '100003'
+                  Tipo: Laptop
+                  Marca: Dell
+                  Modelo: Inspiron 15
+                  Número de serie: CXBF1Z3
+                  Sucursal: CANCUN
+                  Estado: EN_USO
+                  Correo responsable: ernesto.marquez@horbismex.com
+      responses:
+        '200':
+          description: Resultado de la importacion por fila
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaConfirmacionImportacion'
+              example:
+                success: true
+                message: Importacion de activos completada
+                errors: []
+                data:
+                  resumen:
+                    total: 2
+                    creadas: 1
+                    rechazadas: 1
+                  filas:
+                    - fila: 2
+                      creado: true
+                      activoId: 512
+                      errores: []
+                      advertencias: []
+                    - fila: 3
+                      creado: false
+                      activoId: null
+                      errores:
+                        - El tipo es obligatorio
+                      advertencias: []
+        '400':
+          description: Cuerpo invalido (filas ausentes o vacias, o mas de 500 filas)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: El campo "filas" debe ser un arreglo
+                errors:
+                  - campo: filas
+                    valor: null
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso activos:crear
+
   /api/activos/{id}:
     get:
       tags: [activos]
@@ -4186,6 +4352,239 @@ components:
           format: date-time
         asignadaA:
           $ref: '#/components/schemas/UsuarioResumen'
+
+    ImportacionActivosPeticion:
+      type: object
+      required: [filas]
+      description: >
+        Lote de filas ya parseadas por el frontend. Entre 1 y 500 filas.
+      properties:
+        filas:
+          type: array
+          minItems: 1
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/ImportacionActivoFila'
+
+    ImportacionActivoFila:
+      type: object
+      description: >
+        Fila con los encabezados originales de la plantilla. Las columnas fuera
+        del mapeo se ignoran. El mapeo es: CB23 -> cb23; Tipo -> tipo;
+        Marca -> marca; Modelo -> modelo; "Número de serie" -> numeroSerie;
+        Sucursal -> sucursal; Estado -> estado; "Estado general" ->
+        estadoGeneral; Red -> nombreRed; "Correo responsable" se resuelve contra
+        usuarios activos.
+      properties:
+        fila:
+          type: integer
+          minimum: 1
+          description: Numero de fila del CSV; si se omite se usa la posicion en el arreglo
+          example: 2
+        CB23:
+          type: [string, 'null']
+          example: '100003'
+        Tipo:
+          type: [string, 'null']
+          description: Obligatorio; Laptop, Desktop, Monitor, Switch...
+          example: Laptop
+        Marca:
+          type: [string, 'null']
+          example: Dell
+        Modelo:
+          type: [string, 'null']
+          example: Inspiron 15
+        Número de serie:
+          type: [string, 'null']
+          example: CXBF1Z3
+        Sucursal:
+          type: [string, 'null']
+          example: CANCUN
+        Estado:
+          type: [string, 'null']
+          description: >
+            EN_USO (default si esta vacio), EN_ALMACEN, EN_MANTENIMIENTO o
+            DE_BAJA
+          example: EN_USO
+        Estado general:
+          type: [string, 'null']
+          description: Condicion fisica original (Bien, Regular...)
+          example: Bien
+        Red:
+          type: [string, 'null']
+          example: CUN-LT-01
+        Correo responsable:
+          type: [string, 'null']
+          description: >
+            Se resuelve por coincidencia exacta con un usuario activo; si falta
+            o no identifica a uno solo, se importa sin responsable y se agrega
+            una advertencia.
+          example: ernesto.marquez@horbismex.com
+
+    DatosFilaImportada:
+      type: object
+      required: [tipo, estado]
+      description: Datos normalizados de una fila valida (lo que se importaria)
+      properties:
+        tipo:
+          type: string
+          example: Laptop
+        cb23:
+          type: [string, 'null']
+          example: '100003'
+        marca:
+          type: [string, 'null']
+          example: Dell
+        modelo:
+          type: [string, 'null']
+          example: Inspiron 15
+        numeroSerie:
+          type: [string, 'null']
+          example: CXBF1Z3
+        sucursal:
+          type: [string, 'null']
+          example: CANCUN
+        estadoGeneral:
+          type: [string, 'null']
+          example: Bien
+        nombreRed:
+          type: [string, 'null']
+          example: CUN-LT-01
+        estado:
+          $ref: '#/components/schemas/EstadoActivo'
+        responsableId:
+          type: [string, 'null']
+          description: Usuario activo resuelto desde "Correo responsable"; null si no se pudo resolver
+          example: CT003
+
+    ResultadoFilaImportacion:
+      type: object
+      required: [fila, valido, errores, advertencias, datos]
+      properties:
+        fila:
+          type: integer
+          example: 2
+        valido:
+          type: boolean
+          example: true
+        errores:
+          type: array
+          items:
+            type: string
+          example: []
+        advertencias:
+          type: array
+          items:
+            type: string
+          example: []
+        datos:
+          description: Datos normalizados de la fila; null cuando la fila es invalida
+          oneOf:
+            - $ref: '#/components/schemas/DatosFilaImportada'
+            - type: 'null'
+
+    ResumenValidacionImportacion:
+      type: object
+      required: [total, validas, invalidas]
+      properties:
+        total:
+          type: integer
+          example: 2
+        validas:
+          type: integer
+          example: 1
+        invalidas:
+          type: integer
+          example: 1
+
+    RespuestaValidacionImportacion:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Validacion de importacion completada
+        errors:
+          type: array
+          items: {}
+          example: []
+        data:
+          type: object
+          required: [resumen, filas]
+          properties:
+            resumen:
+              $ref: '#/components/schemas/ResumenValidacionImportacion'
+            filas:
+              type: array
+              items:
+                $ref: '#/components/schemas/ResultadoFilaImportacion'
+
+    FilaConfirmacionImportacion:
+      type: object
+      required: [fila, creado, activoId, errores, advertencias]
+      properties:
+        fila:
+          type: integer
+          example: 2
+        creado:
+          type: boolean
+          example: true
+        activoId:
+          type: [integer, 'null']
+          description: Id del activo creado; null si la fila fue rechazada
+          example: 512
+        errores:
+          type: array
+          items:
+            type: string
+          example: []
+        advertencias:
+          type: array
+          items:
+            type: string
+          example: []
+
+    ResumenConfirmacionImportacion:
+      type: object
+      required: [total, creadas, rechazadas]
+      properties:
+        total:
+          type: integer
+          example: 2
+        creadas:
+          type: integer
+          example: 1
+        rechazadas:
+          type: integer
+          example: 1
+
+    RespuestaConfirmacionImportacion:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Importacion de activos completada
+        errors:
+          type: array
+          items: {}
+          example: []
+        data:
+          type: object
+          required: [resumen, filas]
+          properties:
+            resumen:
+              $ref: '#/components/schemas/ResumenConfirmacionImportacion'
+            filas:
+              type: array
+              items:
+                $ref: '#/components/schemas/FilaConfirmacionImportacion'
 
     Permiso:
       type: string

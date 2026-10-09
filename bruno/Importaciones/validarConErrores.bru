@@ -1,0 +1,66 @@
+meta {
+  name: Validar importacion con errores
+  type: http
+  seq: 2
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+  bru.setVar("impErrCb23", "IMPERR" + Date.now());
+}
+
+post {
+  url: {{baseUrl}}/api/activos/importaciones/validar
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "filas": [
+      { "fila": 20, "CB23": "IMPVACIO{{impErrCb23}}", "Tipo": "" },
+      { "fila": 21, "Tipo": "Laptop", "Estado": "BOGUS" },
+      { "fila": 22, "Tipo": "Laptop", "CB23": "{{impErrCb23}}" },
+      { "fila": 23, "Tipo": "Laptop", "CB23": "{{impErrCb23}}" }
+    ]
+  }
+}
+
+assert {
+  res.status: eq 200
+}
+
+assert {
+  res.body.success: eq true
+}
+
+assert {
+  res.body.data.resumen.total: eq 4
+}
+
+assert {
+  res.body.data.resumen.validas: eq 1
+}
+
+assert {
+  res.body.data.resumen.invalidas: eq 3
+}
+
+assert {
+  res.body.data.filas[0].errores: isArray
+}
+
+assert {
+  res.body.data.filas[0].valido: eq false
+}
+
+assert {
+  res.body.data.filas[3].valido: eq false
+}
