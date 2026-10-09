@@ -7,18 +7,19 @@ conviene revisarlo antes de cada iteracion y actualizarlo al cerrar cada modulo.
 
 ## 1. Estado actual
 
-| Modulo                                   | Endpoints                                                                                                               | Documentado en Swagger | Bruno              |
-| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ---------------------- | ------------------ |
-| Auth (`/api/auth`)                     | `POST /login`, `GET /me`                                                                                            | Si                     | 3 requests         |
-| Incidencias (`/api/incidencias`)       | `GET /`, `GET /:id`, `POST /`                                                                                     | Si                     | 12 requests        |
-| Activos (`/api/activos`)               | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `PATCH /:id/estado`, `POST /:id/asignaciones`, `DELETE /:id` | Si                     | 41 requests        |
-| Asignaciones (`/api/asignaciones`)     | `GET /`, `POST /:id/devolucion`                                                                                     | Si                     | 8 requests         |
-| Usuarios (`/api/usuarios`)             | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `PATCH /:id/password`, `DELETE /:id`                           | Si                     | Pruebas protegidas |
-| Documentacion                            | `GET /api/docs`, `GET /api/docs/openapi.yaml`                                                                       | -                      | -                  |
-| Catalogos (`/api/catalogos`)           | `GET /` + CRUD `/api/departamentos`, `/api/ubicaciones`, `/api/puestos`, `/api/tipos-usuario`                 | Si                     | CRUD Bruno         |
-| RBAC / roles                             | CRUD`/api/roles`, asignar rol a usuario                                                                               | Si                     | 18 requests        |
-| Licencias (`/api/licencias`)           | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `DELETE /:id`                                                    | Si                     | 12 requests        |
-| Secretos (`/api/secretos`)             | `GET /`, `POST /`, `GET /:id`, `GET /:id/password`, `GET /:id/auditoria`, `PATCH /:id`, `DELETE /:id`     | Si                     | 13 requests        |
+| Modulo                               | Endpoints                                                                                                               | Documentado en Swagger | Bruno              |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- | ---------------------- | ------------------ |
+| Auth (`/api/auth`)                 | `POST /login`, `GET /me`                                                                                            | Si                     | 3 requests         |
+| Incidencias (`/api/incidencias`)   | `GET /`, `GET /:id`, `POST /`                                                                                     | Si                     | 12 requests        |
+| Activos (`/api/activos`)           | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `PATCH /:id/estado`, `POST /:id/asignaciones`, `DELETE /:id` | Si                     | 41 requests        |
+| Asignaciones (`/api/asignaciones`) | `GET /`, `POST /:id/devolucion`                                                                                     | Si                     | 8 requests         |
+| Usuarios (`/api/usuarios`)         | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `PATCH /:id/password`, `DELETE /:id`                           | Si                     | Pruebas protegidas |
+| Documentacion                        | `GET /api/docs`, `GET /api/docs/openapi.yaml`                                                                       | -                      | -                  |
+| Catalogos (`/api/catalogos`)       | `GET /` + CRUD `/api/departamentos`, `/api/ubicaciones`, `/api/puestos`, `/api/tipos-usuario`                 | Si                     | CRUD Bruno         |
+| RBAC / roles                         | CRUD`/api/roles`, asignar rol a usuario                                                                               | Si                     | 18 requests        |
+| Licencias (`/api/licencias`)       | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `DELETE /:id`                                                    | Si                     | 12 requests        |
+| Proyectos                           | Sin modelo ni endpoints                                                                                              | No                     | No                 |
+| Secretos (`/api/secretos`)         | `GET /`, `POST /`, `GET /:id`, `GET /:id/password`, `GET /:id/auditoria`, `PATCH /:id`, `DELETE /:id`                  | Si                     | 13 requests        |
 | Notificaciones (`/api/notificaciones`) | `GET /`, `PATCH /:id/leer`, `PATCH /leer-todas`; incidencias y recordatorios de licencias                         | Si                     | 10 requests        |
 
 Regresion completa mas reciente tras Licencias: `npx tsc --noEmit`, `prisma validate`, OpenAPI y suite Bruno (145/145 requests, 304/304 assertions). Para
@@ -124,6 +125,28 @@ adicional.
 - [X] Recordatorios persistentes de licencias en los hitos de 30, 7 y 1 dia, deduplicados por destinatario/licencia/hito; al asignado activo con `notificaciones:leer`, o usuarios activos con `licencias:administrar` y `notificaciones:leer` si no hay asignado elegible.
 - [X] El evento `licencias:por-vencer` se emite despues de persistir y solo a la sala privada de cada destinatario; el payload incluye `notificacionId`, licencia, vencimiento e hito. La lista REST contiene la informacion para recuperar eventos perdidos.
 - [ ] Politica de retencion/limpieza; por ahora los registros se conservan sin expiracion.
+
+### 2.8 Proyectos - pendiente de modelado e implementacion
+
+El backend no tiene actualmente un modelo Prisma ni endpoints dedicados a
+proyectos. `Secreto.proyecto` es texto libre, no una relacion con un catalogo
+de proyectos.
+
+- [ ] Definir el alcance y los campos del proyecto (por ejemplo: nombre unico,
+  descripcion, responsable, fechas y estado) antes de crear el modelo.
+- [ ] Definir relaciones con secretos y otros modulos que deban clasificar por
+  proyecto. Si `Secreto.proyecto` pasa a ser una relacion, decidir como
+  normalizar/migrar sus valores de texto existentes y conservar los registros.
+- [ ] Definir permisos RBAC para lectura y administracion; no reutilizar
+  `secretos:administrar` como permiso de proyectos.
+- [ ] Implementar listado y detalle (`GET /api/proyectos`, `GET
+  /api/proyectos/:id`), alta (`POST /api/proyectos`), edicion (`PATCH
+  /api/proyectos/:id`) y baja logica (`DELETE /api/proyectos/:id`) cuando el
+  modelo y las reglas de ciclo de vida esten aprobados.
+- [ ] Definir filtros/paginacion, unicidad y comportamiento de proyectos
+  inactivos o referenciados antes de publicar los endpoints.
+- [ ] Documentar rutas y esquemas en OpenAPI; cubrir validaciones, relaciones,
+  permisos, baja logica y compatibilidad de datos con Bruno.
 
 ## 3. Features tecnicas pendientes
 
