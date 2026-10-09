@@ -21,6 +21,9 @@ conviene revisarlo antes de cada iteracion y actualizarlo al cerrar cada modulo.
 | Proyectos                           | Sin modelo ni endpoints                                                                                              | No                     | No                 |
 | Secretos (`/api/secretos`)         | `GET /`, `POST /`, `GET /:id`, `GET /:id/password`, `GET /:id/auditoria`, `PATCH /:id`, `DELETE /:id`                  | Si                     | 13 requests        |
 | Notificaciones (`/api/notificaciones`) | `GET /`, `PATCH /:id/leer`, `PATCH /leer-todas`; incidencias y recordatorios de licencias                         | Si                     | 10 requests        |
+| Dashboard (`/api/dashboard`)       | ninguno (propuesto `GET /summary`)                                                                                      | No                     | No                 |
+| Recordatorios                      | sin modelo ni endpoints                                                                                                 | No                     | No                 |
+| Sucursal (normalizacion)           | sin catalogo; `Activo.sucursal` es texto libre                                                                          | No                     | No                 |
 
 Regresion completa mas reciente tras Licencias: `npx tsc --noEmit`, `prisma validate`, OpenAPI y suite Bruno (145/145 requests, 304/304 assertions). Para
 la fase 2 de incidencias: build, OpenAPI, Bruno de Incidencias (12/12 requests,
@@ -149,6 +152,66 @@ de proyectos.
 - [ ] Documentar rutas y esquemas en OpenAPI; cubrir validaciones, relaciones,
   permisos, baja logica y compatibilidad de datos con Bruno.
 
+### 2.9 Dashboard / KPIs (idea, por definir)
+
+Objetivo: el frontend del dashboard hace **una sola peticion HTTP** al cargar y
+recibe un JSON diminuto (<2 KB) con todos los indicadores, en lugar de 5
+llamadas pesadas. La base resuelve los conteos con **agregaciones**
+(`COUNT(*)`, `COUNT(*) GROUP BY tipo`), sin transferir filas completas.
+
+- [ ] Endpoint unico **`GET /api/dashboard/summary?sucursal=CANCUN`** (alternativa
+  evaluada: `/api/dashboard/kpis`). Solo lectura/agregacion: no escribe.
+- [ ] Filtro `sucursal` nativo (`WHERE sucursalId = ...`) aplicado a **todos** los
+  bloques; depende de la normalizacion de §2.11.
+- [ ] Definiciones de KPI (conteos directos):
+  - `totalActivos` = activos con `estado != DE_BAJA`.
+  - `equiposAsignados` = activos con `responsableId` distinto de null.
+  - `ticketsPendientes` = incidencias con `estado != COMPLETADO`.
+- [ ] Forma de la respuesta:
+  ```json
+  {
+    "kpis": { "ticketsPendientes": 42, "totalActivos": 187, "equiposAsignados": 134 },
+    "activosPorTipo": [ { "tipo": "Laptop", "total": 85 }, { "tipo": "Desktop", "total": 45 } ],
+    "licenciasPorVencer": [ /* solo las 5 mas criticas */ ],
+    "recordatorios": [ /* pendientes, ver §2.10 */ ]
+  }
+  ```
+- [ ] `licenciasPorVencer`: top 5 por `fechaVencimiento` mas cercana entre las
+  activas; minimo imprescindible por fila (software, fecha, asignado).
+- [ ] RBAC por definir (candidato `dashboard:leer`); documentar en OpenAPI y
+  cubrir permisos, filtro por sucursal, sucursal inexistente y respuesta vacia
+  con Bruno.
+
+### 2.10 Recordatorios (idea, por definir)
+
+Recordatorios de cosas que no deben olvidarse (tareas propias de TI), junto con
+las notificaciones existentes. Se muestran en el dashboard (§2.9) y tienen su
+propio ciclo de vida; **no** sustituyen a `Notificacion`.
+
+- [ ] Modelo propio `Recordatorio`: `titulo`, `fecha`, `descripcion`, dueño
+  (`usuarioId`) y `completado` (baja logica/marcar como cumplido).
+- [ ] CRUD `GET /api/recordatorios` (paginado y filtrable por rango de fecha y
+  `completado`), `POST`, `PATCH /:id` y `DELETE /:id` (baja logica, §4.6).
+- [ ] Definir si el recordatorio es personal (solo su dueño) o compartido, y su
+  relacion con las notificaciones persistentes (¿emite aviso al llegar la fecha?).
+- [ ] RBAC por definir; documentar en OpenAPI y cubrir validaciones, filtros,
+  permisos y baja logica con Bruno.
+
+### 2.11 Normalizacion de sucursal (prerrequisito del dashboard)
+
+Hoy `Activo.sucursal` es texto libre. Para que el filtro del dashboard (§2.9)
+sea exacto y consistente en todos los modulos, se normaliza a catalogo.
+
+- [ ] Nuevo modelo **`Sucursal`** (`id`, `nombre` unico, `activo`), sumado a
+  `GET /api/catalogos` y con su CRUD (JWT + `catalogos:administrar`, baja logica
+  y reactivacion al recrear un nombre inactivo, como el resto de catalogos).
+- [ ] Relacion `sucursalId` en **`Activo`, `Incidencia` y `Licencia`**.
+- [ ] **Migracion aditiva + backfill**: convertir los valores actuales de
+  `Activo.sucursal` en filas del catalogo y poblarlos; dejar el string viejo
+  opcional/deprecado hasta confirmar que no se usa.
+- [ ] Actualizar alta/edicion de activos para aceptar `sucursalId` y adaptar
+  filtros existentes (`GET /api/activos?sucursal=`) sin romper compatibilidad.
+
 ## 3. Features tecnicas pendientes
 
 - [X] `src/utils/crypto.ts` - AES-256-GCM con `AES_SECRET_KEY` para `Licencia.clave` y `Secreto.password`
@@ -178,6 +241,7 @@ de proyectos.
 4. Al cerrar un modulo: correr `npx tsc --noEmit` y la suite Bruno (`cd bruno && npx @usebruno/cli run . -r --env Local`).
 5. Marcar los checkboxes de este archivo al completar cada item.
 6. **Borrados logicos siempre**: ningun `DELETE` borra filas de la base. En activos se implementa con el estado `DE_BAJA` (sin migracion, 200 idempotente); cada modulo define su mecanismo al implementarse, pero la regla es universal.
+7. El **dashboard (§2.9) es de solo lectura/agregacion** (no escribe nada) y su filtro por sucursal depende de la normalizacion de §2.11.
 
 ## 5. Fuentes Excel y modelo de datos
 
