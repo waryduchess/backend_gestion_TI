@@ -1,4 +1,3 @@
-
 # Roadmap - Backend Sistema de Gestion TI
 
 Estado de lo que **falta por desarrollar**. Este archivo es la memoria viva del proyecto:
@@ -8,18 +7,18 @@ conviene revisarlo antes de cada iteracion y actualizarlo al cerrar cada modulo.
 
 ## 1. Estado actual
 
-| Modulo                               | Endpoints                                                                                                               | Documentado en Swagger | Bruno              |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- | ---------------------- | ------------------ |
-| Auth (`/api/auth`)                 | `POST /login`, `GET /me`                                                                                            | Si                     | 3 requests         |
-| Incidencias (`/api/incidencias`)   | `GET /`, `GET /:id`, `POST /`                                                                                     | Si                     | 12 requests        |
-| Activos (`/api/activos`)           | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `PATCH /:id/estado`, `POST /:id/asignaciones`, `DELETE /:id` | Si                     | 41 requests        |
-| Asignaciones (`/api/asignaciones`) | `GET /`, `POST /:id/devolucion`                                                                                     | Si                     | 8 requests         |
-| Usuarios (`/api/usuarios`)         | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `PATCH /:id/password`, `DELETE /:id`                           | Si                     | Pruebas protegidas |
-| Documentacion                        | `GET /api/docs`, `GET /api/docs/openapi.yaml`                                                                       | -                      | -                  |
-| Catalogos (`/api/catalogos`)       | `GET /` + CRUD `/api/departamentos`, `/api/ubicaciones`, `/api/puestos`, `/api/tipos-usuario`                 | Si                     | CRUD Bruno         |
-| RBAC / roles                         | CRUD`/api/roles`, asignar rol a usuario                                                                               | Si                     | 18 requests        |
-| Licencias (`/api/licencias`)       | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `DELETE /:id`                                                    | Si                     | 12 requests        |
-| Secretos (`/api/secretos`)         | `GET /`, `POST /`, `GET /:id`, `GET /:id/password`, `GET /:id/auditoria`, `PATCH /:id`, `DELETE /:id`                  | Si                     | 13 requests        |
+| Modulo                                   | Endpoints                                                                                                               | Documentado en Swagger | Bruno              |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ---------------------- | ------------------ |
+| Auth (`/api/auth`)                     | `POST /login`, `GET /me`                                                                                            | Si                     | 3 requests         |
+| Incidencias (`/api/incidencias`)       | `GET /`, `GET /:id`, `POST /`                                                                                     | Si                     | 12 requests        |
+| Activos (`/api/activos`)               | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `PATCH /:id/estado`, `POST /:id/asignaciones`, `DELETE /:id` | Si                     | 41 requests        |
+| Asignaciones (`/api/asignaciones`)     | `GET /`, `POST /:id/devolucion`                                                                                     | Si                     | 8 requests         |
+| Usuarios (`/api/usuarios`)             | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `PATCH /:id/password`, `DELETE /:id`                           | Si                     | Pruebas protegidas |
+| Documentacion                            | `GET /api/docs`, `GET /api/docs/openapi.yaml`                                                                       | -                      | -                  |
+| Catalogos (`/api/catalogos`)           | `GET /` + CRUD `/api/departamentos`, `/api/ubicaciones`, `/api/puestos`, `/api/tipos-usuario`                 | Si                     | CRUD Bruno         |
+| RBAC / roles                             | CRUD`/api/roles`, asignar rol a usuario                                                                               | Si                     | 18 requests        |
+| Licencias (`/api/licencias`)           | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `DELETE /:id`                                                    | Si                     | 12 requests        |
+| Secretos (`/api/secretos`)             | `GET /`, `POST /`, `GET /:id`, `GET /:id/password`, `GET /:id/auditoria`, `PATCH /:id`, `DELETE /:id`     | Si                     | 13 requests        |
 | Notificaciones (`/api/notificaciones`) | `GET /`, `PATCH /:id/leer`, `PATCH /leer-todas`; incidencias y recordatorios de licencias                         | Si                     | 10 requests        |
 
 Regresion completa mas reciente tras Licencias: `npx tsc --noEmit`, `prisma validate`, OpenAPI y suite Bruno (145/145 requests, 304/304 assertions). Para
@@ -138,6 +137,12 @@ adicional.
 - [ ] Ollama (`llama3.1:8b`) - asistente IA + Function Calling (servicio `ollama` en docker, profile `ai`)
 - [ ] CORS restrictivo - hoy `app.use(cors())` abierto; restringir a la URL del frontend
 - [X] `.env.example` documenta SMTP y variables de alertas de licencias; quedan pendientes `S3_*`, `OLLAMA_*`, `CORS_ORIGIN` y la revision de nombres previos del roadmap
+- [ ] agregar en licencias el tipo (suscripción, perpetua).
+- [ ] Devolver en la consulta de licencias la clave
+- [ ] creacion de endPoints del modulo de auditoria
+- [ ] creacion de endPoints del modulo de mantenimiento de equipos
+- [ ] simular subtareas  para documentar a la memoria
+- [ ] **Recordatorios (Tareas Programadas):** Notificaciones automáticas de vencimientos
 
 ---
 
