@@ -24,6 +24,7 @@ export interface IncidenciaLista {
   tipoRequerimiento: TipoRequerimiento;
   fechaNotificacion: Date;
   fechaResolucion: Date | null;
+  orden: number;
   solicitante: UsuarioResumen;
   asignadoA: UsuarioResumen | null;
   departamento: DepartamentoResumen | null;

@@ -157,6 +157,7 @@ model Incidencia {
   prioridad         Prioridad       @default(NORMAL)
   tipoRequerimiento TipoRequerimiento
   evidenciaUrl      String?  @db.VarChar(500)
+  orden             Int      @default(0)
 
   solicitanteId  String // Obligatorio: siempre hay quien reporta
   asignadoAId    String?
@@ -169,6 +170,7 @@ model Incidencia {
   notificaciones Notificacion[]
 
   @@index([estado, fechaNotificacion])
+  @@index([estado, orden])
   @@index([solicitanteId])
 }
 

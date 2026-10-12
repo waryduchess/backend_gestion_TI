@@ -10,14 +10,14 @@ conviene revisarlo antes de cada iteracion y actualizarlo al cerrar cada modulo.
 | Modulo                               | Endpoints                                                                                                               | Documentado en Swagger | Bruno              |
 | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- | ---------------------- | ------------------ |
 | Auth (`/api/auth`)                 | `POST /login`, `GET /me`                                                                                            | Si                     | 3 requests         |
-| Incidencias (`/api/incidencias`)   | `GET /`, `GET /:id`, `POST /`                                                                                     | Si                     | 12 requests        |
+| Incidencias (`/api/incidencias`)   | `GET /`, `GET /:id`, `POST /`, `PATCH /:id/estado`                                                                     | Si                     | 19 requests        |
 | Activos (`/api/activos`)           | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `PATCH /:id/estado`, `POST /:id/asignaciones`, `DELETE /:id` | Si                     | 41 requests        |
 | Importaciones (`/api/activos/importaciones`) | `POST /validar`, `POST /confirmar`                                                                          | Si                     | 7 requests         |
 | Asignaciones (`/api/asignaciones`) | `GET /`, `POST /:id/devolucion`                                                                                     | Si                     | 8 requests         |
 | Usuarios (`/api/usuarios`)         | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `PATCH /:id/password`, `DELETE /:id`                           | Si                     | Pruebas protegidas |
 | Documentacion                        | `GET /api/docs`, `GET /api/docs/openapi.yaml`                                                                       | -                      | -                  |
 | Catalogos (`/api/catalogos`)       | `GET /` + CRUD `/api/departamentos`, `/api/ubicaciones`, `/api/puestos`, `/api/tipos-usuario`                 | Si                     | CRUD Bruno         |
-| RBAC / roles                         | CRUD`/api/roles`, asignar rol a usuario                                                                               | Si                     | 18 requests        |
+| RBAC / roles                         | CRUD`/api/roles`, asignar rol a usuario                                                                               | Si                     | 19 requests        |
 | Licencias (`/api/licencias`)       | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `DELETE /:id`                                                    | Si                     | 12 requests        |
 | Proyectos                           | Sin modelo ni endpoints                                                                                              | No                     | No                 |
 | Secretos (`/api/secretos`)         | `GET /`, `POST /`, `GET /:id`, `GET /:id/password`, `GET /:id/auditoria`, `PATCH /:id`, `DELETE /:id`                  | Si                     | 13 requests        |
@@ -26,7 +26,9 @@ conviene revisarlo antes de cada iteracion y actualizarlo al cerrar cada modulo.
 | Recordatorios                      | sin modelo ni endpoints                                                                                                 | No                     | No                 |
 | Sucursal (normalizacion)           | sin catalogo; `Activo.sucursal` es texto libre                                                                          | No                     | No                 |
 
-Regresion mas reciente tras la Importacion masiva de activos: `npx tsc --noEmit` limpio, OpenAPI valido y suite Bruno **196 requests (194 OK, 2 fallos preexistentes), 423/427 assertions**. Los 2 fallos estan en `Activos/buscarPorSerie` y su cascada `Activos/cambiarEstadoAsignacionActiva`: dependen de que exista un activo `AF00010` con `numeroSerie CXBF1Z3`, dato que ya no esta en la BD actual (drift de datos, ajeno a la importacion). Los 8 requests nuevos (`Importaciones/` 7 + `Roles/denegarImportarActivos`) pasan en verde.
+Regresion mas reciente tras el cambio de estado de incidencias: `npx tsc --noEmit` limpio, OpenAPI valido y suite Bruno **204 requests (202 OK, 2 fallos preexistentes), 437/441 assertions**. Los 2 fallos estan en `Activos/buscarPorSerie` y su cascada `Activos/cambiarEstadoAsignacionActiva`: dependen de que exista un activo `AF00010` con `numeroSerie CXBF1Z3`, dato que ya no esta en la BD actual (drift de datos, ajeno a este cambio). Los 8 requests nuevos (`Incidencias/` 7 + `Roles/denegarCambiarEstadoIncidencia`) pasan en verde.
+
+Regresion previa tras la Importacion masiva de activos: `npx tsc --noEmit` limpio, OpenAPI valido y suite Bruno **196 requests (194 OK, 2 fallos preexistentes), 423/427 assertions**.
 
 Regresion previa: `npx tsc --noEmit`, OpenAPI valido y suite Bruno (188/188 requests, 390/390 assertions). Para
 la fase 2 de incidencias: build, OpenAPI, Bruno de Incidencias (12/12 requests,
@@ -43,11 +45,12 @@ prueba controlada.
 - [X] **Fase 1 - Lectura:** conservar `GET /api/incidencias` y agregar `GET /api/incidencias/:id` con descripcion, evidencia, solicitante, asignado, departamento e historial ordenado cronologicamente.
 - [X] **Fase 2 - Alta:** `POST /api/incidencias`; validar titulo, descripcion, tipo de requerimiento y departamento activo opcional; tomar `solicitanteId` del usuario autenticado; aplicar estado `NUEVO`, prioridad `NORMAL` y fecha del servidor por defecto; emitir `incidencias:nueva` solo despues de persistir.
 - [ ] **Fase 3 - Gestion:** `PATCH /api/incidencias/:id` para cambios permitidos de estado, prioridad y asignado; validar transiciones/referencias; fijar o limpiar `fechaResolucion` al entrar/salir de `COMPLETADO`; emitir `incidencias:estado-cambiado` solo cuando cambie el estado y despues de persistir.
+  - [X] `PATCH /api/incidencias/:id/estado` implementado (permiso `incidencias:editar`): valida estado contra `ESTADOS_VALIDOS`, 404 si no existe, idempotente sin escribir ni emitir si el estado no cambia, fija `fechaResolucion` al entrar a `COMPLETADO` y la limpia al salir, y emite `incidencias:estado-cambiado` a la sala `incidencias` despues de persistir. Pendiente en Fase 3: `PATCH /:id` para prioridad/asignado y validacion estricta de transiciones.
 - [ ] **Fase 4 - Seguimiento:** `POST /api/incidencias/:id/actualizaciones` para agregar comentario; validar el texto y existencia de incidencia, guardar y devolver la actualizacion.
 - [ ] **Fase 5 - Evidencia:** `POST /api/incidencias/:id/evidencia` e integracion S3, despues de establecer limites de tamano/tipo y configuracion de almacenamiento.
 - [ ] **Baja logica pendiente de diseño:** el modelo `Incidencia` no tiene campo de baja. No implementar `DELETE` hasta definir y migrar un indicador/fecha de baja y acordar como excluir incidencias dadas de baja de consultas e historiales.
 - [X] RBAC de creacion: nuevo permiso `incidencias:crear`, incluido en el seed del administrador; acceso comprobado con Bruno.
-- [ ] **Autorizacion pendiente:** definir/agregar permiso RBAC para gestionar incidencias y cubrir permitir/denegar en Bruno.
+- [X] RBAC de edicion: nuevo permiso `incidencias:editar` para `PATCH /:id/estado`, incluido en el seed del administrador; permitir (200) y denegar (403) cubiertos en Bruno.
 - [ ] **Validacion de cada fase:** actualizar OpenAPI y Bruno junto con las rutas; probar campos invalidos, relaciones inexistentes/inactivas, 404, permisos, no exponer datos sensibles y emisiones Socket.IO posteriores a escrituras exitosas.
 
 ### 2.2 Inventario de activos - hoy solo lectura

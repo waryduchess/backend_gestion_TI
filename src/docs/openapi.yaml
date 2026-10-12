@@ -391,6 +391,92 @@ paths:
                   - campo: id
                     valor: 99999999
 
+  /api/incidencias/{id}/estado:
+    patch:
+      tags: [incidencias]
+      summary: Cambiar el estado de una incidencia
+      description: >
+        Requiere el permiso incidencias:editar. Permite cambiar el estado del
+        ticket de acuerdo a las transiciones validas. Al entrar a COMPLETADO
+        se fija fechaResolucion y al salir de COMPLETADO se limpia a null.
+        Acepta un campo opcional "orden" (posicion 0-based dentro de la columna
+        destino) para reordenar dentro de una columna y/o al mover de columna.
+        Emite incidencias:estado-cambiado por Socket.IO solo cuando el estado
+        cambia.
+      operationId: cambiarEstadoIncidencia
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Identificador entero positivo de la incidencia
+          schema:
+            type: integer
+            minimum: 1
+            example: 1
+      requestBody:
+            required: true
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/CambioEstadoIncidencia'
+                example:
+                  estado: EN_CURSO
+                  orden: 0
+      responses:
+        '200':
+          description: Estado actualizado correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaIncidencia'
+              example:
+                success: true
+                message: Estado de la incidencia actualizado correctamente
+                errors: []
+                data:
+                  id: 1
+                  originalId: null
+                  titulo: Falla de conexion a la red
+                  estado: EN_CURSO
+                  prioridad: ALTA
+                  tipoRequerimiento: CONEXION_DE_RED
+                  fechaNotificacion: '2026-09-28T15:00:00.000Z'
+                  fechaResolucion: null
+                  orden: 0
+                  solicitante:
+                    id: A006
+                    nombre: Angelica Maria Buendia Fierro
+                    email: cxc.cancun@horbismex.com
+                  asignadoA: null
+                  departamento: null
+                  totalActualizaciones: 0
+        '400':
+          description: Cuerpo invalido, estado ausente o no valido, o id invalido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '403':
+          description: El usuario no tiene permiso para editar incidencias
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '404':
+          description: Incidencia no encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+
   /api/notificaciones:
     get:
       tags: [notificaciones]
@@ -3676,6 +3762,7 @@ components:
         - tipoRequerimiento
         - fechaNotificacion
         - fechaResolucion
+        - orden
         - solicitante
         - asignadoA
         - departamento
@@ -3704,6 +3791,11 @@ components:
         fechaResolucion:
           type: [string, 'null']
           format: date-time
+        orden:
+          type: integer
+          minimum: 0
+          description: Posicion de la incidencia dentro de su columna (estado) en el tablero Kanban
+          example: 0
         solicitante:
           $ref: '#/components/schemas/UsuarioResumen'
         asignadoA:
@@ -3772,6 +3864,20 @@ components:
           minimum: 1
           description: Opcional; debe referenciar un departamento activo
           example: 1
+
+    CambioEstadoIncidencia:
+      type: object
+      additionalProperties: false
+      required: [estado]
+      properties:
+        estado:
+          $ref: '#/components/schemas/EstadoIncidencia'
+        orden:
+          type: integer
+          minimum: 0
+          description: >
+            Opcional. Posicion 0-based dentro de la columna destino. Si se omite,
+            la incidencia se agrega al final de la columna.
 
     RespuestaIncidencia:
       type: object
@@ -4591,6 +4697,7 @@ components:
       enum:
         - incidencias:leer
         - incidencias:crear
+        - incidencias:editar
         - notificaciones:leer
         - dashboard:leer
         - activos:leer
