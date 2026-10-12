@@ -2,27 +2,45 @@ import { Request, Response } from 'express';
 import { HttpError } from '../middlewares/error.middleware';
 import { asyncHandler } from '../utils/asyncHandler';
 import { comoEntero, comoTexto, validarOpcion } from '../utils/validacion';
-import { devolver, listarAsignaciones as obtenerListado } from '../services/activo.service';
+import {
+  devolver,
+  editarAsignacion as editarAsignacionService,
+  eliminarAsignacion as eliminarAsignacionService,
+  listarAsignaciones as obtenerListado,
+} from '../services/activo.service';
 import {
   ActivoDetalle,
   AsignacionLista,
+  DatosEdicionAsignacion,
   ParametrosListadoAsignaciones,
 } from '../models/activo.model';
 import { RespuestaPaginada } from '../models/comun.model';
 
 const LIMITE_MAXIMO = 100;
 
+const CAMPOS_EDITABLES_ASIGNACION = new Set([
+  'anioCompra',
+  'numeroActivo',
+  'nombreEquipo',
+  'bitlocker',
+  'observacion',
+]);
+
+const leerIdAsignacion = (valor: unknown): number => {
+  const textoId = comoTexto(valor);
+
+  if (!/^\d+$/.test(textoId)) {
+    throw new HttpError(400, 'El parametro "id" debe ser un numero entero', [
+      { campo: 'id', valor: textoId },
+    ]);
+  }
+
+  return Number(textoId);
+};
+
 export const devolverAsignacion = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
-    const textoId = comoTexto(req.params.id);
-
-    if (!/^\d+$/.test(textoId)) {
-      throw new HttpError(400, 'El parametro "id" debe ser un numero entero', [
-        { campo: 'id', valor: textoId },
-      ]);
-    }
-
-    const activo: ActivoDetalle = await devolver(Number(textoId));
+    const activo: ActivoDetalle = await devolver(leerIdAsignacion(req.params.id));
 
     res.status(200).json({
       success: true,
@@ -81,5 +99,86 @@ export const listarAsignaciones = asyncHandler(
     };
 
     res.status(200).json(respuesta);
+  }
+);
+
+export const editarAsignacion = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const id = leerIdAsignacion(req.params.id);
+
+    if (
+      typeof req.body !== 'object' ||
+      req.body === null ||
+      Array.isArray(req.body)
+    ) {
+      throw new HttpError(400, 'El cuerpo debe ser un objeto JSON', []);
+    }
+
+    const cuerpo = req.body as Record<string, unknown>;
+    const desconocidos = Object.keys(cuerpo).filter(
+      (campo) => !CAMPOS_EDITABLES_ASIGNACION.has(campo)
+    );
+    if (desconocidos.length > 0) {
+      throw new HttpError(400, 'El cuerpo contiene campos no permitidos', [
+        { campo: 'campos', valor: desconocidos },
+      ]);
+    }
+
+    if (Object.keys(cuerpo).length === 0) {
+      throw new HttpError(400, 'Se requiere al menos un campo para actualizar', []);
+    }
+
+    const comoValor = (campo: string): string | null => {
+      const texto = comoTexto(cuerpo[campo]);
+      return texto === '' ? null : texto;
+    };
+
+    const datos: DatosEdicionAsignacion = {};
+
+    if ('anioCompra' in cuerpo) {
+      if (cuerpo.anioCompra === null || cuerpo.anioCompra === '') {
+        datos.anioCompra = null;
+      } else {
+        const textoAnio =
+          typeof cuerpo.anioCompra === 'number'
+            ? String(cuerpo.anioCompra)
+            : comoTexto(cuerpo.anioCompra);
+
+        if (!/^\d+$/.test(textoAnio)) {
+          throw new HttpError(400, 'El campo "anioCompra" debe ser un numero entero', [
+            { campo: 'anioCompra', valor: textoAnio || String(cuerpo.anioCompra) },
+          ]);
+        }
+
+        datos.anioCompra = Number(textoAnio);
+      }
+    }
+
+    if ('numeroActivo' in cuerpo) datos.numeroActivo = comoValor('numeroActivo');
+    if ('nombreEquipo' in cuerpo) datos.nombreEquipo = comoValor('nombreEquipo');
+    if ('bitlocker' in cuerpo) datos.bitlocker = comoValor('bitlocker');
+    if ('observacion' in cuerpo) datos.observacion = comoValor('observacion');
+
+    const asignacion: AsignacionLista = await editarAsignacionService(id, datos);
+
+    res.status(200).json({
+      success: true,
+      message: 'Asignacion actualizada correctamente',
+      errors: [],
+      data: asignacion,
+    });
+  }
+);
+
+export const eliminarAsignacion = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const { id } = await eliminarAsignacionService(leerIdAsignacion(req.params.id));
+
+    res.status(200).json({
+      success: true,
+      message: 'Asignacion eliminada correctamente',
+      errors: [],
+      data: { id },
+    });
   }
 );

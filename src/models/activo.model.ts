@@ -114,6 +114,14 @@ export interface AsignacionLista {
   };
 }
 
+export interface DatosEdicionAsignacion {
+  anioCompra?: number | null;
+  numeroActivo?: string | null;
+  nombreEquipo?: string | null;
+  bitlocker?: string | null;
+  observacion?: string | null;
+}
+
 export interface ParametrosListadoAsignaciones {
   page: number;
   limit: number;

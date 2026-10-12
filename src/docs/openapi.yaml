@@ -1688,6 +1688,175 @@ paths:
                   - campo: id
                     valor: '999999'
 
+  /api/asignaciones/{id}:
+    patch:
+      tags: [asignaciones]
+      summary: Editar una asignacion
+      description: >
+        Requiere el permiso activos:asignar. Edita campos de una asignacion
+        activa (anioCompra, numeroActivo, nombreEquipo, bitlocker,
+        observacion). Rechaza asignaciones ya devueltas con 409.
+      operationId: editarAsignacion
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Id de la asignacion
+          schema:
+            type: integer
+            minimum: 1
+            example: 4
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DatosEdicionAsignacion'
+            example:
+              anioCompra: 2024
+              nombreEquipo: MKT-PC-01
+              observacion: Equipo actualizado
+      responses:
+        '200':
+          description: Asignacion actualizada correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaAsignacion'
+              example:
+                success: true
+                message: Asignacion actualizada correctamente
+                errors: []
+                data:
+                  id: 4
+                  activa: true
+                  fechaAsignacion: '2025-06-10T14:00:00.000Z'
+                  fechaDevolucion: null
+                  anioCompra: 2024
+                  numeroActivo: null
+                  nombreEquipo: MKT-PC-01
+                  observacion: Equipo actualizado
+                  usuario:
+                    id: A010
+                    nombre: Juan Perez
+                    email: juan.perez@horbismex.com
+                  activo:
+                    id: 439
+                    claveActivo: AF00010
+                    tipo: Laptop
+                    marca: Dell
+                    modelo: 'Latitude 3540'
+                    numeroSerie: CXBF1Z3
+                    estado: EN_USO
+        '400':
+          description: Id invalido, cuerpo no objeto, campos desconocidos o ningun campo para actualizar
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '403':
+          description: El usuario no tiene permiso activos:asignar
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '404':
+          description: No existe una asignacion con ese id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: Asignacion no encontrada
+                errors:
+                  - campo: id
+                    valor: '999999'
+        '409':
+          description: La asignacion ya fue devuelta; no se puede editar
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+    delete:
+      tags: [asignaciones]
+      summary: Eliminar (baja logica) una asignacion
+      description: >
+        Requiere el permiso activos:asignar. Cierra la asignacion (activa=false
+        y fechaDevolucion=now) y libera el activo (EN_ALMACEN y responsableId
+        null solo si el responsable sigue siendo el usuario asignado). Es
+        idempotente: eliminar una asignacion ya cerrada responde 200 sin
+        cambios. No borra la fila de la base.
+      operationId: eliminarAsignacion
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Id de la asignacion
+          schema:
+            type: integer
+            minimum: 1
+            example: 4
+      responses:
+        '200':
+          description: Asignacion eliminada (o ya cerrada)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaEliminacionAsignacion'
+              example:
+                success: true
+                message: Asignacion eliminada correctamente
+                errors: []
+                data:
+                  id: 4
+        '400':
+          description: El id no es un numero entero
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: El parametro "id" debe ser un numero entero
+                errors:
+                  - campo: id
+                    valor: abc
+        '401':
+          description: Token ausente, invalido o expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '403':
+          description: El usuario no tiene permiso activos:asignar
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '404':
+          description: No existe una asignacion con ese id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: Asignacion no encontrada
+                errors:
+                  - campo: id
+                    valor: '999999'
+
   /api/roles:
     get:
       tags: [roles]
@@ -5388,6 +5557,62 @@ components:
               example: CXBF1Z3
             estado:
               $ref: '#/components/schemas/EstadoActivo'
+
+    DatosEdicionAsignacion:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        anioCompra:
+          type: [integer, 'null']
+          minimum: 0
+          example: 2024
+        numeroActivo:
+          type: [string, 'null']
+        nombreEquipo:
+          type: [string, 'null']
+          example: MKT-PC-01
+        bitlocker:
+          type: [string, 'null']
+        observacion:
+          type: [string, 'null']
+
+    RespuestaAsignacion:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Asignacion actualizada correctamente
+        errors:
+          type: array
+          items: {}
+        data:
+          $ref: '#/components/schemas/AsignacionLista'
+
+    RespuestaEliminacionAsignacion:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Asignacion eliminada correctamente
+        errors:
+          type: array
+          items: {}
+        data:
+          type: object
+          required: [id]
+          properties:
+            id:
+              type: integer
+              example: 4
 
     RespuestaAsignacionesPaginada:
       type: object

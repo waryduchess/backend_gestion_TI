@@ -1,5 +1,10 @@
 import { Router } from 'express';
-import { devolverAsignacion, listarAsignaciones } from '../controllers/asignacion.controller';
+import {
+  devolverAsignacion,
+  editarAsignacion,
+  eliminarAsignacion,
+  listarAsignaciones,
+} from '../controllers/asignacion.controller';
 import { verificarPermiso, verificarToken } from '../middlewares/auth.middleware';
 
 const router: Router = Router();
@@ -10,6 +15,18 @@ router.post(
   verificarToken,
   verificarPermiso('activos:asignar'),
   devolverAsignacion
+);
+router.patch(
+  '/:id',
+  verificarToken,
+  verificarPermiso('activos:asignar'),
+  editarAsignacion
+);
+router.delete(
+  '/:id',
+  verificarToken,
+  verificarPermiso('activos:asignar'),
+  eliminarAsignacion
 );
 
 export default router;

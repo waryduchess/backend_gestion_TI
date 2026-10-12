@@ -1,0 +1,43 @@
+meta {
+  name: Crear activo para ciclo de asignacion
+  type: http
+  seq: 9
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+  bru.setEnvVar("claveActivoCiclo", "AFCICLO" + Date.now());
+}
+
+post {
+  url: {{baseUrl}}/api/activos
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "tipo": "Dispositivo de prueba",
+    "claveActivo": "{{claveActivoCiclo}}",
+    "marca": "Genius"
+  }
+}
+
+script:post-response {
+  if (res.status === 201) bru.setEnvVar("activoCicloId", res.body.data.id);
+}
+
+assert {
+  res.status: eq 201
+}
+
+assert {
+  res.body.success: eq true
+}

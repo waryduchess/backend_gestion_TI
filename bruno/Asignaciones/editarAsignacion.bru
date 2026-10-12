@@ -1,0 +1,66 @@
+meta {
+  name: Editar asignacion
+  type: http
+  seq: 11
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+patch {
+  url: {{baseUrl}}/api/asignaciones/{{asignacionCicloId}}
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "anioCompra": 2024,
+    "nombreEquipo": "CICLO-PC-02",
+    "observacion": "Asignacion editada"
+  }
+}
+
+assert {
+  res.status: eq 200
+}
+
+assert {
+  res.body.success: eq true
+}
+
+assert {
+  res.body.message: eq Asignacion actualizada correctamente
+}
+
+assert {
+  res.body.data.id: eq {{asignacionCicloId}}
+}
+
+assert {
+  res.body.data.activa: eq true
+}
+
+assert {
+  res.body.data.anioCompra: eq 2024
+}
+
+assert {
+  res.body.data.nombreEquipo: eq CICLO-PC-02
+}
+
+assert {
+  res.body.data.observacion: eq Asignacion editada
+}
+
+assert {
+  res.body.data.usuario.id: eq A010
+}

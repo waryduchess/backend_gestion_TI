@@ -1,0 +1,26 @@
+meta {
+  name: Eliminar asignacion inexistente
+  type: http
+  seq: 20
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+delete {
+  url: {{baseUrl}}/api/asignaciones/999999
+  body: json
+  auth: none
+}
+
+assert {
+  res.status: eq 404
+}
+
+assert {
+  res.body.message: eq Asignacion no encontrada
+}

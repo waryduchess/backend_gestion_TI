@@ -4,9 +4,11 @@ import { HttpError } from '../middlewares/error.middleware';
 import {
   ActivoDetalle,
   ActivoResumen,
+  AsignacionLista,
   DatosAsignacionActivo,
   DatosCreacionActivo,
   DatosEdicionActivo,
+  DatosEdicionAsignacion,
   ParametrosListadoActivos,
   ParametrosListadoAsignaciones,
   ResultadoListadoActivos,
@@ -16,6 +18,38 @@ import {
 const SELECT_USUARIO = {
   select: { id: true, nombre: true, email: true },
 } as const;
+
+const INCLUDE_ASIGNACION_LISTA = {
+  usuario: SELECT_USUARIO,
+  activo: {
+    select: {
+      id: true,
+      claveActivo: true,
+      tipo: true,
+      marca: true,
+      modelo: true,
+      numeroSerie: true,
+      estado: true,
+    },
+  },
+} as const;
+
+type AsignacionConResumen = Prisma.AsignacionComputoGetPayload<{
+  include: typeof INCLUDE_ASIGNACION_LISTA;
+}>;
+
+const mapearAsignacion = (fila: AsignacionConResumen): AsignacionLista => ({
+  id: fila.id,
+  activa: fila.activa,
+  fechaAsignacion: fila.fechaAsignacion,
+  fechaDevolucion: fila.fechaDevolucion,
+  anioCompra: fila.anioCompra,
+  numeroActivo: fila.numeroActivo,
+  nombreEquipo: fila.nombreEquipo,
+  observacion: fila.observacion,
+  usuario: fila.usuario,
+  activo: fila.activo,
+});
 
 const construirFiltros = (
   parametros: ParametrosListadoActivos
@@ -417,6 +451,38 @@ export const asignar = async (
   return obtenerPorId(idActivo);
 };
 
+interface AsignacionCerrable {
+  id: number;
+  usuarioId: string;
+  activa: boolean;
+  activo: { id: number; responsableId: string | null };
+}
+
+const cerrarAsignacionActiva = async (
+  asignacion: AsignacionCerrable
+): Promise<void> => {
+  if (!asignacion.activa) {
+    return;
+  }
+
+  const limpiarResponsable =
+    asignacion.activo.responsableId === asignacion.usuarioId;
+
+  await prisma.$transaction([
+    prisma.asignacionComputo.update({
+      where: { id: asignacion.id },
+      data: { activa: false, fechaDevolucion: new Date() },
+    }),
+    prisma.activo.update({
+      where: { id: asignacion.activo.id },
+      data: {
+        estado: 'EN_ALMACEN',
+        ...(limpiarResponsable ? { responsableId: null } : {}),
+      },
+    }),
+  ]);
+};
+
 export const devolver = async (idAsignacion: number): Promise<ActivoDetalle> => {
   const asignacion = await prisma.asignacionComputo.findUnique({
     where: { id: idAsignacion },
@@ -431,26 +497,69 @@ export const devolver = async (idAsignacion: number): Promise<ActivoDetalle> => 
     ]);
   }
 
-  if (asignacion.activa) {
-    const limpiarResponsable =
-      asignacion.activo.responsableId === asignacion.usuarioId;
+  await cerrarAsignacionActiva(asignacion);
 
-    await prisma.$transaction([
-      prisma.asignacionComputo.update({
-        where: { id: idAsignacion },
-        data: { activa: false, fechaDevolucion: new Date() },
-      }),
-      prisma.activo.update({
-        where: { id: asignacion.activo.id },
-        data: {
-          estado: 'EN_ALMACEN',
-          ...(limpiarResponsable ? { responsableId: null } : {}),
-        },
-      }),
+  return obtenerPorId(asignacion.activo.id);
+};
+
+export const editarAsignacion = async (
+  idAsignacion: number,
+  datos: DatosEdicionAsignacion
+): Promise<AsignacionLista> => {
+  const existente = await prisma.asignacionComputo.findUnique({
+    where: { id: idAsignacion },
+    select: { id: true, activa: true },
+  });
+
+  if (!existente) {
+    throw new HttpError(404, 'Asignacion no encontrada', [
+      { campo: 'id', valor: String(idAsignacion) },
     ]);
   }
 
-  return obtenerPorId(asignacion.activo.id);
+  if (!existente.activa) {
+    throw new HttpError(409, 'La asignacion ya fue devuelta; no se puede editar', [
+      { campo: 'id', valor: String(idAsignacion) },
+      { campo: 'activa', valor: false },
+    ]);
+  }
+
+  const data: Prisma.AsignacionComputoUpdateInput = {
+    ...(datos.anioCompra !== undefined ? { anioCompra: datos.anioCompra } : {}),
+    ...(datos.numeroActivo !== undefined ? { numeroActivo: datos.numeroActivo } : {}),
+    ...(datos.nombreEquipo !== undefined ? { nombreEquipo: datos.nombreEquipo } : {}),
+    ...(datos.bitlocker !== undefined ? { bitlocker: datos.bitlocker } : {}),
+    ...(datos.observacion !== undefined ? { observacion: datos.observacion } : {}),
+  };
+
+  const actualizada = await prisma.asignacionComputo.update({
+    where: { id: idAsignacion },
+    data,
+    include: INCLUDE_ASIGNACION_LISTA,
+  });
+
+  return mapearAsignacion(actualizada);
+};
+
+export const eliminarAsignacion = async (
+  idAsignacion: number
+): Promise<{ id: number }> => {
+  const asignacion = await prisma.asignacionComputo.findUnique({
+    where: { id: idAsignacion },
+    include: {
+      activo: { select: { id: true, responsableId: true } },
+    },
+  });
+
+  if (!asignacion) {
+    throw new HttpError(404, 'Asignacion no encontrada', [
+      { campo: 'id', valor: String(idAsignacion) },
+    ]);
+  }
+
+  await cerrarAsignacionActiva(asignacion);
+
+  return { id: idAsignacion };
 };
 
 export const eliminar = async (id: number): Promise<ActivoDetalle> =>
@@ -491,37 +600,13 @@ export const listarAsignaciones = async (
       skip,
       take: limit,
       orderBy: [{ fechaAsignacion: 'desc' }, { id: 'desc' }],
-      include: {
-        usuario: SELECT_USUARIO,
-        activo: {
-          select: {
-            id: true,
-            claveActivo: true,
-            tipo: true,
-            marca: true,
-            modelo: true,
-            numeroSerie: true,
-            estado: true,
-          },
-        },
-      },
+      include: INCLUDE_ASIGNACION_LISTA,
     }),
     prisma.asignacionComputo.count({ where: filtros }),
   ]);
 
   return {
-    asignaciones: filas.map((fila) => ({
-      id: fila.id,
-      activa: fila.activa,
-      fechaAsignacion: fila.fechaAsignacion,
-      fechaDevolucion: fila.fechaDevolucion,
-      anioCompra: fila.anioCompra,
-      numeroActivo: fila.numeroActivo,
-      nombreEquipo: fila.nombreEquipo,
-      observacion: fila.observacion,
-      usuario: fila.usuario,
-      activo: fila.activo,
-    })),
+    asignaciones: filas.map(mapearAsignacion),
     meta: {
       page,
       limit,
