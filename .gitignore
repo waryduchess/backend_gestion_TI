@@ -19,3 +19,4 @@ coverage/
 
 # Bruno: entorno local con credenciales (la plantilla se comparte aparte)
 bruno/environments/Local.bru
+AGENTS.md
