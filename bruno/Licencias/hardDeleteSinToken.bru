@@ -1,0 +1,15 @@
+meta {
+  name: Hard delete de licencia requiere autenticacion
+  type: http
+  seq: 16
+}
+
+delete {
+  url: {{baseUrl}}/api/licencias/1/hard?confirmar=true
+  body: json
+  auth: none
+}
+
+assert {
+  res.status: eq 401
+}

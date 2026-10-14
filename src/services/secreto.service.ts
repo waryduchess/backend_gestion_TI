@@ -332,3 +332,31 @@ export const listarAuditoriaSecreto = async (
     },
   };
 };
+
+export const eliminarSecretoFisico = async (
+  id: number,
+  ejecutorId: string
+): Promise<{ id: number }> => {
+  const existente = await prisma.secreto.findUnique({
+    where: { id },
+    select: { id: true },
+  });
+  if (!existente) {
+    throw new HttpError(404, 'Secreto no encontrado', [
+      { campo: 'id', valor: id },
+    ]);
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.auditoriaSecreto.deleteMany({ where: { secretoId: id } });
+    await tx.secreto.delete({ where: { id } });
+    await registrarAuditoria(tx, {
+      modulo: 'SECRETOS',
+      accion: 'ELIMINAR',
+      entidadId: id,
+      usuarioId: ejecutorId,
+    });
+  });
+
+  return { id };
+};

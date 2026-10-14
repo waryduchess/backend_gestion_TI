@@ -1,6 +1,8 @@
 import { Prisma, EstadoActivo } from '../generated/prisma/client';
 import { prisma } from '../config/prisma';
 import { HttpError } from '../middlewares/error.middleware';
+import { AccionAuditoria } from '../models/auditoria.model';
+import { registrarAuditoria } from './auditoria.service';
 import {
   ActivoDetalle,
   ActivoResumen,
@@ -162,7 +164,10 @@ export const obtenerPorId = async (id: number): Promise<ActivoDetalle> => {
   };
 };
 
-export const crear = async (datos: DatosCreacionActivo): Promise<ActivoDetalle> => {
+export const crear = async (
+  datos: DatosCreacionActivo,
+  ejecutorId: string
+): Promise<ActivoDetalle> => {
   if (datos.responsableId) {
     const responsable = await prisma.usuario.findUnique({
       where: { id: datos.responsableId },
@@ -184,26 +189,37 @@ export const crear = async (datos: DatosCreacionActivo): Promise<ActivoDetalle> 
   }>;
 
   try {
-    fila = await prisma.activo.create({
-      data: {
-        tipo: datos.tipo,
-        claveActivo: datos.claveActivo,
-        cb23: datos.cb23,
-        marca: datos.marca,
-        modelo: datos.modelo,
-        numeroParte: datos.numeroParte,
-        numeroSerie: datos.numeroSerie,
-        sucursal: datos.sucursal,
-        anydesk: datos.anydesk,
-        nombreRed: datos.nombreRed,
-        procesador: datos.procesador,
-        memoria: datos.memoria,
-        estadoGeneral: datos.estadoGeneral,
-        notas: datos.notas,
-        ...(datos.estado ? { estado: datos.estado } : {}),
-        ...(datos.responsableId ? { responsableId: datos.responsableId } : {}),
-      },
-      include: { responsable: SELECT_USUARIO },
+    fila = await prisma.$transaction(async (tx) => {
+      const creado = await tx.activo.create({
+        data: {
+          tipo: datos.tipo,
+          claveActivo: datos.claveActivo,
+          cb23: datos.cb23,
+          marca: datos.marca,
+          modelo: datos.modelo,
+          numeroParte: datos.numeroParte,
+          numeroSerie: datos.numeroSerie,
+          sucursal: datos.sucursal,
+          anydesk: datos.anydesk,
+          nombreRed: datos.nombreRed,
+          procesador: datos.procesador,
+          memoria: datos.memoria,
+          estadoGeneral: datos.estadoGeneral,
+          notas: datos.notas,
+          ...(datos.estado ? { estado: datos.estado } : {}),
+          ...(datos.responsableId ? { responsableId: datos.responsableId } : {}),
+        },
+        include: { responsable: SELECT_USUARIO },
+      });
+
+      await registrarAuditoria(tx, {
+        modulo: 'ACTIVOS',
+        accion: 'CREAR',
+        entidadId: creado.id,
+        usuarioId: ejecutorId,
+      });
+
+      return creado;
     });
   } catch (error) {
     if (
@@ -231,7 +247,8 @@ export const crear = async (datos: DatosCreacionActivo): Promise<ActivoDetalle> 
 
 export const actualizar = async (
   id: number,
-  datos: DatosEdicionActivo
+  datos: DatosEdicionActivo,
+  ejecutorId: string
 ): Promise<ActivoDetalle> => {
   const existente = await prisma.activo.findUnique({
     where: { id },
@@ -281,7 +298,16 @@ export const actualizar = async (
   };
 
   try {
-    await prisma.activo.update({ where: { id }, data });
+    await prisma.$transaction(async (tx) => {
+      await tx.activo.update({ where: { id }, data });
+      await registrarAuditoria(tx, {
+        modulo: 'ACTIVOS',
+        accion: 'ACTUALIZAR',
+        entidadId: id,
+        usuarioId: ejecutorId,
+        detalle: { campos: Object.keys(datos) },
+      });
+    });
   } catch (error) {
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -300,7 +326,8 @@ export const actualizar = async (
 
 export const cambiarEstado = async (
   id: number,
-  estado: EstadoActivo
+  estado: EstadoActivo,
+  ejecutorId: string
 ): Promise<ActivoDetalle> => {
   const fila = await prisma.activo.findUnique({
     where: { id },
@@ -336,7 +363,16 @@ export const cambiarEstado = async (
   }
 
   if (fila.estado !== estado) {
-    await prisma.activo.update({ where: { id }, data: { estado } });
+    await prisma.$transaction(async (tx) => {
+      await tx.activo.update({ where: { id }, data: { estado } });
+      await registrarAuditoria(tx, {
+        modulo: 'ACTIVOS',
+        accion: estado === 'DE_BAJA' ? 'DESACTIVAR' : 'ACTUALIZAR',
+        entidadId: id,
+        usuarioId: ejecutorId,
+        detalle: { campos: ['estado'] },
+      });
+    });
   }
 
   return obtenerPorId(id);
@@ -344,7 +380,8 @@ export const cambiarEstado = async (
 
 export const asignar = async (
   idActivo: number,
-  datos: DatosAsignacionActivo
+  datos: DatosAsignacionActivo,
+  ejecutorId: string
 ): Promise<ActivoDetalle> => {
   try {
     await prisma.$transaction(async (tx) => {
@@ -408,6 +445,8 @@ export const asignar = async (
         observacion: datos.observacion,
       };
 
+      let asignacionId: number;
+
       if (previa) {
         await tx.asignacionComputo.update({
           where: { id: previa.id },
@@ -418,20 +457,30 @@ export const asignar = async (
             fechaDevolucion: null,
           },
         });
+        asignacionId = previa.id;
       } else {
-        await tx.asignacionComputo.create({
+        const creada = await tx.asignacionComputo.create({
           data: {
             usuarioId: datos.usuarioId,
             activoId: idActivo,
             ...datosAsignacion,
             activa: true,
           },
+          select: { id: true },
         });
+        asignacionId = creada.id;
       }
 
       await tx.activo.update({
         where: { id: idActivo },
         data: { estado: 'EN_USO', responsableId: datos.usuarioId },
+      });
+
+      await registrarAuditoria(tx, {
+        modulo: 'ASIGNACIONES',
+        accion: 'ASIGNAR',
+        entidadId: asignacionId,
+        usuarioId: ejecutorId,
       });
     });
   } catch (error) {
@@ -459,7 +508,9 @@ interface AsignacionCerrable {
 }
 
 const cerrarAsignacionActiva = async (
-  asignacion: AsignacionCerrable
+  asignacion: AsignacionCerrable,
+  ejecutorId: string,
+  accion: AccionAuditoria
 ): Promise<void> => {
   if (!asignacion.activa) {
     return;
@@ -468,22 +519,31 @@ const cerrarAsignacionActiva = async (
   const limpiarResponsable =
     asignacion.activo.responsableId === asignacion.usuarioId;
 
-  await prisma.$transaction([
-    prisma.asignacionComputo.update({
+  await prisma.$transaction(async (tx) => {
+    await tx.asignacionComputo.update({
       where: { id: asignacion.id },
       data: { activa: false, fechaDevolucion: new Date() },
-    }),
-    prisma.activo.update({
+    });
+    await tx.activo.update({
       where: { id: asignacion.activo.id },
       data: {
         estado: 'EN_ALMACEN',
         ...(limpiarResponsable ? { responsableId: null } : {}),
       },
-    }),
-  ]);
+    });
+    await registrarAuditoria(tx, {
+      modulo: 'ASIGNACIONES',
+      accion,
+      entidadId: asignacion.id,
+      usuarioId: ejecutorId,
+    });
+  });
 };
 
-export const devolver = async (idAsignacion: number): Promise<ActivoDetalle> => {
+export const devolver = async (
+  idAsignacion: number,
+  ejecutorId: string
+): Promise<ActivoDetalle> => {
   const asignacion = await prisma.asignacionComputo.findUnique({
     where: { id: idAsignacion },
     include: {
@@ -497,14 +557,15 @@ export const devolver = async (idAsignacion: number): Promise<ActivoDetalle> => 
     ]);
   }
 
-  await cerrarAsignacionActiva(asignacion);
+  await cerrarAsignacionActiva(asignacion, ejecutorId, 'DEVOLVER');
 
   return obtenerPorId(asignacion.activo.id);
 };
 
 export const editarAsignacion = async (
   idAsignacion: number,
-  datos: DatosEdicionAsignacion
+  datos: DatosEdicionAsignacion,
+  ejecutorId: string
 ): Promise<AsignacionLista> => {
   const existente = await prisma.asignacionComputo.findUnique({
     where: { id: idAsignacion },
@@ -532,17 +593,28 @@ export const editarAsignacion = async (
     ...(datos.observacion !== undefined ? { observacion: datos.observacion } : {}),
   };
 
-  const actualizada = await prisma.asignacionComputo.update({
-    where: { id: idAsignacion },
-    data,
-    include: INCLUDE_ASIGNACION_LISTA,
+  const actualizada = await prisma.$transaction(async (tx) => {
+    const fila = await tx.asignacionComputo.update({
+      where: { id: idAsignacion },
+      data,
+      include: INCLUDE_ASIGNACION_LISTA,
+    });
+    await registrarAuditoria(tx, {
+      modulo: 'ASIGNACIONES',
+      accion: 'ACTUALIZAR',
+      entidadId: idAsignacion,
+      usuarioId: ejecutorId,
+      detalle: { campos: Object.keys(datos) },
+    });
+    return fila;
   });
 
   return mapearAsignacion(actualizada);
 };
 
 export const eliminarAsignacion = async (
-  idAsignacion: number
+  idAsignacion: number,
+  ejecutorId: string
 ): Promise<{ id: number }> => {
   const asignacion = await prisma.asignacionComputo.findUnique({
     where: { id: idAsignacion },
@@ -557,13 +629,15 @@ export const eliminarAsignacion = async (
     ]);
   }
 
-  await cerrarAsignacionActiva(asignacion);
+  await cerrarAsignacionActiva(asignacion, ejecutorId, 'DESACTIVAR');
 
   return { id: idAsignacion };
 };
 
-export const eliminar = async (id: number): Promise<ActivoDetalle> =>
-  cambiarEstado(id, 'DE_BAJA');
+export const eliminar = async (
+  id: number,
+  ejecutorId: string
+): Promise<ActivoDetalle> => cambiarEstado(id, 'DE_BAJA', ejecutorId);
 
 export const listarAsignaciones = async (
   parametros: ParametrosListadoAsignaciones

@@ -22,6 +22,7 @@ export const ACCIONES_AUDITORIA = [
   'IMPORTAR',
   'ASIGNAR',
   'DEVOLVER',
+  'ELIMINAR',
 ] as const;
 
 export type AccionAuditoria = (typeof ACCIONES_AUDITORIA)[number];

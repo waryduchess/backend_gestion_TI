@@ -10,6 +10,7 @@ import {
   actualizarSecreto,
   crearSecreto,
   desactivarSecreto,
+  eliminarSecretoFisico,
   listarAuditoriaSecreto,
   listarSecretos,
   obtenerSecretoResumen,
@@ -312,6 +313,29 @@ export const listarAuditoriaSecretoController = asyncHandler(
       errors: [],
       data: resultado.auditoria,
       meta: resultado.meta,
+    });
+  }
+);
+
+export const eliminarSecretoFisicoController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    if (req.query.confirmar !== 'true') {
+      throw new HttpError(
+        400,
+        'Debe confirmar la eliminacion fisica con "?confirmar=true"',
+        [{ campo: 'confirmar', valor: req.query.confirmar ?? null }]
+      );
+    }
+
+    const data = await eliminarSecretoFisico(
+      leerId(req.params.id),
+      obtenerUsuarioId(req)
+    );
+    res.status(200).json({
+      success: true,
+      message: 'Secreto eliminado definitivamente',
+      errors: [],
+      data,
     });
   }
 );

@@ -9,6 +9,7 @@ import {
   actualizarLicencia,
   crearLicencia,
   desactivarLicencia,
+  eliminarLicenciaFisica,
   listarLicencias,
   obtenerLicencia,
 } from '../services/licencia.service';
@@ -337,6 +338,32 @@ export const eliminarLicenciaController = asyncHandler(
       message: 'Licencia desactivada correctamente',
       errors: [],
       data: licencia,
+    });
+  }
+);
+
+export const eliminarLicenciaFisicaController = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    if (req.query.confirmar !== 'true') {
+      throw new HttpError(
+        400,
+        'Debe confirmar la eliminacion fisica con "?confirmar=true"',
+        [{ campo: 'confirmar', valor: req.query.confirmar ?? null }]
+      );
+    }
+    if (!req.usuario) {
+      throw new HttpError(401, 'Autenticacion requerida');
+    }
+
+    const data = await eliminarLicenciaFisica(
+      leerId(req.params.id),
+      req.usuario.id
+    );
+    res.status(200).json({
+      success: true,
+      message: 'Licencia eliminada definitivamente',
+      errors: [],
+      data,
     });
   }
 );

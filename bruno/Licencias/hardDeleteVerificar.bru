@@ -1,0 +1,25 @@
+meta {
+  name: Verificar licencia eliminada definitivamente
+  type: http
+  seq: 13
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+  const licenciaId = bru.getVar("licenciaHardDeleteId");
+  if (typeof licenciaId !== "number") throw new Error("No hay licencia eliminada para verificar");
+}
+
+get {
+  url: {{baseUrl}}/api/licencias/{{licenciaHardDeleteId}}
+  body: json
+  auth: none
+}
+
+assert {
+  res.status: eq 404
+  res.body.success: eq false
+}

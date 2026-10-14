@@ -18,17 +18,19 @@ conviene revisarlo antes de cada iteracion y actualizarlo al cerrar cada modulo.
 | Documentacion                        | `GET /api/docs`, `GET /api/docs/openapi.yaml`                                                                       | -                      | -                  |
 | Catalogos (`/api/catalogos`)       | `GET /` + CRUD `/api/departamentos`, `/api/ubicaciones`, `/api/puestos`, `/api/tipos-usuario`                 | Si                     | CRUD Bruno         |
 | RBAC / roles                         | CRUD`/api/roles`, asignar rol a usuario                                                                               | Si                     | 21 requests        |
-| Licencias (`/api/licencias`)       | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `DELETE /:id`                                                    | Si                     | 12 requests        |
+| Licencias (`/api/licencias`)       | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `DELETE /:id`, `DELETE /:id/hard`                                                    | Si                     | 17 requests        |
 | Proyectos                           | Sin modelo ni endpoints                                                                                              | No                     | No                 |
-| Secretos (`/api/secretos`)         | `GET /`, `POST /`, `GET /:id`, `GET /:id/password`, `GET /:id/auditoria`, `PATCH /:id`, `DELETE /:id`, `POST /importaciones/validar`, `POST /importaciones/confirmar`                  | Si                     | 21 requests        |
+| Secretos (`/api/secretos`)         | `GET /`, `POST /`, `GET /:id`, `GET /:id/password`, `GET /:id/auditoria`, `PATCH /:id`, `DELETE /:id`, `DELETE /:id/hard`, `POST /importaciones/validar`, `POST /importaciones/confirmar`                  | Si                     | 26 requests        |
 | Notificaciones (`/api/notificaciones`) | `GET /`, `PATCH /:id/leer`, `PATCH /leer-todas`; incidencias y recordatorios de licencias                         | Si                     | 10 requests        |
 | Dashboard (`/api/dashboard`)       | `GET /summary`                                                                                                          | Si                     | 5 requests         |
-| Auditoria (`/api/auditoria`)       | `GET /`, `GET /:id`                                                                                                     | Si                     | 10 requests        |
+| Auditoria (`/api/auditoria`)       | `GET /`, `GET /:id`                                                                                                     | Si                     | 11 requests        |
 | Reportes                            | sin modelo ni endpoints (ver §2.13)                                                                                    | No                     | No                 |
 | Recordatorios                      | sin modelo ni endpoints                                                                                                 | No                     | No                 |
 | Sucursal (normalizacion)           | sin catalogo; `Activo.sucursal` es texto libre                                                                          | No                     | No                 |
 
-Regresion mas reciente tras los permisos por usuario: `npx tsc --noEmit` limpio, OpenAPI valido y suite Bruno **246 requests (244 OK, 2 fallos preexistentes), 563/567 assertions**. Los 2 fallos siguen siendo `Activos/buscarPorSerie` y su cascada `Activos/cambiarEstadoAsignacionActiva`, por drift de datos de `AF00010` (ajenos a este cambio). Los 7 requests nuevos (`Usuarios/permisos*` 6 + `Roles/denegarAsignarPermisos`) pasan en verde; verificado ademas con curl end-to-end (conceder permiso habilita la ruta, revocarlo la bloquea).
+Regresion mas reciente tras hard delete (licencias/secretos) y auditoria fase 2 (activos+asignaciones): `npx tsc --noEmit` limpio, OpenAPI valido y suite Bruno **259 requests (257 OK, 2 fallos preexistentes), 588/592 assertions**. Los 2 fallos siguen siendo `Activos/buscarPorSerie` y su cascada `Activos/cambiarEstadoAsignacionActiva`, por drift de datos de `AF00010` (ajenos a este cambio). Los 13 requests nuevos (`Licencias/` 5 + `Secretos/` 5 + `Roles/denegarEliminarLicencia` + `Roles/denegarEliminarSecreto` + `Auditoria/fase2Activos`) pasan en verde; verificado ademas con curl (hard delete 200/400/404 + cascada, y movimientos ACTIVOS/ASIGNACIONES en `GET /api/auditoria`).
+
+Regresion previa tras los permisos por usuario: `npx tsc --noEmit` limpio, OpenAPI valido y suite Bruno **246 requests (244 OK, 2 fallos preexistentes), 563/567 assertions**. Los 2 fallos siguen siendo `Activos/buscarPorSerie` y su cascada `Activos/cambiarEstadoAsignacionActiva`, por drift de datos de `AF00010` (ajenos a este cambio). Los 7 requests nuevos (`Usuarios/permisos*` 6 + `Roles/denegarAsignarPermisos`) pasan en verde; verificado ademas con curl end-to-end (conceder permiso habilita la ruta, revocarlo la bloquea).
 
 Regresion previa tras el modulo de auditoria (fase 1): `npx tsc --noEmit` limpio, OpenAPI valido y suite Bruno **239 requests (237 OK, 2 fallos preexistentes), 549/553 assertions**. Los 2 fallos siguen siendo `Activos/buscarPorSerie` y su cascada `Activos/cambiarEstadoAsignacionActiva`, por drift de datos de `AF00010` (ajenos a este cambio). Los 11 requests nuevos (`Auditoria/` 10 + `Roles/denegarAuditoria`) pasan en verde. Se endurecio `Secretos/listar` (consulta por `q=<nombre>` en vez de depender de la pagina 1) por la acumulacion de datos de prueba.
 
@@ -122,7 +124,7 @@ adicional.
 - [X] `POST /api/licencias` - alta con clave cifrada AES-256-GCM
 - [X] `PATCH /api/licencias/:id` - edicion/reasignacion y reactivacion de baja logica
 - [X] `DELETE /api/licencias/:id` - baja logica idempotente
-- [ ] **Eliminacion fisica (hard delete)** de licencias: endpoint dedicado (p.ej. `DELETE /api/licencias/:id/hard` o `?hard=true`) que borra la fila definitivamente. **Excepcion explicita a la regla 6**; requiere permiso dedicado (p.ej. `licencias:eliminar`) y confirmacion explicita para evitar borrados accidentales.
+- [X] **Eliminacion fisica (hard delete)** de licencias: `DELETE /api/licencias/:id/hard?confirmar=true` (permiso `licencias:eliminar`). Borra la fila definitivamente (cascada a sus `Notificacion`) y registra auditoria `LICENCIAS/ELIMINAR`. **Excepcion explicita a la regla 6**.
 - [X] Alertas diarias desde 30 dias antes del vencimiento via `node-cron` + Nodemailer; usuario asignado o email de respaldo
 - [X] Autorizacion JWT + permiso `licencias:administrar`
 
@@ -136,7 +138,7 @@ adicional.
 - [X] **Importacion masiva de secretos:** el frontend parsea el archivo (CSV/Excel) y envia las filas ya normalizadas como JSON; el backend no conserva el archivo ni sus contenidos. Endpoints `POST /api/secretos/importaciones/validar` (vista previa) y `POST /api/secretos/importaciones/confirmar` (persistencia), con permiso dedicado `secretos:importar`.
 - [X] Permiso RBAC especifico `secretos:importar`; la vista previa y los resultados nunca devuelven la contrasena; la creacion reutiliza el cifrado AES-256-GCM de `src/utils/crypto.ts` y registra auditoria `CREAR` sin valores. Duplicados activos detectados por `(tipo, nombre, usuario)` contra la base y dentro del lote; errores por fila; limite de 500 filas; importacion parcial (las filas validas se crean aunque otras fallen).
 - [X] **Flujo implementado:** parseo en cliente -> validacion por fila (sin revelar contrasenas) -> confirmacion explicita -> persistencia cifrada por fila con auditoria -> sin archivo temporal que limpiar. Cubierto con `npx tsc --noEmit`, OpenAPI y Bruno (`SecretosImportaciones/` + 403 en `Roles/denegarImportarSecretos`).
-- [ ] **Eliminacion fisica (hard delete)** de secretos: endpoint dedicado que borra la fila definitivamente (incluye sus filas de `AuditoriaSecreto`, que tienen FK `RESTRICT`; los movimientos de la auditoria global se conservan). **Excepcion explicita a la regla 6**; requiere permiso dedicado (p.ej. `secretos:eliminar`) y confirmacion explicita.
+- [X] **Eliminacion fisica (hard delete)** de secretos: `DELETE /api/secretos/:id/hard?confirmar=true` (permiso `secretos:eliminar`). Borra primero sus `AuditoriaSecreto` (FK `RESTRICT`), luego la fila; conserva la auditoria global y registra `SECRETOS/ELIMINAR`. **Excepcion explicita a la regla 6**.
 
 ---
 
@@ -249,8 +251,10 @@ Vista unica y filtrable para responder "quien hizo que, cuando y sobre que".
 - [X] Instrumentada la escritura de **SECRETOS** (`crearSecreto`,
   `actualizarSecreto`, `desactivarSecreto`, `revelarPasswordSecreto`) e
   **IMPORTACIONES** (resumen de `confirmarImportacionSecretos`, accion `IMPORTAR`).
-- [ ] **Fase 2 - ACTIVOS + ASIGNACIONES**: instrumentar alta, edicion, cambio de
-  estado, baja logica, asignar y devolver.
+- [X] **Fase 2 - ACTIVOS + ASIGNACIONES**: instrumentado alta, edicion, cambio de
+  estado, baja logica, asignar y devolver (`registrarAuditoria` en la misma
+  transaccion; `cambiarEstado` a `DE_BAJA` = `DESACTIVAR`, resto = `ACTUALIZAR`).
+  El hard delete de licencias/secretos tambien audita con la accion `ELIMINAR`.
 - [ ] **Fase 3 - USUARIOS + ROLES + CATALOGOS**: instrumentar alta, edicion, baja
   logica, asignar rol y CRUD de catalogos. (El endpoint de permisos por usuario
   `PATCH /api/usuarios/:id/permisos` ya registra auditoria `USUARIOS/ACTUALIZAR`.)

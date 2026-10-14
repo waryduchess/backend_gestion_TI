@@ -14,10 +14,12 @@ export const PERMISOS_DISPONIBLES = [
   'roles:administrar',
   'catalogos:administrar',
   'licencias:administrar',
+  'licencias:eliminar',
   'secretos:leer',
   'secretos:revelar',
   'secretos:administrar',
   'secretos:importar',
+  'secretos:eliminar',
   'auditoria:leer',
 ] as const;
 

@@ -24,6 +24,13 @@ import { RespuestaPaginada } from '../models/comun.model';
 
 const LIMITE_MAXIMO = 100;
 
+const obtenerUsuarioId = (req: Request): string => {
+  if (!req.usuario) {
+    throw new HttpError(401, 'Autenticacion requerida');
+  }
+  return req.usuario.id;
+};
+
 export const listarActivos = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
     const page = comoEntero(req.query.page, 'page', 1);
@@ -135,7 +142,7 @@ export const crearActivo = asyncHandler(
       ...(responsableId ? { responsableId } : {}),
     };
 
-    const activo: ActivoDetalle = await crear(datos);
+    const activo: ActivoDetalle = await crear(datos, obtenerUsuarioId(req));
 
     res.status(201).json({
       success: true,
@@ -263,7 +270,11 @@ export const actualizarActivo = asyncHandler(
       throw new HttpError(400, 'No se recibio ningun campo para actualizar', []);
     }
 
-    const activo: ActivoDetalle = await actualizar(id, datos);
+    const activo: ActivoDetalle = await actualizar(
+      id,
+      datos,
+      obtenerUsuarioId(req)
+    );
 
     res.status(200).json({
       success: true,
@@ -295,7 +306,8 @@ export const cambiarEstadoActivo = asyncHandler(
 
     const activo: ActivoDetalle = await cambiarEstado(
       Number(textoId),
-      estado as (typeof ESTADOS_DE_ACTIVO)[number]
+      estado as (typeof ESTADOS_DE_ACTIVO)[number],
+      obtenerUsuarioId(req)
     );
 
     res.status(200).json({
@@ -357,7 +369,11 @@ export const asignarActivo = asyncHandler(
       observacion: comoValor('observacion'),
     };
 
-    const activo: ActivoDetalle = await asignar(Number(textoId), datos);
+    const activo: ActivoDetalle = await asignar(
+      Number(textoId),
+      datos,
+      obtenerUsuarioId(req)
+    );
 
     res.status(201).json({
       success: true,
@@ -378,7 +394,10 @@ export const eliminarActivo = asyncHandler(
       ]);
     }
 
-    const activo: ActivoDetalle = await eliminar(Number(textoId));
+    const activo: ActivoDetalle = await eliminar(
+      Number(textoId),
+      obtenerUsuarioId(req)
+    );
 
     res.status(200).json({
       success: true,

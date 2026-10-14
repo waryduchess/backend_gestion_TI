@@ -1,0 +1,15 @@
+meta {
+  name: Hard delete de secreto requiere autenticacion
+  type: http
+  seq: 18
+}
+
+delete {
+  url: {{baseUrl}}/api/secretos/1/hard?confirmar=true
+  body: json
+  auth: none
+}
+
+assert {
+  res.status: eq 401
+}

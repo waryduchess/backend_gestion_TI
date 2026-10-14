@@ -9,6 +9,7 @@ import {
 } from '../models/licencia.model';
 import { MetadatosPaginacion, UsuarioResumen } from '../models/comun.model';
 import { cifrar } from '../utils/crypto';
+import { registrarAuditoria } from './auditoria.service';
 
 const seleccionarLicencia = {
   id: true,
@@ -232,4 +233,31 @@ export const desactivarLicencia = async (
     select: seleccionarLicencia,
   });
   return mapearLicencia(desactivada);
+};
+
+export const eliminarLicenciaFisica = async (
+  id: number,
+  ejecutorId: string
+): Promise<{ id: number }> => {
+  const existente = await prisma.licencia.findUnique({
+    where: { id },
+    select: { id: true },
+  });
+  if (!existente) {
+    throw new HttpError(404, 'Licencia no encontrada', [
+      { campo: 'id', valor: id },
+    ]);
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.licencia.delete({ where: { id } });
+    await registrarAuditoria(tx, {
+      modulo: 'LICENCIAS',
+      accion: 'ELIMINAR',
+      entidadId: id,
+      usuarioId: ejecutorId,
+    });
+  });
+
+  return { id };
 };

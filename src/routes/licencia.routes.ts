@@ -3,18 +3,25 @@ import {
   actualizarLicenciaController,
   crearLicenciaController,
   eliminarLicenciaController,
+  eliminarLicenciaFisicaController,
   listarLicenciasController,
   obtenerLicenciaController,
 } from '../controllers/licencia.controller';
 import { verificarPermiso, verificarToken } from '../middlewares/auth.middleware';
 
 const router: Router = Router();
+const administrar = verificarPermiso('licencias:administrar');
 
-router.use(verificarToken, verificarPermiso('licencias:administrar'));
-router.get('/', listarLicenciasController);
-router.post('/', crearLicenciaController);
-router.get('/:id', obtenerLicenciaController);
-router.patch('/:id', actualizarLicenciaController);
-router.delete('/:id', eliminarLicenciaController);
+router.use(verificarToken);
+router.get('/', administrar, listarLicenciasController);
+router.post('/', administrar, crearLicenciaController);
+router.delete(
+  '/:id/hard',
+  verificarPermiso('licencias:eliminar'),
+  eliminarLicenciaFisicaController
+);
+router.get('/:id', administrar, obtenerLicenciaController);
+router.patch('/:id', administrar, actualizarLicenciaController);
+router.delete('/:id', administrar, eliminarLicenciaController);
 
 export default router;

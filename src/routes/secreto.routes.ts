@@ -3,6 +3,7 @@ import {
   actualizarSecretoController,
   crearSecretoController,
   desactivarSecretoController,
+  eliminarSecretoFisicoController,
   listarAuditoriaSecretoController,
   listarSecretosController,
   obtenerPasswordSecretoController,
@@ -48,6 +49,11 @@ router.patch(
   '/:id',
   verificarPermiso('secretos:administrar'),
   actualizarSecretoController
+);
+router.delete(
+  '/:id/hard',
+  verificarPermiso('secretos:eliminar'),
+  eliminarSecretoFisicoController
 );
 router.delete(
   '/:id',

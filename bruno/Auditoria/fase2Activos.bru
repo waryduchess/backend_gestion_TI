@@ -1,0 +1,35 @@
+meta {
+  name: Auditoria registra alta de activos (fase 2)
+  type: http
+  seq: 11
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+  await bru.runRequest("Activos/crearActivo");
+  const activoId = bru.getEnvVar("ultimoActivoId");
+  if (typeof activoId !== "number") throw new Error("No se pudo crear el activo de apoyo");
+  bru.setVar("audActivoId", activoId);
+}
+
+get {
+  url: {{baseUrl}}/api/auditoria?modulo=ACTIVOS&accion=CREAR&limit=50
+  body: json
+  auth: none
+}
+
+script:post-response {
+  if (res.status !== 200) return;
+  const activoId = String(bru.getVar("audActivoId"));
+  const entrada = res.body.data.find((item) => item.entidadId === activoId);
+  if (!entrada) throw new Error("No se encontro el movimiento CREAR del activo en la auditoria");
+}
+
+assert {
+  res.status: eq 200
+  res.body.success: eq true
+  res.body.data: isArray
+}

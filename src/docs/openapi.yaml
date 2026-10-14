@@ -2772,6 +2772,52 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/RespuestaError'
+  /api/licencias/{id}/hard:
+    delete:
+      tags: [licencias]
+      summary: Eliminar definitivamente una licencia (hard delete)
+      description: >
+        Requiere el permiso licencias:eliminar. Borra la fila de forma
+        definitiva (excepcion a la regla de baja logica); se eliminan en cascada
+        sus notificaciones asociadas. Exige confirmacion explicita con
+        `?confirmar=true` y deja registro en la auditoria (LICENCIAS/ELIMINAR).
+      operationId: eliminarLicenciaFisica
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+        - name: confirmar
+          in: query
+          required: true
+          description: Debe ser true para confirmar el borrado fisico
+          schema:
+            type: string
+            enum: ['true']
+      responses:
+        '200':
+          description: Licencia eliminada definitivamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaEliminacion'
+        '400':
+          description: Falta la confirmacion (?confirmar=true) o id invalido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso licencias:eliminar
+        '404':
+          description: No existe una licencia con ese id
+
   /api/licencias/{id}:
     get:
       tags: [licencias]
@@ -3126,6 +3172,53 @@ paths:
           description: Token ausente, invalido o expirado
         '403':
           description: Requiere el permiso secretos:importar
+
+  /api/secretos/{id}/hard:
+    delete:
+      tags: [secretos]
+      summary: Eliminar definitivamente un secreto (hard delete)
+      description: >
+        Requiere el permiso secretos:eliminar. Borra la fila de forma definitiva
+        (excepcion a la regla de baja logica); elimina primero su auditoria
+        por-secreto (AuditoriaSecreto) y conserva los movimientos de la
+        auditoria global. Exige confirmacion explicita con `?confirmar=true` y
+        deja registro en la auditoria (SECRETOS/ELIMINAR).
+      operationId: eliminarSecretoFisico
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+        - name: confirmar
+          in: query
+          required: true
+          description: Debe ser true para confirmar el borrado fisico
+          schema:
+            type: string
+            enum: ['true']
+      responses:
+        '200':
+          description: Secreto eliminado definitivamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaEliminacion'
+        '400':
+          description: Falta la confirmacion (?confirmar=true) o id invalido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso secretos:eliminar
+        '404':
+          description: No existe un secreto con ese id
 
   /api/secretos/{id}/password:
     get:
@@ -5423,7 +5516,7 @@ components:
 
     AccionAuditoria:
       type: string
-      enum: [CREAR, ACTUALIZAR, DESACTIVAR, REVELAR, IMPORTAR, ASIGNAR, DEVOLVER]
+      enum: [CREAR, ACTUALIZAR, DESACTIVAR, REVELAR, IMPORTAR, ASIGNAR, DEVOLVER, ELIMINAR]
 
     AuditoriaGlobal:
       type: object
@@ -5509,10 +5602,12 @@ components:
         - roles:administrar
         - catalogos:administrar
         - licencias:administrar
+        - licencias:eliminar
         - secretos:leer
         - secretos:revelar
         - secretos:administrar
         - secretos:importar
+        - secretos:eliminar
         - auditoria:leer
 
     RolCreacion:
@@ -6301,6 +6396,27 @@ components:
           items: {}
         data:
           $ref: '#/components/schemas/AsignacionLista'
+
+    RespuestaEliminacion:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Recurso eliminado definitivamente
+        errors:
+          type: array
+          items: {}
+        data:
+          type: object
+          required: [id]
+          properties:
+            id:
+              type: integer
+              example: 12
 
     RespuestaEliminacionAsignacion:
       type: object

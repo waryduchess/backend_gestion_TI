@@ -1,0 +1,28 @@
+meta {
+  name: Eliminar secreto definitivamente (hard delete)
+  type: http
+  seq: 14
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+  await bru.runRequest("Secretos/crear");
+  const secretoId = bru.getVar("secretoPruebaId");
+  if (typeof secretoId !== "number") throw new Error("No se pudo crear el secreto de apoyo");
+  bru.setVar("secretoHardDeleteId", secretoId);
+}
+
+delete {
+  url: {{baseUrl}}/api/secretos/{{secretoHardDeleteId}}/hard?confirmar=true
+  body: json
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+  res.body.success: eq true
+  res.body.data.id: eq {{secretoHardDeleteId}}
+}

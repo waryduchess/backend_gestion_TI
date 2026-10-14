@@ -18,6 +18,13 @@ import { RespuestaPaginada } from '../models/comun.model';
 
 const LIMITE_MAXIMO = 100;
 
+const obtenerUsuarioId = (req: Request): string => {
+  if (!req.usuario) {
+    throw new HttpError(401, 'Autenticacion requerida');
+  }
+  return req.usuario.id;
+};
+
 const CAMPOS_EDITABLES_ASIGNACION = new Set([
   'anioCompra',
   'numeroActivo',
@@ -40,7 +47,10 @@ const leerIdAsignacion = (valor: unknown): number => {
 
 export const devolverAsignacion = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
-    const activo: ActivoDetalle = await devolver(leerIdAsignacion(req.params.id));
+    const activo: ActivoDetalle = await devolver(
+      leerIdAsignacion(req.params.id),
+      obtenerUsuarioId(req)
+    );
 
     res.status(200).json({
       success: true,
@@ -159,7 +169,11 @@ export const editarAsignacion = asyncHandler(
     if ('bitlocker' in cuerpo) datos.bitlocker = comoValor('bitlocker');
     if ('observacion' in cuerpo) datos.observacion = comoValor('observacion');
 
-    const asignacion: AsignacionLista = await editarAsignacionService(id, datos);
+    const asignacion: AsignacionLista = await editarAsignacionService(
+      id,
+      datos,
+      obtenerUsuarioId(req)
+    );
 
     res.status(200).json({
       success: true,
@@ -172,7 +186,10 @@ export const editarAsignacion = asyncHandler(
 
 export const eliminarAsignacion = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
-    const { id } = await eliminarAsignacionService(leerIdAsignacion(req.params.id));
+    const { id } = await eliminarAsignacionService(
+      leerIdAsignacion(req.params.id),
+      obtenerUsuarioId(req)
+    );
 
     res.status(200).json({
       success: true,

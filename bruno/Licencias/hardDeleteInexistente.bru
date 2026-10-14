@@ -1,0 +1,23 @@
+meta {
+  name: Hard delete de licencia inexistente
+  type: http
+  seq: 15
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+delete {
+  url: {{baseUrl}}/api/licencias/999999999/hard?confirmar=true
+  body: json
+  auth: none
+}
+
+assert {
+  res.status: eq 404
+  res.body.success: eq false
+}
