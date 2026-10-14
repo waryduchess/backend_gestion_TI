@@ -1,0 +1,30 @@
+meta {
+  name: Eliminar asignacion deja el activo en almacen
+  type: http
+  seq: 18
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+get {
+  url: {{baseUrl}}/api/activos/{{activoCicloId}}
+  body: json
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}
+
+assert {
+  res.body.data.estado: eq EN_ALMACEN
+}
+
+assert {
+  res.body.data.responsable: eq null
+}

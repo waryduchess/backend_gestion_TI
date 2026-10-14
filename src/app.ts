@@ -15,6 +15,7 @@ import docsRoutes from './docs/docs.routes';
 import licenciaRoutes from './routes/licencia.routes';
 import notificacionRoutes from './routes/notificacion.routes';
 import secretoRoutes from './routes/secreto.routes';
+import dashboardRoutes from './routes/dashboard.routes';
 import { iniciarJobAlertasLicencias } from './jobs/licencias.job';
 import { inicializarSocketIo } from './config/socket';
 
@@ -23,8 +24,8 @@ const servidor = createServer(app);
 inicializarSocketIo(servidor);
 
 app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 app.get('/health', (_req: Request, res: Response): void => {
   res.status(200).json({
@@ -54,6 +55,7 @@ app.use('/api/roles', rolRoutes);
 app.use('/api/licencias', licenciaRoutes);
 app.use('/api/notificaciones', notificacionRoutes);
 app.use('/api/secretos', secretoRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/docs', docsRoutes);
 
 app.use(notFoundHandler);

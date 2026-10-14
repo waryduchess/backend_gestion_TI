@@ -1,0 +1,40 @@
+meta {
+  name: Validar importacion que excede el limite
+  type: http
+  seq: 4
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+  const filas = [];
+  const marca = Date.now();
+  for (let i = 1; i <= 501; i++) filas.push({ fila: i, Tipo: "Laptop", CB23: "LIM" + marca + i });
+  bru.setVar("filasExcedidas", JSON.stringify(filas));
+}
+
+post {
+  url: {{baseUrl}}/api/activos/importaciones/validar
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "filas": {{filasExcedidas}}
+  }
+}
+
+assert {
+  res.status: eq 400
+}
+
+assert {
+  res.body.success: eq false
+}

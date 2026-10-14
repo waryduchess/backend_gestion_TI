@@ -6,8 +6,9 @@ import {
   ParametrosListadoNotificaciones,
   ResultadoListadoNotificaciones,
 } from '../models/notificacion.model';
+import { emitirRecordatorioLicencia } from '../config/socket';
 
-const INCLUIR_INCIDENCIA = {
+const INCLUIR_ENTIDADES = {
   incidencia: {
     select: {
       id: true,
@@ -17,21 +18,33 @@ const INCLUIR_INCIDENCIA = {
       fechaNotificacion: true,
     },
   },
+  licencia: {
+    select: {
+      id: true,
+      software: true,
+      proveedor: true,
+      fechaVencimiento: true,
+    },
+  },
 } as const;
 
 type NotificacionConIncidencia = Prisma.NotificacionGetPayload<{
-  include: typeof INCLUIR_INCIDENCIA;
+  include: typeof INCLUIR_ENTIDADES;
 }>;
 
 const mapearNotificacion = (
   fila: NotificacionConIncidencia
 ): NotificacionLista => ({
   id: fila.id,
+  tipo: fila.tipo,
   incidenciaId: fila.incidenciaId,
+  licenciaId: fila.licenciaId,
+  hitoDias: fila.hitoDias,
   creadaEn: fila.creadaEn,
   leidaEn: fila.leidaEn,
   leida: fila.leidaEn !== null,
   incidencia: fila.incidencia,
+  licencia: fila.licencia,
 });
 
 export const listarNotificaciones = async (
@@ -51,7 +64,7 @@ export const listarNotificaciones = async (
   const [filas, total, noLeidas] = await Promise.all([
     prisma.notificacion.findMany({
       where,
-      include: INCLUIR_INCIDENCIA,
+      include: INCLUIR_ENTIDADES,
       orderBy: [{ creadaEn: 'desc' }, { id: 'desc' }],
       skip: (parametros.page - 1) * parametros.limit,
       take: parametros.limit,
@@ -96,7 +109,7 @@ export const marcarNotificacionLeida = async (
 
   const fila = await prisma.notificacion.findFirst({
     where: { id, usuarioId },
-    include: INCLUIR_INCIDENCIA,
+    include: INCLUIR_ENTIDADES,
   });
   if (!fila) {
     throw new HttpError(404, 'Notificacion no encontrada', [
@@ -113,4 +126,57 @@ export const marcarTodasLeidas = async (usuarioId: string): Promise<number> => {
     data: { leidaEn: new Date() },
   });
   return resultado.count;
+};
+
+export interface DatosRecordatorioLicencia {
+  usuarioIds: string[];
+  licenciaId: number;
+  software: string;
+  fechaVencimiento: Date;
+  diasRestantes: number;
+  hitoDias: number;
+  creadaEn: Date;
+}
+
+export const crearRecordatoriosLicencia = async (
+  datos: DatosRecordatorioLicencia
+): Promise<number> => {
+  let creadas = 0;
+  for (const usuarioId of datos.usuarioIds) {
+    const resultado = await prisma.notificacion.createMany({
+      data: [
+        {
+          usuarioId,
+          tipo: 'LICENCIA_POR_VENCER',
+          licenciaId: datos.licenciaId,
+          hitoDias: datos.hitoDias,
+        },
+      ],
+      skipDuplicates: true,
+    });
+    if (resultado.count === 0) continue;
+
+    const notificacion = await prisma.notificacion.findFirst({
+      where: {
+        usuarioId,
+        licenciaId: datos.licenciaId,
+        hitoDias: datos.hitoDias,
+      },
+      select: { id: true },
+    });
+    if (!notificacion) {
+      throw new Error('No se pudo recuperar la notificacion de licencia creada');
+    }
+    emitirRecordatorioLicencia(usuarioId, {
+      notificacionId: notificacion.id,
+      licenciaId: datos.licenciaId,
+      software: datos.software,
+      fechaVencimiento: datos.fechaVencimiento.toISOString(),
+      diasRestantes: datos.diasRestantes,
+      hitoDias: datos.hitoDias,
+      creadaEn: datos.creadaEn.toISOString(),
+    });
+    creadas += 1;
+  }
+  return creadas;
 };

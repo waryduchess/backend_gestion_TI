@@ -1,0 +1,38 @@
+meta {
+  name: Resumen del dashboard (Ambos)
+  type: http
+  seq: 1
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+get {
+  url: {{baseUrl}}/api/dashboard/summary
+  body: json
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}
+
+assert {
+  res.body.success: eq true
+}
+
+assert {
+  res.body.message: eq Resumen del dashboard obtenido correctamente
+}
+
+assert {
+  res.body.data.activosPorTipo: isArray
+}
+
+assert {
+  res.body.data.recordatorios: isArray
+}

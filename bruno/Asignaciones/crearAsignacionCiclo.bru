@@ -1,0 +1,43 @@
+meta {
+  name: Crear asignacion para ciclo
+  type: http
+  seq: 10
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+post {
+  url: {{baseUrl}}/api/activos/{{activoCicloId}}/asignaciones
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "usuarioId": "A010",
+    "anioCompra": 2023,
+    "nombreEquipo": "CICLO-PC-01",
+    "observacion": "Asignacion inicial del ciclo"
+  }
+}
+
+script:post-response {
+  if (res.status === 201) bru.setEnvVar("asignacionCicloId", res.body.data.asignaciones[0].id);
+}
+
+assert {
+  res.status: eq 201
+}
+
+assert {
+  res.body.data.asignaciones[0].activa: eq true
+}

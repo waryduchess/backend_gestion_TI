@@ -1,0 +1,31 @@
+meta {
+  name: Cambiar estado sin body
+  type: http
+  seq: 16
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+patch {
+  url: {{baseUrl}}/api/incidencias/{{incidenciaCreadaId}}/estado
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+  }
+}
+
+assert {
+  res.status: eq 400
+}

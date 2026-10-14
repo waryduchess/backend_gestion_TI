@@ -12,7 +12,7 @@ import {
 } from '../models/incidencia.model';
 import { HttpError } from '../middlewares/error.middleware';
 import { asyncHandler } from '../utils/asyncHandler';
-import { listar, obtenerPorId, crear } from '../services/incidencia.service';
+import { listar, obtenerPorId, crear, cambiarEstado } from '../services/incidencia.service';
 import { TipoRequerimiento } from '../generated/prisma/client';
 import { validarCampoOpcion } from '../utils/validacion';
 
@@ -235,6 +235,57 @@ export const crearIncidencia = asyncHandler(
     res.status(201).json({
       success: true,
       message: 'Incidencia creada correctamente',
+      errors: [],
+      data: incidencia,
+    });
+  }
+);
+
+export const cambiarEstadoIncidencia = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const id = obtenerIdIncidencia(req.params.id);
+
+    if (typeof req.body !== 'object' || req.body === null || Array.isArray(req.body)) {
+      throw new HttpError(400, 'El cuerpo debe ser un objeto JSON');
+    }
+
+    const cuerpo = req.body as Record<string, unknown>;
+    const camposPermitidos = new Set(['estado', 'orden']);
+    const camposDesconocidos = Object.keys(cuerpo).filter(
+      (campo) => !camposPermitidos.has(campo)
+    );
+    if (camposDesconocidos.length > 0) {
+      throw new HttpError(400, 'El cuerpo contiene campos no permitidos', [
+        { campo: 'campos', valor: camposDesconocidos },
+      ]);
+    }
+
+    const estado = validarCampoOpcion(cuerpo.estado, 'estado', ESTADOS_VALIDOS);
+    if (!estado) {
+      throw new HttpError(400, 'Faltan campos obligatorios', [
+        { campo: 'estado', valor: cuerpo.estado ?? '', mensaje: 'El campo "estado" es obligatorio' },
+      ]);
+    }
+
+    let orden: number | undefined;
+    if (cuerpo.orden !== undefined) {
+      if (
+        typeof cuerpo.orden !== 'number' ||
+        !Number.isInteger(cuerpo.orden) ||
+        cuerpo.orden < 0
+      ) {
+        throw new HttpError(400, 'El campo "orden" debe ser un entero mayor o igual a 0', [
+          { campo: 'orden', valor: cuerpo.orden },
+        ]);
+      }
+      orden = cuerpo.orden;
+    }
+
+    const incidencia = await cambiarEstado(id, estado as EstadoIncidenciaValor, orden);
+
+    res.status(200).json({
+      success: true,
+      message: 'Estado de la incidencia actualizado correctamente',
       errors: [],
       data: incidencia,
     });

@@ -1,0 +1,25 @@
+meta {
+  name: Cambiar estado sin token
+  type: http
+  seq: 19
+}
+
+patch {
+  url: {{baseUrl}}/api/incidencias/1/estado
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "estado": "EN_CURSO"
+  }
+}
+
+assert {
+  res.status: eq 401
+}

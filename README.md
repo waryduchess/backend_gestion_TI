@@ -95,14 +95,19 @@ Verificacion:
   registros de auditoria. La ruta `GET /:id/password` audita cada revelacion y
   responde con `Cache-Control: no-store`. Al agregar estos permisos al
   Administrador, vuelve a ejecutar `npm run seed`.
-* `/api/notificaciones` requiere JWT y `incidencias:leer`; cada nueva incidencia
-  crea un aviso persistente para cada usuario activo con ese permiso. La API
-  permite listar los avisos propios (`GET /api/notificaciones?leida=false`),
-  marcarlos individualmente (`PATCH /:id/leer`) o en conjunto
-  (`PATCH /leer-todas`). Socket.IO emite `incidencias:nueva` a cada usuario
-  autorizado después de guardar el aviso; si estaba desconectado, puede
-  recuperar el historial con la API. `SOCKET_CORS_ORIGIN` acepta una lista de
-  origenes separados por coma; por defecto permite cualquier origen.
+* `/api/notificaciones` requiere JWT y `notificaciones:leer`; cada nueva
+  incidencia crea un aviso persistente para usuarios con `incidencias:leer` y
+  `notificaciones:leer`.
+  Los recordatorios de licencia se crean a 30, 7 y 1 dia del vencimiento, para
+  el usuario asignado elegible o, si no lo hay, para usuarios con
+  `licencias:administrar`. Se pueden listar los avisos propios
+  (`GET /api/notificaciones?leida=false`), marcarlos individualmente
+  (`PATCH /:id/leer`) o en conjunto (`PATCH /leer-todas`). Socket.IO emite
+  `incidencias:nueva` y `licencias:por-vencer` despues de persistir cada aviso;
+  REST permite recuperar el historial si el usuario estaba desconectado.
+  Los usuarios que deban recibir avisos deben tener `notificaciones:leer` en
+  su rol. `SOCKET_CORS_ORIGIN` acepta una lista de origenes separados por coma;
+  por defecto permite cualquier origen.
 * Genera una clave antes de un entorno real con `openssl rand -hex 32` y
   configúrala como `AES_SECRET_KEY`; no uses el valor de ejemplo. Manténla
   fuera de Git y respáldala de forma segura: cambiarla o perderla impide
@@ -171,12 +176,22 @@ socket.on('incidencias:nueva', (incidencia) => {
 socket.on('incidencias:estado-cambiado', (cambio) => {
   // Refrescar el estado de la incidencia.
 });
+
+socket.on('licencias:por-vencer', (recordatorio) => {
+  // Mostrar el recordatorio de vencimiento de licencia.
+});
 ```
 
 `incidencias:nueva` entrega `notificacionId`, `id`, `titulo`, `estado`,
 `prioridad` y `fechaNotificacion` (ISO 8601). El campo `id` es el identificador
 de la incidencia. `incidencias:estado-cambiado` tiene un contrato preparado,
 pero aún no se emite desde una operación de actualización.
+
+`licencias:por-vencer` entrega `notificacionId`, `licenciaId`, `software`,
+`fechaVencimiento`, `diasRestantes`, `hitoDias` (30, 7 o 1) y `creadaEn`.
+Requiere `notificaciones:leer`; la licencia se asigna al usuario responsable
+activo con ese permiso, o a los administradores de licencias con ese permiso
+cuando no hay un asignado elegible.
 
 La consulta REST incluye `meta.noLeidas` para el badge y solo devuelve avisos
 del usuario autenticado. Los registros se conservan sin expiración automática;
@@ -189,6 +204,6 @@ Endpoints disponibles:
 * `PATCH /api/notificaciones/:id/leer`
 * `PATCH /api/notificaciones/leer-todas`
 
-Todos requieren JWT y `incidencias:leer`. La respuesta del listado incluye
+Todos requieren JWT y `notificaciones:leer`. La respuesta del listado incluye
 `meta.noLeidas`, el total pendiente del usuario aunque se aplique el filtro
 `leida`.

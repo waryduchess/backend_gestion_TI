@@ -1,6 +1,9 @@
 export const PERMISOS_DISPONIBLES = [
   'incidencias:leer',
   'incidencias:crear',
+  'incidencias:editar',
+  'notificaciones:leer',
+  'dashboard:leer',
   'activos:leer',
   'activos:crear',
   'activos:editar',

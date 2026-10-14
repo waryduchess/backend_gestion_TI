@@ -1,0 +1,34 @@
+meta {
+  name: Denegar importacion sin permiso
+  type: http
+  seq: 18
+}
+
+post {
+  url: {{baseUrl}}/api/activos/importaciones/validar
+  body: json
+  auth: none
+}
+
+script:pre-request {
+  await bru.runRequest("Roles/loginUsuarioPrueba");
+  const token = bru.getVar("tokenUsuarioRbac");
+  if (typeof token !== "string" || token === "") throw new Error("No fue posible iniciar sesion con el rol limitado");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "filas": [
+      { "Tipo": "No debe importarse" }
+    ]
+  }
+}
+
+assert {
+  res.status: eq 403
+}

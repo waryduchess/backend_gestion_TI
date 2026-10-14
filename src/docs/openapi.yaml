@@ -18,7 +18,7 @@ tags:
   - name: incidencias
     description: Consulta y creacion de tickets / incidencias
   - name: notificaciones
-    description: Historial persistente de notificaciones del usuario autenticado
+    description: Historial persistente de incidencias y vencimientos de licencias
   - name: activos
     description: Inventario de activos de computo
   - name: asignaciones
@@ -37,6 +37,8 @@ tags:
       administracion requieren permisos independientes.
   - name: roles
     description: Roles y permisos de acceso
+  - name: dashboard
+    description: Resumen agregado de KPIs para el panel principal
 
 paths:
   /api/auth/login:
@@ -153,9 +155,12 @@ paths:
         Requiere el permiso incidencias:crear. El solicitante se obtiene del
         JWT. El estado inicia en NUEVO y la prioridad en NORMAL; la fecha de
         notificacion la establece el servidor. Al guardar, se crean
-        notificaciones persistentes para usuarios con incidencias:leer y se
+        notificaciones persistentes para usuarios con incidencias:leer y
+        notificaciones:leer, y se
         emite incidencias:nueva por Socket.IO con el notificacionId destinado
-        a cada usuario.
+        a cada usuario. Los recordatorios de licencias se persisten para el
+        usuario asignado, o para usuarios con licencias:administrar cuando no
+        hay un asignado elegible; se emiten como licencias:por-vencer.
       operationId: crearIncidencia
       security:
         - bearerAuth: []
@@ -386,13 +391,100 @@ paths:
                   - campo: id
                     valor: 99999999
 
+  /api/incidencias/{id}/estado:
+    patch:
+      tags: [incidencias]
+      summary: Cambiar el estado de una incidencia
+      description: >
+        Requiere el permiso incidencias:editar. Permite cambiar el estado del
+        ticket de acuerdo a las transiciones validas. Al entrar a COMPLETADO
+        se fija fechaResolucion y al salir de COMPLETADO se limpia a null.
+        Acepta un campo opcional "orden" (posicion 0-based dentro de la columna
+        destino) para reordenar dentro de una columna y/o al mover de columna.
+        Emite incidencias:estado-cambiado por Socket.IO solo cuando el estado
+        cambia.
+      operationId: cambiarEstadoIncidencia
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Identificador entero positivo de la incidencia
+          schema:
+            type: integer
+            minimum: 1
+            example: 1
+      requestBody:
+            required: true
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/CambioEstadoIncidencia'
+                example:
+                  estado: EN_CURSO
+                  orden: 0
+      responses:
+        '200':
+          description: Estado actualizado correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaIncidencia'
+              example:
+                success: true
+                message: Estado de la incidencia actualizado correctamente
+                errors: []
+                data:
+                  id: 1
+                  originalId: null
+                  titulo: Falla de conexion a la red
+                  estado: EN_CURSO
+                  prioridad: ALTA
+                  tipoRequerimiento: CONEXION_DE_RED
+                  fechaNotificacion: '2026-09-28T15:00:00.000Z'
+                  fechaResolucion: null
+                  orden: 0
+                  solicitante:
+                    id: A006
+                    nombre: Angelica Maria Buendia Fierro
+                    email: cxc.cancun@horbismex.com
+                  asignadoA: null
+                  departamento: null
+                  totalActualizaciones: 0
+        '400':
+          description: Cuerpo invalido, estado ausente o no valido, o id invalido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '403':
+          description: El usuario no tiene permiso para editar incidencias
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '404':
+          description: Incidencia no encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+
   /api/notificaciones:
     get:
       tags: [notificaciones]
       summary: Listar notificaciones propias
       description: >
-        Requiere JWT e incidencias:leer. Solo devuelve notificaciones del
-        usuario autenticado. meta.noLeidas siempre cuenta todas sus
+        Requiere JWT y notificaciones:leer. Solo devuelve notificaciones del
+        usuario autenticado. Incluye incidencias y recordatorios de licencias.
+        meta.noLeidas siempre cuenta todas sus
         notificaciones pendientes, incluso cuando se filtra por leida.
       operationId: listarNotificaciones
       security:
@@ -439,7 +531,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/RespuestaError'
         '403':
-          description: Se requiere el permiso incidencias:leer
+          description: Se requiere el permiso notificaciones:leer
           content:
             application/json:
               schema:
@@ -449,7 +541,7 @@ paths:
     patch:
       tags: [notificaciones]
       summary: Marcar todas las notificaciones propias como leidas
-      description: Requiere JWT e incidencias:leer. Solo actualiza registros del usuario autenticado.
+      description: Requiere JWT y notificaciones:leer. Solo actualiza registros del usuario autenticado.
       operationId: marcarTodasNotificacionesLeidas
       security:
         - bearerAuth: []
@@ -467,7 +559,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/RespuestaError'
         '403':
-          description: Se requiere el permiso incidencias:leer
+          description: Se requiere el permiso notificaciones:leer
           content:
             application/json:
               schema:
@@ -477,7 +569,7 @@ paths:
     patch:
       tags: [notificaciones]
       summary: Marcar una notificacion propia como leida
-      description: Requiere JWT e incidencias:leer. Un registro ajeno se trata como no encontrado.
+      description: Requiere JWT y notificaciones:leer. Un registro ajeno se trata como no encontrado.
       operationId: marcarNotificacionLeida
       security:
         - bearerAuth: []
@@ -508,7 +600,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/RespuestaError'
         '403':
-          description: Se requiere el permiso incidencias:leer
+          description: Se requiere el permiso notificaciones:leer
           content:
             application/json:
               schema:
@@ -737,6 +829,172 @@ paths:
                 errors:
                   - campo: claveActivo
                     valor: AF00010
+
+  /api/activos/importaciones/validar:
+    post:
+      tags: [activos]
+      summary: Validar una importacion masiva de activos (sin escribir)
+      description: >
+        Recibe las filas ya parseadas por el frontend (con los encabezados de la
+        plantilla `plantilla_registro_activos.csv`) y devuelve, sin escribir en
+        la base, el resultado por fila (validas e invalidas) y un resumen.
+        Requiere el permiso activos:crear. Maximo 500 filas por peticion.
+      operationId: validarImportacionActivos
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportacionActivosPeticion'
+            example:
+              filas:
+                - fila: 2
+                  CB23: '100003'
+                  Tipo: Laptop
+                  Marca: Dell
+                  Modelo: Inspiron 15
+                  Número de serie: CXBF1Z3
+                  Sucursal: CANCUN
+                  Estado: EN_USO
+                  Estado general: Bien
+                  Red: CUN-LT-01
+                  Correo responsable: ernesto.marquez@horbismex.com
+                - fila: 3
+                  CB23: '100004'
+                  Tipo: Desktop
+                  Estado: EN_ALMACEN
+      responses:
+        '200':
+          description: Resultado de la validacion por fila
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaValidacionImportacion'
+              example:
+                success: true
+                message: Validacion de importacion completada
+                errors: []
+                data:
+                  resumen:
+                    total: 2
+                    validas: 1
+                    invalidas: 1
+                  filas:
+                    - fila: 2
+                      valido: true
+                      errores: []
+                      advertencias: []
+                      datos:
+                        tipo: Laptop
+                        cb23: '100003'
+                        marca: Dell
+                        modelo: Inspiron 15
+                        numeroSerie: CXBF1Z3
+                        sucursal: CANCUN
+                        estadoGeneral: Bien
+                        nombreRed: CUN-LT-01
+                        estado: EN_USO
+                        responsableId: CT003
+                    - fila: 3
+                      valido: false
+                      errores:
+                        - Ya existe un activo con el CB23 "100004"
+                      advertencias:
+                        - La fila no trae "Correo responsable"; se importara sin responsable
+                      datos: null
+        '400':
+          description: Cuerpo invalido (filas ausentes o vacias, o mas de 500 filas)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: El lote no puede superar las 500 filas
+                errors:
+                  - campo: filas
+                    valor: 501
+                    maximo: 500
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso activos:crear
+
+  /api/activos/importaciones/confirmar:
+    post:
+      tags: [activos]
+      summary: Confirmar una importacion masiva de activos
+      description: >
+        Revalida el lote y crea unicamente las filas validas (importacion
+        parcial: las invalidas o con error se rechazan sin abortar el resto).
+        No actualiza activos existentes. Requiere el permiso activos:crear.
+        Maximo 500 filas por peticion.
+      operationId: confirmarImportacionActivos
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportacionActivosPeticion'
+            example:
+              filas:
+                - fila: 2
+                  CB23: '100003'
+                  Tipo: Laptop
+                  Marca: Dell
+                  Modelo: Inspiron 15
+                  Número de serie: CXBF1Z3
+                  Sucursal: CANCUN
+                  Estado: EN_USO
+                  Correo responsable: ernesto.marquez@horbismex.com
+      responses:
+        '200':
+          description: Resultado de la importacion por fila
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaConfirmacionImportacion'
+              example:
+                success: true
+                message: Importacion de activos completada
+                errors: []
+                data:
+                  resumen:
+                    total: 2
+                    creadas: 1
+                    rechazadas: 1
+                  filas:
+                    - fila: 2
+                      creado: true
+                      activoId: 512
+                      errores: []
+                      advertencias: []
+                    - fila: 3
+                      creado: false
+                      activoId: null
+                      errores:
+                        - El tipo es obligatorio
+                      advertencias: []
+        '400':
+          description: Cuerpo invalido (filas ausentes o vacias, o mas de 500 filas)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: El campo "filas" debe ser un arreglo
+                errors:
+                  - campo: filas
+                    valor: null
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso activos:crear
 
   /api/activos/{id}:
     get:
@@ -1417,6 +1675,175 @@ paths:
                 errors:
                   - campo: id
                     valor: abc
+        '404':
+          description: No existe una asignacion con ese id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: Asignacion no encontrada
+                errors:
+                  - campo: id
+                    valor: '999999'
+
+  /api/asignaciones/{id}:
+    patch:
+      tags: [asignaciones]
+      summary: Editar una asignacion
+      description: >
+        Requiere el permiso activos:asignar. Edita campos de una asignacion
+        activa (anioCompra, numeroActivo, nombreEquipo, bitlocker,
+        observacion). Rechaza asignaciones ya devueltas con 409.
+      operationId: editarAsignacion
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Id de la asignacion
+          schema:
+            type: integer
+            minimum: 1
+            example: 4
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DatosEdicionAsignacion'
+            example:
+              anioCompra: 2024
+              nombreEquipo: MKT-PC-01
+              observacion: Equipo actualizado
+      responses:
+        '200':
+          description: Asignacion actualizada correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaAsignacion'
+              example:
+                success: true
+                message: Asignacion actualizada correctamente
+                errors: []
+                data:
+                  id: 4
+                  activa: true
+                  fechaAsignacion: '2025-06-10T14:00:00.000Z'
+                  fechaDevolucion: null
+                  anioCompra: 2024
+                  numeroActivo: null
+                  nombreEquipo: MKT-PC-01
+                  observacion: Equipo actualizado
+                  usuario:
+                    id: A010
+                    nombre: Juan Perez
+                    email: juan.perez@horbismex.com
+                  activo:
+                    id: 439
+                    claveActivo: AF00010
+                    tipo: Laptop
+                    marca: Dell
+                    modelo: 'Latitude 3540'
+                    numeroSerie: CXBF1Z3
+                    estado: EN_USO
+        '400':
+          description: Id invalido, cuerpo no objeto, campos desconocidos o ningun campo para actualizar
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '403':
+          description: El usuario no tiene permiso activos:asignar
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '404':
+          description: No existe una asignacion con ese id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: Asignacion no encontrada
+                errors:
+                  - campo: id
+                    valor: '999999'
+        '409':
+          description: La asignacion ya fue devuelta; no se puede editar
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+    delete:
+      tags: [asignaciones]
+      summary: Eliminar (baja logica) una asignacion
+      description: >
+        Requiere el permiso activos:asignar. Cierra la asignacion (activa=false
+        y fechaDevolucion=now) y libera el activo (EN_ALMACEN y responsableId
+        null solo si el responsable sigue siendo el usuario asignado). Es
+        idempotente: eliminar una asignacion ya cerrada responde 200 sin
+        cambios. No borra la fila de la base.
+      operationId: eliminarAsignacion
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Id de la asignacion
+          schema:
+            type: integer
+            minimum: 1
+            example: 4
+      responses:
+        '200':
+          description: Asignacion eliminada (o ya cerrada)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaEliminacionAsignacion'
+              example:
+                success: true
+                message: Asignacion eliminada correctamente
+                errors: []
+                data:
+                  id: 4
+        '400':
+          description: El id no es un numero entero
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: El parametro "id" debe ser un numero entero
+                errors:
+                  - campo: id
+                    valor: abc
+        '401':
+          description: Token ausente, invalido o expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '403':
+          description: El usuario no tiene permiso activos:asignar
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
         '404':
           description: No existe una asignacion con ese id
           content:
@@ -3213,6 +3640,74 @@ paths:
         '403':
           description: Requiere el permiso usuarios:administrar
 
+  /api/dashboard/summary:
+    get:
+      tags: [dashboard]
+      summary: Resumen del dashboard (KPIs agregados)
+      description: >
+        Devuelve en una sola peticion un JSON diminuto con los indicadores del
+        panel, calculados con agregaciones en la base (no transfiere filas).
+        El filtro `sucursal` aplica a los KPIs y al desglose de activos; los
+        tickets pendientes y las licencias por vencer son globales mientras no
+        exista la normalizacion de sucursal en incidencias/licencias.
+        Requiere el permiso `dashboard:leer`.
+      operationId: obtenerResumenDashboard
+      parameters:
+        - name: sucursal
+          in: query
+          required: false
+          description: >
+            Filtra por sede. `CANCUN` incluye CANCUN y STOCK CUN; `PLAYA`
+            incluye PLAYA y STOCK. Sin parametro devuelve ambas (Ambos).
+          schema:
+            type: string
+            enum: [CANCUN, PLAYA]
+            example: CANCUN
+      responses:
+        '200':
+          description: Resumen del dashboard obtenido correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaResumenDashboard'
+              example:
+                success: true
+                message: Resumen del dashboard obtenido correctamente
+                errors: []
+                data:
+                  kpis:
+                    ticketsPendientes: 42
+                    totalActivos: 187
+                    equiposAsignados: 134
+                  activosPorTipo:
+                    - tipo: Laptop
+                      total: 85
+                    - tipo: Desktop
+                      total: 45
+                  licenciasPorVencer:
+                    - id: 1
+                      software: Microsoft 365
+                      proveedor: Licenciamiento
+                      fechaVencimiento: '2026-11-01T00:00:00.000Z'
+                      asignadaA: null
+                  recordatorios: []
+        '400':
+          description: Parametro sucursal invalido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: El parametro "sucursal" debe ser "CANCUN" o "PLAYA"
+                errors:
+                  - campo: sucursal
+                    valor: BOGUS
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso dashboard:leer
+
 components:
   securitySchemes:
     bearerAuth:
@@ -3436,6 +3931,7 @@ components:
         - tipoRequerimiento
         - fechaNotificacion
         - fechaResolucion
+        - orden
         - solicitante
         - asignadoA
         - departamento
@@ -3464,6 +3960,11 @@ components:
         fechaResolucion:
           type: [string, 'null']
           format: date-time
+        orden:
+          type: integer
+          minimum: 0
+          description: Posicion de la incidencia dentro de su columna (estado) en el tablero Kanban
+          example: 0
         solicitante:
           $ref: '#/components/schemas/UsuarioResumen'
         asignadoA:
@@ -3533,6 +4034,20 @@ components:
           description: Opcional; debe referenciar un departamento activo
           example: 1
 
+    CambioEstadoIncidencia:
+      type: object
+      additionalProperties: false
+      required: [estado]
+      properties:
+        estado:
+          $ref: '#/components/schemas/EstadoIncidencia'
+        orden:
+          type: integer
+          minimum: 0
+          description: >
+            Opcional. Posicion 0-based dentro de la columna destino. Si se omite,
+            la incidencia se agrega al final de la columna.
+
     RespuestaIncidencia:
       type: object
       required: [success, message, errors, data]
@@ -3567,12 +4082,30 @@ components:
 
     Notificacion:
       type: object
-      required: [id, incidenciaId, creadaEn, leidaEn, leida, incidencia]
+      required:
+        - id
+        - tipo
+        - incidenciaId
+        - licenciaId
+        - hitoDias
+        - creadaEn
+        - leidaEn
+        - leida
+        - incidencia
+        - licencia
       properties:
         id:
           type: integer
+        tipo:
+          type: string
+          enum: [INCIDENCIA_NUEVA, LICENCIA_POR_VENCER]
         incidenciaId:
-          type: integer
+          type: [integer, 'null']
+        licenciaId:
+          type: [integer, 'null']
+        hitoDias:
+          type: [integer, 'null']
+          description: Hito de vencimiento (30, 7 o 1 dia); null para notificaciones de incidencias.
         creadaEn:
           type: string
           format: date-time
@@ -3582,20 +4115,37 @@ components:
         leida:
           type: boolean
         incidencia:
-          type: object
-          required: [id, titulo, estado, prioridad, fechaNotificacion]
-          properties:
-            id:
-              type: integer
-            titulo:
-              type: string
-            estado:
-              $ref: '#/components/schemas/EstadoIncidencia'
-            prioridad:
-              $ref: '#/components/schemas/Prioridad'
-            fechaNotificacion:
-              type: string
-              format: date-time
+          oneOf:
+            - type: object
+              required: [id, titulo, estado, prioridad, fechaNotificacion]
+              properties:
+                id:
+                  type: integer
+                titulo:
+                  type: string
+                estado:
+                  $ref: '#/components/schemas/EstadoIncidencia'
+                prioridad:
+                  $ref: '#/components/schemas/Prioridad'
+                fechaNotificacion:
+                  type: string
+                  format: date-time
+            - type: 'null'
+        licencia:
+          oneOf:
+            - type: object
+              required: [id, software, proveedor, fechaVencimiento]
+              properties:
+                id:
+                  type: integer
+                software:
+                  type: string
+                proveedor:
+                  type: [string, 'null']
+                fechaVencimiento:
+                  type: string
+                  format: date-time
+            - type: 'null'
 
     MetaNotificaciones:
       type: object
@@ -3995,10 +4545,330 @@ components:
           type: boolean
           example: true
 
+    RespuestaResumenDashboard:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: Resumen del dashboard obtenido correctamente
+        errors:
+          type: array
+          items: {}
+        data:
+          $ref: '#/components/schemas/ResumenDashboard'
+
+    ResumenDashboard:
+      type: object
+      required: [kpis, activosPorTipo, licenciasPorVencer, recordatorios]
+      properties:
+        kpis:
+          $ref: '#/components/schemas/KpisDashboard'
+        activosPorTipo:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActivoPorTipo'
+        licenciasPorVencer:
+          type: array
+          description: Hasta 5 licencias activas mas cercanas a vencer (incluye vencidas)
+          items:
+            $ref: '#/components/schemas/LicenciaPorVencer'
+        recordatorios:
+          type: array
+          description: Reservado (modulo Recordatorio aun no implementado)
+          items: {}
+
+    KpisDashboard:
+      type: object
+      required: [ticketsPendientes, totalActivos, equiposAsignados]
+      properties:
+        ticketsPendientes:
+          type: integer
+          description: Incidencias con estado distinto de COMPLETADO (global)
+          example: 42
+        totalActivos:
+          type: integer
+          description: Activos con estado distinto de DE_BAJA
+          example: 187
+        equiposAsignados:
+          type: integer
+          description: Activos no dados de baja con responsable asignado
+          example: 134
+
+    ActivoPorTipo:
+      type: object
+      required: [tipo, total]
+      properties:
+        tipo:
+          type: string
+          example: Laptop
+        total:
+          type: integer
+          example: 85
+
+    LicenciaPorVencer:
+      type: object
+      required: [id, software, fechaVencimiento]
+      properties:
+        id:
+          type: integer
+          example: 1
+        software:
+          type: string
+          example: Microsoft 365
+        proveedor:
+          type: string
+          nullable: true
+          example: Licenciamiento
+        fechaVencimiento:
+          type: string
+          format: date-time
+        asignadaA:
+          $ref: '#/components/schemas/UsuarioResumen'
+
+    ImportacionActivosPeticion:
+      type: object
+      required: [filas]
+      description: >
+        Lote de filas ya parseadas por el frontend. Entre 1 y 500 filas.
+      properties:
+        filas:
+          type: array
+          minItems: 1
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/ImportacionActivoFila'
+
+    ImportacionActivoFila:
+      type: object
+      description: >
+        Fila con los encabezados originales de la plantilla. Las columnas fuera
+        del mapeo se ignoran. El mapeo es: CB23 -> cb23; Tipo -> tipo;
+        Marca -> marca; Modelo -> modelo; "Número de serie" -> numeroSerie;
+        Sucursal -> sucursal; Estado -> estado; "Estado general" ->
+        estadoGeneral; Red -> nombreRed; "Correo responsable" se resuelve contra
+        usuarios activos.
+      properties:
+        fila:
+          type: integer
+          minimum: 1
+          description: Numero de fila del CSV; si se omite se usa la posicion en el arreglo
+          example: 2
+        CB23:
+          type: [string, 'null']
+          example: '100003'
+        Tipo:
+          type: [string, 'null']
+          description: Obligatorio; Laptop, Desktop, Monitor, Switch...
+          example: Laptop
+        Marca:
+          type: [string, 'null']
+          example: Dell
+        Modelo:
+          type: [string, 'null']
+          example: Inspiron 15
+        Número de serie:
+          type: [string, 'null']
+          example: CXBF1Z3
+        Sucursal:
+          type: [string, 'null']
+          example: CANCUN
+        Estado:
+          type: [string, 'null']
+          description: >
+            EN_USO (default si esta vacio), EN_ALMACEN, EN_MANTENIMIENTO o
+            DE_BAJA
+          example: EN_USO
+        Estado general:
+          type: [string, 'null']
+          description: Condicion fisica original (Bien, Regular...)
+          example: Bien
+        Red:
+          type: [string, 'null']
+          example: CUN-LT-01
+        Correo responsable:
+          type: [string, 'null']
+          description: >
+            Se resuelve por coincidencia exacta con un usuario activo; si falta
+            o no identifica a uno solo, se importa sin responsable y se agrega
+            una advertencia.
+          example: ernesto.marquez@horbismex.com
+
+    DatosFilaImportada:
+      type: object
+      required: [tipo, estado]
+      description: Datos normalizados de una fila valida (lo que se importaria)
+      properties:
+        tipo:
+          type: string
+          example: Laptop
+        cb23:
+          type: [string, 'null']
+          example: '100003'
+        marca:
+          type: [string, 'null']
+          example: Dell
+        modelo:
+          type: [string, 'null']
+          example: Inspiron 15
+        numeroSerie:
+          type: [string, 'null']
+          example: CXBF1Z3
+        sucursal:
+          type: [string, 'null']
+          example: CANCUN
+        estadoGeneral:
+          type: [string, 'null']
+          example: Bien
+        nombreRed:
+          type: [string, 'null']
+          example: CUN-LT-01
+        estado:
+          $ref: '#/components/schemas/EstadoActivo'
+        responsableId:
+          type: [string, 'null']
+          description: Usuario activo resuelto desde "Correo responsable"; null si no se pudo resolver
+          example: CT003
+
+    ResultadoFilaImportacion:
+      type: object
+      required: [fila, valido, errores, advertencias, datos]
+      properties:
+        fila:
+          type: integer
+          example: 2
+        valido:
+          type: boolean
+          example: true
+        errores:
+          type: array
+          items:
+            type: string
+          example: []
+        advertencias:
+          type: array
+          items:
+            type: string
+          example: []
+        datos:
+          description: Datos normalizados de la fila; null cuando la fila es invalida
+          oneOf:
+            - $ref: '#/components/schemas/DatosFilaImportada'
+            - type: 'null'
+
+    ResumenValidacionImportacion:
+      type: object
+      required: [total, validas, invalidas]
+      properties:
+        total:
+          type: integer
+          example: 2
+        validas:
+          type: integer
+          example: 1
+        invalidas:
+          type: integer
+          example: 1
+
+    RespuestaValidacionImportacion:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Validacion de importacion completada
+        errors:
+          type: array
+          items: {}
+          example: []
+        data:
+          type: object
+          required: [resumen, filas]
+          properties:
+            resumen:
+              $ref: '#/components/schemas/ResumenValidacionImportacion'
+            filas:
+              type: array
+              items:
+                $ref: '#/components/schemas/ResultadoFilaImportacion'
+
+    FilaConfirmacionImportacion:
+      type: object
+      required: [fila, creado, activoId, errores, advertencias]
+      properties:
+        fila:
+          type: integer
+          example: 2
+        creado:
+          type: boolean
+          example: true
+        activoId:
+          type: [integer, 'null']
+          description: Id del activo creado; null si la fila fue rechazada
+          example: 512
+        errores:
+          type: array
+          items:
+            type: string
+          example: []
+        advertencias:
+          type: array
+          items:
+            type: string
+          example: []
+
+    ResumenConfirmacionImportacion:
+      type: object
+      required: [total, creadas, rechazadas]
+      properties:
+        total:
+          type: integer
+          example: 2
+        creadas:
+          type: integer
+          example: 1
+        rechazadas:
+          type: integer
+          example: 1
+
+    RespuestaConfirmacionImportacion:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Importacion de activos completada
+        errors:
+          type: array
+          items: {}
+          example: []
+        data:
+          type: object
+          required: [resumen, filas]
+          properties:
+            resumen:
+              $ref: '#/components/schemas/ResumenConfirmacionImportacion'
+            filas:
+              type: array
+              items:
+                $ref: '#/components/schemas/FilaConfirmacionImportacion'
+
     Permiso:
       type: string
       enum:
         - incidencias:leer
+        - incidencias:crear
+        - incidencias:editar
+        - notificaciones:leer
+        - dashboard:leer
         - activos:leer
         - activos:crear
         - activos:editar
@@ -4687,6 +5557,62 @@ components:
               example: CXBF1Z3
             estado:
               $ref: '#/components/schemas/EstadoActivo'
+
+    DatosEdicionAsignacion:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        anioCompra:
+          type: [integer, 'null']
+          minimum: 0
+          example: 2024
+        numeroActivo:
+          type: [string, 'null']
+        nombreEquipo:
+          type: [string, 'null']
+          example: MKT-PC-01
+        bitlocker:
+          type: [string, 'null']
+        observacion:
+          type: [string, 'null']
+
+    RespuestaAsignacion:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Asignacion actualizada correctamente
+        errors:
+          type: array
+          items: {}
+        data:
+          $ref: '#/components/schemas/AsignacionLista'
+
+    RespuestaEliminacionAsignacion:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Asignacion eliminada correctamente
+        errors:
+          type: array
+          items: {}
+        data:
+          type: object
+          required: [id]
+          properties:
+            id:
+              type: integer
+              example: 4
 
     RespuestaAsignacionesPaginada:
       type: object

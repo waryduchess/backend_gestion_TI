@@ -1,11 +1,14 @@
 import { Router } from 'express';
 import { crearActivo, listarActivos, obtenerActivo, actualizarActivo, cambiarEstadoActivo, asignarActivo, eliminarActivo } from '../controllers/activo.controller';
+import { confirmarImportacionActivos, validarImportacionActivos } from '../controllers/importacion-activo.controller';
 import { verificarPermiso, verificarToken } from '../middlewares/auth.middleware';
 
 const router: Router = Router();
 
 router.get('/', verificarToken, verificarPermiso('activos:leer'), listarActivos);
 router.post('/', verificarToken, verificarPermiso('activos:crear'), crearActivo);
+router.post('/importaciones/validar', verificarToken, verificarPermiso('activos:crear'), validarImportacionActivos);
+router.post('/importaciones/confirmar', verificarToken, verificarPermiso('activos:crear'), confirmarImportacionActivos);
 router.get('/:id', verificarToken, verificarPermiso('activos:leer'), obtenerActivo);
 router.patch('/:id', verificarToken, verificarPermiso('activos:editar'), actualizarActivo);
 router.patch('/:id/estado', verificarToken, verificarPermiso('activos:estado'), cambiarEstadoActivo);

@@ -1,0 +1,36 @@
+meta {
+  name: Validar importacion sin filas
+  type: http
+  seq: 3
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+post {
+  url: {{baseUrl}}/api/activos/importaciones/validar
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "filas": []
+  }
+}
+
+assert {
+  res.status: eq 400
+}
+
+assert {
+  res.body.success: eq false
+}

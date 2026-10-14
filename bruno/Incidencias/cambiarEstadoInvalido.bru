@@ -1,0 +1,32 @@
+meta {
+  name: Cambiar estado invalido
+  type: http
+  seq: 15
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+patch {
+  url: {{baseUrl}}/api/incidencias/{{incidenciaCreadaId}}/estado
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "estado": "BOGUS"
+  }
+}
+
+assert {
+  res.status: eq 400
+}

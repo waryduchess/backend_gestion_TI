@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import {
+  cambiarEstadoIncidencia,
   crearIncidencia,
   listarIncidencias,
   obtenerIncidencia,
@@ -27,6 +28,13 @@ router.get(
   verificarToken,
   verificarPermiso('incidencias:leer'),
   obtenerIncidencia
+);
+
+router.patch(
+  '/:id/estado',
+  verificarToken,
+  verificarPermiso('incidencias:editar'),
+  cambiarEstadoIncidencia
 );
 
 export default router;

@@ -25,13 +25,25 @@ interface CambioEstadoIncidencia {
   fechaCambio: string;
 }
 
+interface RecordatorioLicencia {
+  notificacionId: number;
+  licenciaId: number;
+  software: string;
+  fechaVencimiento: string;
+  diasRestantes: number;
+  hitoDias: number;
+  creadaEn: string;
+}
+
 interface EventosServidor {
   'incidencias:nueva': (incidencia: IncidenciaNueva) => void;
   'incidencias:estado-cambiado': (cambio: CambioEstadoIncidencia) => void;
+  'licencias:por-vencer': (recordatorio: RecordatorioLicencia) => void;
 }
 
 interface DatosSocket {
   usuarioId: string;
+  puedeLeerIncidencias: boolean;
 }
 
 const SALA_INCIDENCIAS = 'incidencias';
@@ -124,16 +136,22 @@ export const inicializarSocketIo = (servidor: HttpServer): SocketIo => {
           !Array.isArray(usuario.rol.permisos) ||
           !usuario.rol.permisos.every(esPermiso)
         ) {
-          next(new Error('No tienes permiso para recibir eventos de incidencias'));
+          next(new Error('No tienes permiso para recibir notificaciones'));
           return;
         }
 
-        if (!usuario.rol.permisos.includes('incidencias:leer')) {
-          next(new Error('No tienes permiso para recibir eventos de incidencias'));
+        const puedeLeerIncidencias =
+          usuario.rol.permisos.includes('incidencias:leer') &&
+          usuario.rol.permisos.includes('notificaciones:leer');
+        const puedeLeerNotificaciones =
+          usuario.rol.permisos.includes('notificaciones:leer');
+        if (!puedeLeerIncidencias && !puedeLeerNotificaciones) {
+          next(new Error('No tienes permiso para recibir notificaciones'));
           return;
         }
 
         socket.data.usuarioId = usuarioId;
+        socket.data.puedeLeerIncidencias = puedeLeerIncidencias;
         next();
       })
       .catch((error: unknown) => {
@@ -144,7 +162,9 @@ export const inicializarSocketIo = (servidor: HttpServer): SocketIo => {
 
   io.on('connection', (socket) => {
     socket.join(salaUsuario(socket.data.usuarioId));
-    socket.join(SALA_INCIDENCIAS);
+    if (socket.data.puedeLeerIncidencias) {
+      socket.join(SALA_INCIDENCIAS);
+    }
   });
 
   socketIo = io;
@@ -173,4 +193,13 @@ export const emitirCambioEstadoIncidencia = (
   obtenerSocketIo()
     .to(SALA_INCIDENCIAS)
     .emit('incidencias:estado-cambiado', cambio);
+};
+
+export const emitirRecordatorioLicencia = (
+  usuarioId: string,
+  recordatorio: RecordatorioLicencia
+): void => {
+  obtenerSocketIo()
+    .to(salaUsuario(usuarioId))
+    .emit('licencias:por-vencer', recordatorio);
 };

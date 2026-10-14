@@ -1,0 +1,27 @@
+meta {
+  name: Importacion requiere autenticacion
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{baseUrl}}/api/activos/importaciones/validar
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "filas": [
+      { "Tipo": "No debe importarse" }
+    ]
+  }
+}
+
+assert {
+  res.status: eq 401
+}

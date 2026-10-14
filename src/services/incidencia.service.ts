@@ -1,5 +1,5 @@
 import { prisma } from '../config/prisma';
-import { Prisma } from '../generated/prisma/client';
+import { EstadoIncidencia, Prisma } from '../generated/prisma/client';
 import { PERMISOS_DISPONIBLES } from '../models/rol.model';
 import {
   DatosCreacionIncidencia,
@@ -9,7 +9,7 @@ import {
   ParametrosListadoIncidencias,
 } from '../models/incidencia.model';
 import { HttpError } from '../middlewares/error.middleware';
-import { emitirIncidenciaNueva } from '../config/socket';
+import { emitirCambioEstadoIncidencia, emitirIncidenciaNueva } from '../config/socket';
 
 interface ResultadoListado {
   incidencias: IncidenciaLista[];
@@ -36,6 +36,7 @@ const mapearIncidenciaLista = (fila: IncidenciaConResumen): IncidenciaLista => (
   tipoRequerimiento: fila.tipoRequerimiento,
   fechaNotificacion: fila.fechaNotificacion,
   fechaResolucion: fila.fechaResolucion,
+  orden: fila.orden,
   solicitante: fila.solicitante,
   asignadoA: fila.asignadoA,
   departamento: fila.departamento,
@@ -49,7 +50,8 @@ const tienePermisoParaLeerIncidencias = (permisos: Prisma.JsonValue): boolean =>
       typeof permiso === 'string' &&
       PERMISOS_DISPONIBLES.some((permitido) => permitido === permiso)
   ) &&
-  permisos.includes('incidencias:leer');
+  permisos.includes('incidencias:leer') &&
+  permisos.includes('notificaciones:leer');
 
 export const crear = async (
   datos: DatosCreacionIncidencia
@@ -88,6 +90,12 @@ export const crear = async (
     .map((usuario) => usuario.id);
 
   const { fila, notificaciones } = await prisma.$transaction(async (tx) => {
+    const agregado = await tx.incidencia.aggregate({
+      where: { estado: EstadoIncidencia.NUEVO },
+      _max: { orden: true },
+    });
+    const orden = (agregado._max.orden ?? -1) + 1;
+
     const incidenciaCreada = await tx.incidencia.create({
       data: {
         titulo: datos.titulo,
@@ -95,6 +103,7 @@ export const crear = async (
         tipoRequerimiento: datos.tipoRequerimiento,
         solicitanteId: datos.solicitanteId,
         departamentoId: datos.departamentoId,
+        orden,
       },
       include: LISTADO_INCIDENCIAS,
     });
@@ -196,4 +205,115 @@ export const listar = async (
       totalPages: Math.max(1, Math.ceil(total / limit)),
     },
   };
+};
+
+export const cambiarEstado = async (
+  id: number,
+  estado: EstadoIncidencia,
+  orden?: number
+): Promise<IncidenciaLista> => {
+  const actual = await prisma.incidencia.findUnique({
+    where: { id },
+    select: { id: true, titulo: true, estado: true },
+  });
+
+  if (!actual) {
+    throw new HttpError(404, 'Incidencia no encontrada', [
+      { campo: 'id', valor: id },
+    ]);
+  }
+
+  const cambiaEstado = actual.estado !== estado;
+
+  if (!cambiaEstado && orden === undefined) {
+    const fila = await prisma.incidencia.findUnique({
+      where: { id },
+      include: LISTADO_INCIDENCIAS,
+    });
+
+    if (!fila) {
+      throw new HttpError(404, 'Incidencia no encontrada', [
+        { campo: 'id', valor: id },
+      ]);
+    }
+
+    return mapearIncidenciaLista(fila);
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const destinoActual = await tx.incidencia.findMany({
+        where: { estado, id: { not: id } },
+        orderBy: [{ orden: 'asc' }, { id: 'asc' }],
+        select: { id: true },
+      });
+
+      const idsDestino = destinoActual.map((registro) => registro.id);
+      const posicion =
+        orden === undefined
+          ? idsDestino.length
+          : Math.min(Math.max(orden, 0), idsDestino.length);
+      idsDestino.splice(posicion, 0, id);
+
+      for (let indice = 0; indice < idsDestino.length; indice += 1) {
+        await tx.incidencia.update({
+          where: { id: idsDestino[indice] },
+          data: { orden: indice },
+        });
+      }
+
+      if (cambiaEstado) {
+        const origenActual = await tx.incidencia.findMany({
+          where: { estado: actual.estado, id: { not: id } },
+          orderBy: [{ orden: 'asc' }, { id: 'asc' }],
+          select: { id: true },
+        });
+
+        for (let indice = 0; indice < origenActual.length; indice += 1) {
+          await tx.incidencia.update({
+            where: { id: origenActual[indice].id },
+            data: { orden: indice },
+          });
+        }
+
+        await tx.incidencia.update({
+          where: { id },
+          data: {
+            estado,
+            fechaResolucion: estado === 'COMPLETADO' ? new Date() : null,
+          },
+        });
+      }
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+      throw new HttpError(404, 'Incidencia no encontrada', [
+        { campo: 'id', valor: id },
+      ]);
+    }
+    throw error;
+  }
+
+  const fila = await prisma.incidencia.findUnique({
+    where: { id },
+    include: LISTADO_INCIDENCIAS,
+  });
+
+  if (!fila) {
+    throw new HttpError(404, 'Incidencia no encontrada', [
+      { campo: 'id', valor: id },
+    ]);
+  }
+
+  if (cambiaEstado) {
+    emitirCambioEstadoIncidencia({
+      id: fila.id,
+      titulo: fila.titulo,
+      estadoAnterior: actual.estado,
+      estado: fila.estado,
+      fechaCambio: new Date().toISOString(),
+    });
+  }
+
+  return mapearIncidenciaLista(fila);
 };

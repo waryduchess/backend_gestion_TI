@@ -1,0 +1,89 @@
+meta {
+  name: Validar importacion de activos
+  type: http
+  seq: 1
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+  const marca = Date.now();
+  bru.setVar("impValCb23a", "IMPA" + marca);
+  bru.setVar("impValSeriea", "IMPSNA" + marca);
+  bru.setVar("impValCb23b", "IMPB" + marca);
+  bru.setVar("impValSerieb", "IMPSNB" + marca);
+}
+
+post {
+  url: {{baseUrl}}/api/activos/importaciones/validar
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "filas": [
+      {
+        "fila": 10,
+        "CB23": "{{impValCb23a}}",
+        "Tipo": "Laptop",
+        "Marca": "Dell",
+        "Modelo": "Importada",
+        "Número de serie": "{{impValSeriea}}",
+        "Sucursal": "CANCUN",
+        "Estado": "EN_USO",
+        "Estado general": "Bien",
+        "Red": "IMP-CUN-01",
+        "Correo responsable": "no-existe@example.invalid",
+        "Columna desconocida": "se ignora"
+      },
+      {
+        "CB23": "{{impValCb23b}}",
+        "Tipo": "Desktop",
+        "Número de serie": "{{impValSerieb}}"
+      }
+    ]
+  }
+}
+
+assert {
+  res.status: eq 200
+}
+
+assert {
+  res.body.success: eq true
+}
+
+assert {
+  res.body.data.resumen.total: eq 2
+}
+
+assert {
+  res.body.data.resumen.validas: eq 2
+}
+
+assert {
+  res.body.data.resumen.invalidas: eq 0
+}
+
+assert {
+  res.body.data.filas[0].fila: eq 10
+}
+
+assert {
+  res.body.data.filas[1].fila: eq 2
+}
+
+assert {
+  res.body.data.filas[0].advertencias: isArray
+}
+
+assert {
+  res.body.data.filas[0].datos.estado: eq EN_USO
+}
