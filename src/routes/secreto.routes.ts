@@ -8,6 +8,10 @@ import {
   obtenerPasswordSecretoController,
   obtenerSecretoController,
 } from '../controllers/secreto.controller';
+import {
+  confirmarImportacionSecretosController,
+  validarImportacionSecretosController,
+} from '../controllers/importacion-secreto.controller';
 import { verificarPermiso, verificarToken } from '../middlewares/auth.middleware';
 
 const router: Router = Router();
@@ -18,6 +22,16 @@ router.post(
   '/',
   verificarPermiso('secretos:administrar'),
   crearSecretoController
+);
+router.post(
+  '/importaciones/validar',
+  verificarPermiso('secretos:importar'),
+  validarImportacionSecretosController
+);
+router.post(
+  '/importaciones/confirmar',
+  verificarPermiso('secretos:importar'),
+  confirmarImportacionSecretosController
 );
 router.get(
   '/:id/password',

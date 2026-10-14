@@ -1,0 +1,72 @@
+meta {
+  name: Validar importacion de secretos con errores
+  type: http
+  seq: 2
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+  const marca = Date.now();
+  bru.setVar("secErrValido", "Secreto Err Valido " + marca);
+  bru.setVar("secErrPass", "Bruno-Err-" + marca + "!");
+}
+
+post {
+  url: {{baseUrl}}/api/secretos/importaciones/validar
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "filas": [
+      { "fila": 20, "Nombre": "Secreto sin contrasena {{secErrValido}}", "Tipo": "VPN" },
+      { "fila": 21, "Contraseña": "{{secErrPass}}" },
+      { "fila": 22, "Nombre": "{{secErrValido}}", "Tipo": "Servicio", "Usuario": "operador", "Contraseña": "{{secErrPass}}" },
+      { "fila": 23, "Nombre": "{{secErrValido}}", "Tipo": "Servicio", "Usuario": "operador", "Contraseña": "{{secErrPass}}" }
+    ]
+  }
+}
+
+assert {
+  res.status: eq 200
+}
+
+assert {
+  res.body.success: eq true
+}
+
+assert {
+  res.body.data.resumen.total: eq 4
+}
+
+assert {
+  res.body.data.resumen.validas: eq 1
+}
+
+assert {
+  res.body.data.resumen.invalidas: eq 3
+}
+
+assert {
+  res.body.data.filas[0].valido: eq false
+}
+
+assert {
+  res.body.data.filas[1].valido: eq false
+}
+
+assert {
+  res.body.data.filas[2].valido: eq true
+}
+
+assert {
+  res.body.data.filas[3].valido: eq false
+}

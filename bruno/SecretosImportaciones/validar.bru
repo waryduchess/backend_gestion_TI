@@ -1,0 +1,96 @@
+meta {
+  name: Validar importacion de secretos
+  type: http
+  seq: 1
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+  const marca = Date.now();
+  bru.setVar("secValNombreA", "Secreto Import A " + marca);
+  bru.setVar("secValPassA", "Bruno-Imp-A-" + marca + "!");
+  bru.setVar("secValNombreB", "Secreto Import B " + marca);
+}
+
+post {
+  url: {{baseUrl}}/api/secretos/importaciones/validar
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "filas": [
+      {
+        "fila": 10,
+        "Nombre": "{{secValNombreA}}",
+        "Tipo": "VPN",
+        "Usuario": "vpn.operador",
+        "Contraseña": "{{secValPassA}}",
+        "Comentario": "Importado de prueba",
+        "Columna desconocida": "se ignora"
+      },
+      {
+        "fila": 11,
+        "Nombre": "{{secValNombreB}}",
+        "Tipo": "Servicio"
+      }
+    ]
+  }
+}
+
+script:post-response {
+  if (res.status !== 200) return;
+  if (JSON.stringify(res.body).includes(bru.getVar("secValPassA"))) throw new Error("La validacion expuso la contrasena");
+}
+
+assert {
+  res.status: eq 200
+}
+
+assert {
+  res.body.success: eq true
+}
+
+assert {
+  res.body.data.resumen.total: eq 2
+}
+
+assert {
+  res.body.data.resumen.validas: eq 1
+}
+
+assert {
+  res.body.data.resumen.invalidas: eq 1
+}
+
+assert {
+  res.body.data.filas[0].fila: eq 10
+}
+
+assert {
+  res.body.data.filas[1].fila: eq 11
+}
+
+assert {
+  res.body.data.filas[0].valido: eq true
+}
+
+assert {
+  res.body.data.filas[0].datos.usuario: eq vpn.operador
+}
+
+assert {
+  res.body.data.filas[1].valido: eq false
+}
+
+assert {
+  res.body.data.filas[1].errores: isArray
+}
