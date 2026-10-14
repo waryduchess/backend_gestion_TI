@@ -1,0 +1,71 @@
+meta {
+  name: Confirmar importacion de secretos duplicada en base
+  type: http
+  seq: 6
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+post {
+  url: {{baseUrl}}/api/secretos/importaciones/confirmar
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "filas": [
+      {
+        "fila": 30,
+        "Nombre": "{{secConNombreA}}",
+        "Tipo": "VPN",
+        "Usuario": "vpn.operador",
+        "Contraseña": "{{secConPassA}}"
+      },
+      {
+        "fila": 31,
+        "Nombre": "{{secConNombreB}}",
+        "Tipo": "Servicio",
+        "Usuario": "operador",
+        "Contraseña": "{{secConPassB}}"
+      }
+    ]
+  }
+}
+
+assert {
+  res.status: eq 200
+}
+
+assert {
+  res.body.success: eq true
+}
+
+assert {
+  res.body.data.resumen.total: eq 2
+}
+
+assert {
+  res.body.data.resumen.creadas: eq 0
+}
+
+assert {
+  res.body.data.resumen.rechazadas: eq 2
+}
+
+assert {
+  res.body.data.filas[0].creado: eq false
+}
+
+assert {
+  res.body.data.filas[0].errores: isArray
+}

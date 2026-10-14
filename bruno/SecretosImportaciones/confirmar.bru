@@ -1,0 +1,84 @@
+meta {
+  name: Confirmar importacion de secretos
+  type: http
+  seq: 5
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+  const lote = Date.now();
+  bru.setVar("secConNombreA", "Secreto Con A " + lote);
+  bru.setVar("secConNombreB", "Secreto Con B " + lote);
+  bru.setVar("secConPassA", "Bruno-Con-A-" + lote + "!");
+  bru.setVar("secConPassB", "Bruno-Con-B-" + lote + "!");
+}
+
+post {
+  url: {{baseUrl}}/api/secretos/importaciones/confirmar
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "filas": [
+      {
+        "fila": 30,
+        "Nombre": "{{secConNombreA}}",
+        "Tipo": "VPN",
+        "Usuario": "vpn.operador",
+        "Contraseña": "{{secConPassA}}",
+        "Comentario": "Importado A"
+      },
+      {
+        "fila": 31,
+        "Nombre": "{{secConNombreB}}",
+        "Tipo": "Servicio",
+        "Usuario": "operador",
+        "Contraseña": "{{secConPassB}}",
+        "Comentario": "Importado B"
+      }
+    ]
+  }
+}
+
+script:post-response {
+  if (res.status !== 200) return;
+  if (JSON.stringify(res.body).includes(bru.getVar("secConPassA"))) throw new Error("La confirmacion expuso la contrasena");
+  if (JSON.stringify(res.body).includes(bru.getVar("secConPassB"))) throw new Error("La confirmacion expuso la contrasena");
+}
+
+assert {
+  res.status: eq 200
+}
+
+assert {
+  res.body.success: eq true
+}
+
+assert {
+  res.body.data.resumen.total: eq 2
+}
+
+assert {
+  res.body.data.resumen.creadas: eq 2
+}
+
+assert {
+  res.body.data.resumen.rechazadas: eq 0
+}
+
+assert {
+  res.body.data.filas[0].creado: eq true
+}
+
+assert {
+  res.body.data.filas[1].creado: eq true
+}
