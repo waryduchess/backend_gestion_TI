@@ -1,0 +1,25 @@
+meta {
+  name: Permisos de usuario requieren autenticacion
+  type: http
+  seq: 34
+}
+
+patch {
+  url: {{baseUrl}}/api/usuarios/CT003/permisos
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "agregar": ["dashboard:leer"]
+  }
+}
+
+assert {
+  res.status: eq 401
+}

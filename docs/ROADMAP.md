@@ -14,7 +14,7 @@ conviene revisarlo antes de cada iteracion y actualizarlo al cerrar cada modulo.
 | Activos (`/api/activos`)           | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `PATCH /:id/estado`, `POST /:id/asignaciones`, `DELETE /:id` | Si                     | 41 requests        |
 | Importaciones (`/api/activos/importaciones`) | `POST /validar`, `POST /confirmar`                                                                          | Si                     | 7 requests         |
 | Asignaciones (`/api/asignaciones`) | `GET /`, `PATCH /:id`, `DELETE /:id`, `POST /:id/devolucion`                                                             | Si                     | 21 requests        |
-| Usuarios (`/api/usuarios`)         | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `PATCH /:id/password`, `DELETE /:id`                           | Si                     | Pruebas protegidas |
+| Usuarios (`/api/usuarios`)         | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `PATCH /:id/rol`, `PATCH /:id/permisos`, `PATCH /:id/password`, `DELETE /:id`                           | Si                     | 34 requests        |
 | Documentacion                        | `GET /api/docs`, `GET /api/docs/openapi.yaml`                                                                       | -                      | -                  |
 | Catalogos (`/api/catalogos`)       | `GET /` + CRUD `/api/departamentos`, `/api/ubicaciones`, `/api/puestos`, `/api/tipos-usuario`                 | Si                     | CRUD Bruno         |
 | RBAC / roles                         | CRUD`/api/roles`, asignar rol a usuario                                                                               | Si                     | 21 requests        |
@@ -28,7 +28,9 @@ conviene revisarlo antes de cada iteracion y actualizarlo al cerrar cada modulo.
 | Recordatorios                      | sin modelo ni endpoints                                                                                                 | No                     | No                 |
 | Sucursal (normalizacion)           | sin catalogo; `Activo.sucursal` es texto libre                                                                          | No                     | No                 |
 
-Regresion mas reciente tras el modulo de auditoria (fase 1): `npx tsc --noEmit` limpio, OpenAPI valido y suite Bruno **239 requests (237 OK, 2 fallos preexistentes), 549/553 assertions**. Los 2 fallos siguen siendo `Activos/buscarPorSerie` y su cascada `Activos/cambiarEstadoAsignacionActiva`, por drift de datos de `AF00010` (ajenos a este cambio). Los 11 requests nuevos (`Auditoria/` 10 + `Roles/denegarAuditoria`) pasan en verde. Se endurecio `Secretos/listar` (consulta por `q=<nombre>` en vez de depender de la pagina 1) por la acumulacion de datos de prueba.
+Regresion mas reciente tras los permisos por usuario: `npx tsc --noEmit` limpio, OpenAPI valido y suite Bruno **246 requests (244 OK, 2 fallos preexistentes), 563/567 assertions**. Los 2 fallos siguen siendo `Activos/buscarPorSerie` y su cascada `Activos/cambiarEstadoAsignacionActiva`, por drift de datos de `AF00010` (ajenos a este cambio). Los 7 requests nuevos (`Usuarios/permisos*` 6 + `Roles/denegarAsignarPermisos`) pasan en verde; verificado ademas con curl end-to-end (conceder permiso habilita la ruta, revocarlo la bloquea).
+
+Regresion previa tras el modulo de auditoria (fase 1): `npx tsc --noEmit` limpio, OpenAPI valido y suite Bruno **239 requests (237 OK, 2 fallos preexistentes), 549/553 assertions**. Los 2 fallos siguen siendo `Activos/buscarPorSerie` y su cascada `Activos/cambiarEstadoAsignacionActiva`, por drift de datos de `AF00010` (ajenos a este cambio). Los 11 requests nuevos (`Auditoria/` 10 + `Roles/denegarAuditoria`) pasan en verde. Se endurecio `Secretos/listar` (consulta por `q=<nombre>` en vez de depender de la pagina 1) por la acumulacion de datos de prueba.
 
 Regresion previa tras la importacion masiva de secretos: `npx tsc --noEmit` limpio, OpenAPI valido y suite Bruno **228 requests (226 OK, 2 fallos preexistentes), 521/525 assertions**. Los 2 fallos siguen siendo `Activos/buscarPorSerie` y su cascada `Activos/cambiarEstadoAsignacionActiva`, por drift de datos de `AF00010` (ajenos a este cambio). Los 8 requests nuevos (`SecretosImportaciones/` 7 + `Roles/denegarImportarSecretos`) pasan en verde.
 
@@ -97,7 +99,7 @@ prueba controlada.
 - [X] `PATCH /api/usuarios/:id/rol` para asignar o quitar un rol; solo roles con `roles:administrar`
 - [X] Seed crea/reactiva el rol Administrador, le asigna todos los permisos y lo asigna al usuario `ADMIN`
 - [X] `verificarToken` se aplica a todo `/api/usuarios`; cada endpoint valida ademas `usuarios:administrar`, excepto asignacion de rol, que requiere `roles:administrar`
-- [ ] **Permisos por usuario (overrides):** hoy SOLO existen permisos por rol; para agregar o quitar permisos a un usuario individual se editan los permisos de su rol (`PATCH /api/roles/:id`, afecta a todos los usuarios con ese rol) o se le cambia el rol (`PATCH /api/usuarios/:id/rol`). No hay endpoints de permisos por usuario. Definir modelo (p.ej. `permisosExtra` y `permisosRevocados` en `Usuario`, aplicados por el middleware) o decidir explicitamente que se maneje solo por roles.
+- [X] **Permisos por usuario (overrides):** el RBAC sigue siendo por rol, pero ahora se puede dar o quitar permisos a un usuario individual con `PATCH /api/usuarios/:id/permisos` (permiso `roles:administrar`). Body `{ agregar?: Permiso[], quitar?: Permiso[] }`; `agregar` suma a `Usuario.permisosExtra` y `quitar` a `Usuario.permisosRevocados` (agregar saca de revocados y quitar saca de extra). El middleware calcula los **permisos efectivos** = `(rol + extra) - revocados`. La respuesta devuelve `rol`, `permisosExtra`, `permisosRevocados` y `permisosEfectivos`. Migracion `20261014140000_usuario_permisos_override`.
 
 Permisos iniciales: `incidencias:leer`, `notificaciones:leer`,
 `activos:leer`, `activos:crear`,
@@ -250,7 +252,8 @@ Vista unica y filtrable para responder "quien hizo que, cuando y sobre que".
 - [ ] **Fase 2 - ACTIVOS + ASIGNACIONES**: instrumentar alta, edicion, cambio de
   estado, baja logica, asignar y devolver.
 - [ ] **Fase 3 - USUARIOS + ROLES + CATALOGOS**: instrumentar alta, edicion, baja
-  logica, asignar rol y CRUD de catalogos.
+  logica, asignar rol y CRUD de catalogos. (El endpoint de permisos por usuario
+  `PATCH /api/usuarios/:id/permisos` ya registra auditoria `USUARIOS/ACTUALIZAR`.)
 - [ ] **Fase 4 - LICENCIAS + INCIDENCIAS**: instrumentar alta/edicion/baja de
   licencias y alta/edicion/cambio de estado de incidencias.
 - [ ] **Fase 5 - NOTIFICACIONES + MANTENIMIENTO**: instrumentar marcar leida y

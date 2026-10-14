@@ -1,0 +1,32 @@
+meta {
+  name: Denegar asignar permisos sin permiso
+  type: http
+  seq: 18
+}
+
+patch {
+  url: {{baseUrl}}/api/usuarios/{{usuarioRbacId}}/permisos
+  body: json
+  auth: none
+}
+
+script:pre-request {
+  await bru.runRequest("Roles/loginUsuarioPrueba");
+  const token = bru.getVar("tokenUsuarioRbac");
+  if (typeof token !== "string" || token === "") throw new Error("No fue posible iniciar sesion con el rol limitado");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "agregar": ["dashboard:leer"]
+  }
+}
+
+assert {
+  res.status: eq 403
+}

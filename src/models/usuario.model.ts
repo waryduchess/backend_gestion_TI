@@ -1,4 +1,5 @@
 import { MetadatosPaginacion } from './comun.model';
+import { Permiso } from './rol.model';
 
 export interface UsuarioLista {
   id: string;
@@ -12,6 +13,8 @@ export interface UsuarioLista {
   puesto: CatalogoResumen | null;
   tipoUsuario: CatalogoResumen | null;
   rol: RolResumen | null;
+  permisosExtra: Permiso[];
+  permisosRevocados: Permiso[];
 }
 
 export interface UsuarioDetalle {
@@ -26,6 +29,28 @@ export interface UsuarioDetalle {
   puesto: CatalogoResumen | null;
   tipoUsuario: CatalogoResumen | null;
   rol: RolResumen | null;
+  permisosExtra: Permiso[];
+  permisosRevocados: Permiso[];
+}
+
+export interface PermisosRolResumen {
+  id: number;
+  nombre: string;
+  permisos: Permiso[];
+}
+
+export interface PermisosUsuario {
+  id: string;
+  nombre: string;
+  rol: PermisosRolResumen | null;
+  permisosExtra: Permiso[];
+  permisosRevocados: Permiso[];
+  permisosEfectivos: Permiso[];
+}
+
+export interface DatosPermisosUsuario {
+  agregar: Permiso[];
+  quitar: Permiso[];
 }
 
 export interface CatalogoResumen {

@@ -3,6 +3,7 @@ import {
   cambiarPasswordUsuario,
   crearUsuario,
   actualizarUsuario,
+  actualizarPermisosUsuario,
   asignarRolUsuario,
   eliminarUsuario,
   listarUsuarios,
@@ -21,6 +22,11 @@ router.patch(
   '/:id/rol',
   verificarPermiso('roles:administrar'),
   asignarRolUsuario
+);
+router.patch(
+  '/:id/permisos',
+  verificarPermiso('roles:administrar'),
+  actualizarPermisosUsuario
 );
 router.patch(
   '/:id/password',

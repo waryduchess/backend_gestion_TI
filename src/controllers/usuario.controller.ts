@@ -6,6 +6,7 @@ import {
   cambiarPassword,
   crear,
   actualizar,
+  actualizarPermisos,
   asignarRol,
   eliminar,
   listar,
@@ -14,9 +15,12 @@ import {
 import {
   DatosCreacionUsuario,
   DatosEdicionUsuario,
+  DatosPermisosUsuario,
   ParametrosListadoUsuarios,
   UsuarioDetalle,
 } from '../models/usuario.model';
+import { PERMISOS_DISPONIBLES, Permiso } from '../models/rol.model';
+import { esPermisoValido } from '../utils/permisos';
 import { RespuestaPaginada } from '../models/comun.model';
 
 const LIMITE_MAXIMO = 100;
@@ -364,6 +368,76 @@ export const eliminarUsuario = asyncHandler(
       message: 'Usuario dado de baja correctamente',
       errors: [],
       data: usuario,
+    });
+  }
+);
+
+const leerListaPermisos = (
+  cuerpo: Record<string, unknown>,
+  campo: string
+): Permiso[] => {
+  if (!(campo in cuerpo)) return [];
+  const valor = cuerpo[campo];
+  if (!Array.isArray(valor)) {
+    throw new HttpError(
+      400,
+      `El campo "${campo}" debe ser un arreglo de permisos`,
+      [{ campo, valor: null }]
+    );
+  }
+  const invalidos = valor.filter((permiso) => !esPermisoValido(permiso));
+  if (invalidos.length > 0) {
+    throw new HttpError(
+      400,
+      `El campo "${campo}" contiene permisos invalidos`,
+      [{ campo, valor: invalidos, permitidos: PERMISOS_DISPONIBLES }]
+    );
+  }
+  return [...new Set(valor as Permiso[])];
+};
+
+export const actualizarPermisosUsuario = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const textoId = comoTexto(req.params.id);
+    if (textoId === '') {
+      throw new HttpError(400, 'El parametro "id" es obligatorio', [
+        { campo: 'id', valor: textoId },
+      ]);
+    }
+
+    const cuerpo = (req.body ?? {}) as Record<string, unknown>;
+    const permitidos = new Set(['agregar', 'quitar']);
+    const desconocidos = Object.keys(cuerpo).filter(
+      (campo) => !permitidos.has(campo)
+    );
+    if (desconocidos.length > 0) {
+      throw new HttpError(400, 'El cuerpo contiene campos no permitidos', [
+        { campo: 'campos', valor: desconocidos },
+      ]);
+    }
+
+    const agregar = leerListaPermisos(cuerpo, 'agregar');
+    const quitar = leerListaPermisos(cuerpo, 'quitar');
+    if (agregar.length === 0 && quitar.length === 0) {
+      throw new HttpError(
+        400,
+        'Debe indicar al menos un permiso en "agregar" o "quitar"',
+        []
+      );
+    }
+
+    if (!req.usuario) {
+      throw new HttpError(401, 'Autenticacion requerida');
+    }
+
+    const datos: DatosPermisosUsuario = { agregar, quitar };
+    const data = await actualizarPermisos(textoId, datos, req.usuario.id);
+
+    res.status(200).json({
+      success: true,
+      message: 'Permisos del usuario actualizados correctamente',
+      errors: [],
+      data,
     });
   }
 );

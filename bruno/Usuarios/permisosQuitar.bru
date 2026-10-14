@@ -1,0 +1,41 @@
+meta {
+  name: Revocar permiso a un usuario
+  type: http
+  seq: 30
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+  const usuarioId = bru.getVar("permisosUsuarioId");
+  if (typeof usuarioId !== "string" || usuarioId === "") throw new Error("No hay usuario para revocar permisos");
+}
+
+patch {
+  url: {{baseUrl}}/api/usuarios/{{permisosUsuarioId}}/permisos
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "quitar": ["dashboard:leer"]
+  }
+}
+
+script:post-response {
+  if (res.status !== 200) return;
+  if (!res.body.data.permisosRevocados.includes("dashboard:leer")) throw new Error("El permiso no quedo en permisosRevocados");
+  if (res.body.data.permisosEfectivos.includes("dashboard:leer")) throw new Error("El permiso revocado sigue en permisosEfectivos");
+}
+
+assert {
+  res.status: eq 200
+  res.body.success: eq true
+}

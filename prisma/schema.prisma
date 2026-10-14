@@ -119,6 +119,9 @@ model Usuario {
 
   passwordHash  String? @db.VarChar(100) // bcrypt; null = usuario sin acceso al sistema
 
+  permisosExtra     Json? // Permisos adicionales sobre los del rol (overrides)
+  permisosRevocados Json? // Permisos del rol revocados solo para este usuario
+
   departamentoId Int?
   ubicacionId    Int?
   puestoId       Int?

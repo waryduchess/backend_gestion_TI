@@ -2,7 +2,11 @@ import { NextFunction, Request, Response } from 'express';
 import { prisma } from '../config/prisma';
 import { HttpError } from './error.middleware';
 import { asyncHandler } from '../utils/asyncHandler';
-import { PERMISOS_DISPONIBLES, Permiso } from '../models/rol.model';
+import { Permiso } from '../models/rol.model';
+import {
+  calcularPermisosEfectivos,
+  normalizarPermisos,
+} from '../utils/permisos';
 import { TokenPayload, verificarToken as verificarJwt } from '../utils/jwt';
 
 export const verificarToken = (
@@ -47,6 +51,8 @@ export const verificarPermiso = (...permisosRequeridos: Permiso[]) =>
         where: { id: usuarioAutenticado.id },
         select: {
           activo: true,
+          permisosExtra: true,
+          permisosRevocados: true,
           rol: {
             select: {
               activo: true,
@@ -63,20 +69,24 @@ export const verificarPermiso = (...permisosRequeridos: Permiso[]) =>
         throw new HttpError(403, 'El usuario no tiene un rol activo');
       }
 
-      if (
-        !Array.isArray(usuario.rol.permisos) ||
-        !usuario.rol.permisos.every(
-          (permiso): boolean =>
-            typeof permiso === 'string' &&
-            PERMISOS_DISPONIBLES.includes(permiso as Permiso)
-        )
-      ) {
-        throw new Error(
-          `El rol del usuario ${usuarioAutenticado.id} tiene permisos invalidos`
-        );
-      }
+      const permisosRol = normalizarPermisos(
+        usuario.rol.permisos,
+        `El rol del usuario ${usuarioAutenticado.id}`
+      );
+      const permisosExtra = normalizarPermisos(
+        usuario.permisosExtra,
+        `El usuario ${usuarioAutenticado.id} (permisosExtra)`
+      );
+      const permisosRevocados = normalizarPermisos(
+        usuario.permisosRevocados,
+        `El usuario ${usuarioAutenticado.id} (permisosRevocados)`
+      );
 
-      const permisosUsuario = usuario.rol.permisos;
+      const permisosUsuario = calcularPermisosEfectivos(
+        permisosRol,
+        permisosExtra,
+        permisosRevocados
+      );
       const faltantes = permisosRequeridos.filter(
         (permiso) => !permisosUsuario.includes(permiso)
       );

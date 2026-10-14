@@ -5,10 +5,16 @@ import { HttpError } from '../middlewares/error.middleware';
 import {
   DatosCreacionUsuario,
   DatosEdicionUsuario,
+  DatosPermisosUsuario,
   ParametrosListadoUsuarios,
+  PermisosRolResumen,
+  PermisosUsuario,
   ResultadoListadoUsuarios,
   UsuarioDetalle,
 } from '../models/usuario.model';
+import { Permiso } from '../models/rol.model';
+import { calcularPermisosEfectivos, normalizarPermisos } from '../utils/permisos';
+import { registrarAuditoria } from './auditoria.service';
 
 const ROUNDS_BCRYPT = 10;
 
@@ -38,7 +44,77 @@ const mapear = (fila: UsuarioConCatalogos): UsuarioDetalle => ({
   puesto: fila.puesto,
   tipoUsuario: fila.tipoUsuario,
   rol: fila.rol,
+  permisosExtra: normalizarPermisos(
+    fila.permisosExtra,
+    `El usuario ${fila.id} (permisosExtra)`
+  ),
+  permisosRevocados: normalizarPermisos(
+    fila.permisosRevocados,
+    `El usuario ${fila.id} (permisosRevocados)`
+  ),
 });
+
+const SELECT_PERMISOS = {
+  id: true,
+  nombre: true,
+  permisosExtra: true,
+  permisosRevocados: true,
+  rol: {
+    select: {
+      id: true,
+      nombre: true,
+      permisos: true,
+    },
+  },
+} as const;
+
+type FilaPermisos = Prisma.UsuarioGetPayload<{
+  select: typeof SELECT_PERMISOS;
+}>;
+
+const construirPermisosUsuario = (fila: FilaPermisos): PermisosUsuario => {
+  const permisosExtra = normalizarPermisos(
+    fila.permisosExtra,
+    `El usuario ${fila.id} (permisosExtra)`
+  );
+  const permisosRevocados = normalizarPermisos(
+    fila.permisosRevocados,
+    `El usuario ${fila.id} (permisosRevocados)`
+  );
+
+  let rol: PermisosRolResumen | null = null;
+  let permisosEfectivos: Permiso[] = calcularPermisosEfectivos(
+    [],
+    permisosExtra,
+    permisosRevocados
+  );
+
+  if (fila.rol) {
+    const permisosRol = normalizarPermisos(
+      fila.rol.permisos,
+      `El rol ${fila.rol.id}`
+    );
+    rol = {
+      id: fila.rol.id,
+      nombre: fila.rol.nombre,
+      permisos: permisosRol,
+    };
+    permisosEfectivos = calcularPermisosEfectivos(
+      permisosRol,
+      permisosExtra,
+      permisosRevocados
+    );
+  }
+
+  return {
+    id: fila.id,
+    nombre: fila.nombre,
+    rol,
+    permisosExtra,
+    permisosRevocados,
+    permisosEfectivos,
+  };
+};
 
 const construirFiltros = (
   parametros: ParametrosListadoUsuarios
@@ -304,4 +380,63 @@ export const eliminar = async (id: string): Promise<UsuarioDetalle> => {
   });
 
   return mapear(fila);
+};
+
+export const actualizarPermisos = async (
+  id: string,
+  datos: DatosPermisosUsuario,
+  ejecutorId: string
+): Promise<PermisosUsuario> => {
+  const existente = await prisma.usuario.findUnique({
+    where: { id },
+    select: SELECT_PERMISOS,
+  });
+
+  if (!existente) {
+    throw new HttpError(404, 'Usuario no encontrado', [
+      { campo: 'id', valor: id },
+    ]);
+  }
+
+  const extra = new Set(
+    normalizarPermisos(existente.permisosExtra, `El usuario ${id} (permisosExtra)`)
+  );
+  const revocados = new Set(
+    normalizarPermisos(
+      existente.permisosRevocados,
+      `El usuario ${id} (permisosRevocados)`
+    )
+  );
+
+  for (const permiso of datos.agregar) {
+    extra.add(permiso);
+    revocados.delete(permiso);
+  }
+  for (const permiso of datos.quitar) {
+    revocados.add(permiso);
+    extra.delete(permiso);
+  }
+
+  const fila = await prisma.$transaction(async (tx) => {
+    const actualizado = await tx.usuario.update({
+      where: { id },
+      data: {
+        permisosExtra: [...extra],
+        permisosRevocados: [...revocados],
+      },
+      select: SELECT_PERMISOS,
+    });
+
+    await registrarAuditoria(tx, {
+      modulo: 'USUARIOS',
+      accion: 'ACTUALIZAR',
+      entidadId: id,
+      usuarioId: ejecutorId,
+      detalle: { campos: ['permisosExtra', 'permisosRevocados'] },
+    });
+
+    return actualizado;
+  });
+
+  return construirPermisosUsuario(fila);
 };

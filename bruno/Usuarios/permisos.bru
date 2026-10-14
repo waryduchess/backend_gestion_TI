@@ -1,0 +1,44 @@
+meta {
+  name: Otorgar permiso a un usuario
+  type: http
+  seq: 29
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+  await bru.runRequest("Usuarios/crear");
+  const usuarioId = bru.getEnvVar("usuarioCreadoId");
+  if (typeof usuarioId !== "string" || usuarioId === "") throw new Error("No se pudo crear el usuario de apoyo");
+  bru.setVar("permisosUsuarioId", usuarioId);
+}
+
+patch {
+  url: {{baseUrl}}/api/usuarios/{{permisosUsuarioId}}/permisos
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "agregar": ["dashboard:leer"]
+  }
+}
+
+script:post-response {
+  if (res.status !== 200) return;
+  if (!res.body.data.permisosExtra.includes("dashboard:leer")) throw new Error("El permiso no quedo en permisosExtra");
+  if (!res.body.data.permisosEfectivos.includes("dashboard:leer")) throw new Error("El permiso no quedo en permisosEfectivos");
+}
+
+assert {
+  res.status: eq 200
+  res.body.success: eq true
+  res.body.message: eq Permisos del usuario actualizados correctamente
+}

@@ -3744,6 +3744,72 @@ paths:
               schema:
                 $ref: '#/components/schemas/RespuestaError'
 
+  /api/usuarios/{id}/permisos:
+    patch:
+      tags: [usuarios]
+      summary: Otorgar o revocar permisos a un usuario
+      operationId: actualizarPermisosUsuario
+      description: >
+        Requiere permiso roles:administrar. Ajusta los permisos del usuario de
+        forma individual sobre los de su rol: `agregar` los suma (permisosExtra)
+        y `quitar` los revoca (permisosRevocados). Agregar un permiso lo saca de
+        revocados y quitar lo saca de extra. Devuelve los permisos efectivos.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            example: CT003
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AsignarPermisosUsuario'
+            example:
+              agregar: [dashboard:leer]
+              quitar: [secretos:revelar]
+      responses:
+        '200':
+          description: Permisos del usuario actualizados correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaPermisosUsuario'
+        '400':
+          description: Permisos invalidos, listas vacias o campos no permitidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: El campo "agregar" contiene permisos invalidos
+                errors:
+                  - campo: agregar
+                    valor: [permiso:inexistente]
+        '401':
+          description: Token ausente, invalido o expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '403':
+          description: Requiere el permiso roles:administrar
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '404':
+          description: Usuario no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+
   /api/usuarios/{id}/password:
     patch:
       tags: [usuarios]
@@ -4798,6 +4864,18 @@ components:
           $ref: '#/components/schemas/CatalogoResumen'
         rol:
           $ref: '#/components/schemas/RolResumen'
+        permisosExtra:
+          type: array
+          uniqueItems: true
+          description: Permisos otorgados a este usuario ademas de los de su rol
+          items:
+            $ref: '#/components/schemas/Permiso'
+        permisosRevocados:
+          type: array
+          uniqueItems: true
+          description: Permisos de su rol revocados solo para este usuario
+          items:
+            $ref: '#/components/schemas/Permiso'
 
     CatalogoResumen:
       type: object
@@ -6014,6 +6092,83 @@ components:
           type: string
           minLength: 1
           example: NuevaClave123
+
+    AsignarPermisosUsuario:
+      type: object
+      description: >
+        Al menos uno de los campos con al menos un permiso. `agregar` y `quitar`
+        son listas de permisos validos del catalogo.
+      properties:
+        agregar:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/Permiso'
+        quitar:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/Permiso'
+
+    PermisosRolResumen:
+      type: object
+      nullable: true
+      required: [id, nombre, permisos]
+      properties:
+        id:
+          type: integer
+          example: 2
+        nombre:
+          type: string
+          example: Soporte
+        permisos:
+          type: array
+          items:
+            $ref: '#/components/schemas/Permiso'
+
+    PermisosUsuario:
+      type: object
+      required: [id, nombre, rol, permisosExtra, permisosRevocados, permisosEfectivos]
+      properties:
+        id:
+          type: string
+          example: CT003
+        nombre:
+          type: string
+          example: Carmen Torres Ruiz
+        rol:
+          $ref: '#/components/schemas/PermisosRolResumen'
+        permisosExtra:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/Permiso'
+        permisosRevocados:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/Permiso'
+        permisosEfectivos:
+          type: array
+          uniqueItems: true
+          description: Resultado de (rol + extra) menos revocados
+          items:
+            $ref: '#/components/schemas/Permiso'
+
+    RespuestaPermisosUsuario:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: Permisos del usuario actualizados correctamente
+        errors:
+          type: array
+          items: {}
+        data:
+          $ref: '#/components/schemas/PermisosUsuario'
 
     RespuestaUsuario:
       type: object
