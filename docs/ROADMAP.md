@@ -23,10 +23,14 @@ conviene revisarlo antes de cada iteracion y actualizarlo al cerrar cada modulo.
 | Secretos (`/api/secretos`)         | `GET /`, `POST /`, `GET /:id`, `GET /:id/password`, `GET /:id/auditoria`, `PATCH /:id`, `DELETE /:id`, `POST /importaciones/validar`, `POST /importaciones/confirmar`                  | Si                     | 21 requests        |
 | Notificaciones (`/api/notificaciones`) | `GET /`, `PATCH /:id/leer`, `PATCH /leer-todas`; incidencias y recordatorios de licencias                         | Si                     | 10 requests        |
 | Dashboard (`/api/dashboard`)       | `GET /summary`                                                                                                          | Si                     | 5 requests         |
+| Auditoria (`/api/auditoria`)       | `GET /`, `GET /:id`                                                                                                     | Si                     | 10 requests        |
+| Reportes                            | sin modelo ni endpoints (ver §2.13)                                                                                    | No                     | No                 |
 | Recordatorios                      | sin modelo ni endpoints                                                                                                 | No                     | No                 |
 | Sucursal (normalizacion)           | sin catalogo; `Activo.sucursal` es texto libre                                                                          | No                     | No                 |
 
-Regresion mas reciente tras la importacion masiva de secretos: `npx tsc --noEmit` limpio, OpenAPI valido y suite Bruno **228 requests (226 OK, 2 fallos preexistentes), 521/525 assertions**. Los 2 fallos siguen siendo `Activos/buscarPorSerie` y su cascada `Activos/cambiarEstadoAsignacionActiva`, por drift de datos de `AF00010` (ajenos a este cambio). Los 8 requests nuevos (`SecretosImportaciones/` 7 + `Roles/denegarImportarSecretos`) pasan en verde.
+Regresion mas reciente tras el modulo de auditoria (fase 1): `npx tsc --noEmit` limpio, OpenAPI valido y suite Bruno **239 requests (237 OK, 2 fallos preexistentes), 549/553 assertions**. Los 2 fallos siguen siendo `Activos/buscarPorSerie` y su cascada `Activos/cambiarEstadoAsignacionActiva`, por drift de datos de `AF00010` (ajenos a este cambio). Los 11 requests nuevos (`Auditoria/` 10 + `Roles/denegarAuditoria`) pasan en verde. Se endurecio `Secretos/listar` (consulta por `q=<nombre>` en vez de depender de la pagina 1) por la acumulacion de datos de prueba.
+
+Regresion previa tras la importacion masiva de secretos: `npx tsc --noEmit` limpio, OpenAPI valido y suite Bruno **228 requests (226 OK, 2 fallos preexistentes), 521/525 assertions**. Los 2 fallos siguen siendo `Activos/buscarPorSerie` y su cascada `Activos/cambiarEstadoAsignacionActiva`, por drift de datos de `AF00010` (ajenos a este cambio). Los 8 requests nuevos (`SecretosImportaciones/` 7 + `Roles/denegarImportarSecretos`) pasan en verde.
 
 Regresion previa tras la edicion/eliminacion de asignaciones: `npx tsc --noEmit` limpio, OpenAPI valido y suite Bruno **220 requests (218 OK, 2 fallos preexistentes), 481/485 assertions**. Los 2 fallos siguen siendo `Activos/buscarPorSerie` y su cascada `Activos/cambiarEstadoAsignacionActiva`, por drift de datos de `AF00010` (ajenos a este cambio). Los 16 requests nuevos (`Asignaciones/` 13 + `Roles/denegarEditarAsignacion` + `Roles/denegarEliminarAsignacion` + verificacion de activo) pasan en verde.
 
@@ -93,6 +97,7 @@ prueba controlada.
 - [X] `PATCH /api/usuarios/:id/rol` para asignar o quitar un rol; solo roles con `roles:administrar`
 - [X] Seed crea/reactiva el rol Administrador, le asigna todos los permisos y lo asigna al usuario `ADMIN`
 - [X] `verificarToken` se aplica a todo `/api/usuarios`; cada endpoint valida ademas `usuarios:administrar`, excepto asignacion de rol, que requiere `roles:administrar`
+- [ ] **Permisos por usuario (overrides):** hoy SOLO existen permisos por rol; para agregar o quitar permisos a un usuario individual se editan los permisos de su rol (`PATCH /api/roles/:id`, afecta a todos los usuarios con ese rol) o se le cambia el rol (`PATCH /api/usuarios/:id/rol`). No hay endpoints de permisos por usuario. Definir modelo (p.ej. `permisosExtra` y `permisosRevocados` en `Usuario`, aplicados por el middleware) o decidir explicitamente que se maneje solo por roles.
 
 Permisos iniciales: `incidencias:leer`, `notificaciones:leer`,
 `activos:leer`, `activos:crear`,
@@ -115,6 +120,7 @@ adicional.
 - [X] `POST /api/licencias` - alta con clave cifrada AES-256-GCM
 - [X] `PATCH /api/licencias/:id` - edicion/reasignacion y reactivacion de baja logica
 - [X] `DELETE /api/licencias/:id` - baja logica idempotente
+- [ ] **Eliminacion fisica (hard delete)** de licencias: endpoint dedicado (p.ej. `DELETE /api/licencias/:id/hard` o `?hard=true`) que borra la fila definitivamente. **Excepcion explicita a la regla 6**; requiere permiso dedicado (p.ej. `licencias:eliminar`) y confirmacion explicita para evitar borrados accidentales.
 - [X] Alertas diarias desde 30 dias antes del vencimiento via `node-cron` + Nodemailer; usuario asignado o email de respaldo
 - [X] Autorizacion JWT + permiso `licencias:administrar`
 
@@ -128,6 +134,7 @@ adicional.
 - [X] **Importacion masiva de secretos:** el frontend parsea el archivo (CSV/Excel) y envia las filas ya normalizadas como JSON; el backend no conserva el archivo ni sus contenidos. Endpoints `POST /api/secretos/importaciones/validar` (vista previa) y `POST /api/secretos/importaciones/confirmar` (persistencia), con permiso dedicado `secretos:importar`.
 - [X] Permiso RBAC especifico `secretos:importar`; la vista previa y los resultados nunca devuelven la contrasena; la creacion reutiliza el cifrado AES-256-GCM de `src/utils/crypto.ts` y registra auditoria `CREAR` sin valores. Duplicados activos detectados por `(tipo, nombre, usuario)` contra la base y dentro del lote; errores por fila; limite de 500 filas; importacion parcial (las filas validas se crean aunque otras fallen).
 - [X] **Flujo implementado:** parseo en cliente -> validacion por fila (sin revelar contrasenas) -> confirmacion explicita -> persistencia cifrada por fila con auditoria -> sin archivo temporal que limpiar. Cubierto con `npx tsc --noEmit`, OpenAPI y Bruno (`SecretosImportaciones/` + 403 en `Roles/denegarImportarSecretos`).
+- [ ] **Eliminacion fisica (hard delete)** de secretos: endpoint dedicado que borra la fila definitivamente (incluye sus filas de `AuditoriaSecreto`, que tienen FK `RESTRICT`; los movimientos de la auditoria global se conservan). **Excepcion explicita a la regla 6**; requiere permiso dedicado (p.ej. `secretos:eliminar`) y confirmacion explicita.
 
 ---
 
@@ -220,6 +227,62 @@ sea exacto y consistente en todos los modulos, se normaliza a catalogo.
 - [ ] Actualizar alta/edicion de activos para aceptar `sucursalId` y adaptar
   filtros existentes (`GET /api/activos?sucursal=`) sin romper compatibilidad.
 
+### 2.12 Auditoria global
+
+Bitacora central de **todos los movimientos del sistema** (altas, modificaciones,
+bajas logicas y acciones sensibles como revelar un password o una importacion).
+Vista unica y filtrable para responder "quien hizo que, cuando y sobre que".
+
+- [ ] **Cobertura total**: TODO modulo que escriba datos debe registrar su
+  movimiento en `Auditoria` (altas, modificaciones, bajas logicas y acciones
+  sensibles). Las lecturas (GET) y el dashboard (solo agregacion) NO se auditan.
+- [X] **Fase 1 - base**: modelo generico `Auditoria` (`modulo`, `accion`,
+  `entidadId`, `usuarioId`, `detalle`, `realizadaEn`); `detalle` guarda **solo
+  nombres de campos o resumenes numericos, nunca valores sensibles**. Migracion
+  `20261014120000_auditoria_global`.
+- [X] Endpoints `GET /api/auditoria` (filtros `modulo`, `accion`, `usuarioId`,
+  `entidadId`, `desde`/`hasta`, `q`; paginado) y `GET /api/auditoria/:id`.
+  Permiso propio `auditoria:leer` (migracion lo agrega a roles con
+  `secretos:administrar`).
+- [X] Instrumentada la escritura de **SECRETOS** (`crearSecreto`,
+  `actualizarSecreto`, `desactivarSecreto`, `revelarPasswordSecreto`) e
+  **IMPORTACIONES** (resumen de `confirmarImportacionSecretos`, accion `IMPORTAR`).
+- [ ] **Fase 2 - ACTIVOS + ASIGNACIONES**: instrumentar alta, edicion, cambio de
+  estado, baja logica, asignar y devolver.
+- [ ] **Fase 3 - USUARIOS + ROLES + CATALOGOS**: instrumentar alta, edicion, baja
+  logica, asignar rol y CRUD de catalogos.
+- [ ] **Fase 4 - LICENCIAS + INCIDENCIAS**: instrumentar alta/edicion/baja de
+  licencias y alta/edicion/cambio de estado de incidencias.
+- [ ] **Fase 5 - NOTIFICACIONES + MANTENIMIENTO**: instrumentar marcar leida y
+  leer-todas; CRUD de mantenimiento de equipos cuando exista.
+- [ ] **Fase 6 - PROYECTOS + RECORDATORIOS + SUCURSAL**: instrumentar cuando se
+  implementen (alta, edicion y baja logica de cada modelo).
+- [ ] **(Opcional) Fase 7 - SESIONES**: registrar login/logout exitoso y fallido
+  (a confirmar como modulo aparte).
+- [ ] **AuditoriaSecreto convive temporalmente**: la tabla por-secreto y su
+  endpoint siguen activos durante la fase 1; deprecar al consolidar la captura de
+  secretos en `Auditoria`.
+- [X] Swagger (`paths` + schemas `AuditoriaGlobal`, enums `ModuloAuditoria`/
+  `AccionAuditoria`) + Bruno (`Auditoria/` 10, `Roles/denegarAuditoria`).
+
+### 2.13 Reportes
+
+Generacion de reportes exportables en **PDF (Puppeteer)** y **Excel (ExcelJS)**.
+Pendiente de disenar los endpoints y el alcance exacto de cada uno.
+
+- [ ] **Inventario / Activos**: general (filtrable por sucursal, tipo y estado),
+  activos dados de baja (historial), activos asignados por responsable/usuario,
+  historial de asignaciones (entregas y devoluciones por rango de fecha).
+- [ ] **Licencias**: por vencer (30/7/1 dia) y vencidas, por software/proveedor,
+  activas vs inactivas.
+- [ ] **Auditoria**: bitacora de movimientos por modulo/usuario/rango de fecha.
+- [ ] **Ejecutivo / Operativo**: resumen de KPIs exportable (dashboard),
+  notificaciones/recordatorios generados.
+- [ ] Definir permisos RBAC por reporte (p.ej. `reportes:leer` o reutilizar los
+  permisos de cada modulo).
+- [ ] Definir generacion sincrona vs en background (job + descarga) por reporte.
+- [ ] Swagger + Bruno por cada reporte al implementarse.
+
 ## 3. Features tecnicas pendientes
 
 - [X] `src/utils/crypto.ts` - AES-256-GCM con `AES_SECRET_KEY` para `Licencia.clave` y `Secreto.password`
@@ -228,13 +291,13 @@ sea exacto y consistente en todos los modulos, se normaliza a catalogo.
 - [X] `node-cron` - job diario de correo y recordatorios persistentes de vencimiento de licencias; pendiente SLA de tickets
 - [X] Nodemailer (`src/config/mailer.ts`) - correos de alerta de licencias; pendiente otras notificaciones
 - [ ] S3 (`src/config/s3.ts`, `@aws-sdk/client-s3`) - evidencias de incidencias y adjuntos
-- [ ] Puppeteer - reportes PDF (inventario, tickets cerrados, licencias)
+- [ ] Puppeteer - reportes PDF (§2.13)
 - [ ] Ollama (`llama3.1:8b`) - asistente IA + Function Calling (servicio `ollama` en docker, profile `ai`)
 - [ ] CORS restrictivo - hoy `app.use(cors())` abierto; restringir a la URL del frontend
 - [X] `.env.example` documenta SMTP y variables de alertas de licencias; quedan pendientes `S3_*`, `OLLAMA_*`, `CORS_ORIGIN` y la revision de nombres previos del roadmap
 - [ ] agregar en licencias el tipo (suscripción, perpetua).
 - [ ] Devolver en la consulta de licencias la clave
-- [ ] creacion de endPoints del modulo de auditoria
+- [X] creacion de endPoints del modulo de auditoria (fase 1 en §2.12; instrumentacion pendiente por fases)
 - [ ] creacion de endPoints del modulo de mantenimiento de equipos
 - [ ] simular subtareas  para documentar a la memoria
 - [ ] **Recordatorios (Tareas Programadas):** Notificaciones automáticas de vencimientos
@@ -248,8 +311,9 @@ sea exacto y consistente en todos los modulos, se normaliza a catalogo.
 3. Seguir `routes -> controllers -> services`, `asyncHandler` + `HttpError`, sin `any`, sin librerias nuevas de validacion.
 4. Al cerrar un modulo: correr `npx tsc --noEmit` y la suite Bruno (`cd bruno && npx @usebruno/cli run . -r --env Local`).
 5. Marcar los checkboxes de este archivo al completar cada item.
-6. **Borrados logicos siempre**: ningun `DELETE` borra filas de la base. En activos se implementa con el estado `DE_BAJA` (sin migracion, 200 idempotente); cada modulo define su mecanismo al implementarse, pero la regla es universal.
+6. **Borrados logicos siempre**: ningun `DELETE` borra filas de la base. En activos se implementa con el estado `DE_BAJA` (sin migracion, 200 idempotente); cada modulo define su mecanismo al implementarse, pero la regla es universal. **Excepcion:** licencias y secretos tendran un endpoint de **hard delete** (borrado fisico) documentado en §2.5/§2.6, con permiso dedicado y confirmacion explicita.
 7. El **dashboard (§2.9) es de solo lectura/agregacion** (no escribe nada) y su filtro por sucursal depende de la normalizacion de §2.11.
+8. **Auditoria obligatoria**: toda operacion de escritura (crear/actualizar/baja logica/asignar/devolver/revelar/importar) debe llamar a `registrarAuditoria(...)` en la misma transaccion, con `detalle` solo de nombres de campos o resumen numerico (nunca valores sensibles). Las operaciones idempotentes que no cambian nada no se auditan.
 
 ## 5. Fuentes Excel y modelo de datos
 

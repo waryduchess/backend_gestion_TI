@@ -138,6 +138,7 @@ model Usuario {
   licencias           Licencia[]
   notificaciones      Notificacion[]
   auditoriasSecretos  AuditoriaSecreto[]
+  auditorias          Auditoria[]
 
   @@index([email])
 }
@@ -299,4 +300,24 @@ model AuditoriaSecreto {
 
   @@index([secretoId, realizadaEn])
   @@index([usuarioId, realizadaEn])
+}
+
+// ------------------------------------------------------
+// AUDITORIA GLOBAL
+// ------------------------------------------------------
+
+model Auditoria {
+  id          Int      @id @default(autoincrement())
+  modulo      String   @db.VarChar(50)
+  accion      String   @db.VarChar(50)
+  entidadId   String?  @db.VarChar(191)
+  usuarioId   String
+  detalle     Json?
+  realizadaEn DateTime @default(now())
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+
+  @@index([modulo, realizadaEn])
+  @@index([usuarioId, realizadaEn])
+  @@index([entidadId])
 }

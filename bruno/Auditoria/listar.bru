@@ -1,0 +1,36 @@
+meta {
+  name: Listar auditoria global
+  type: http
+  seq: 1
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+  await bru.runRequest("Secretos/crear");
+  const secretoId = bru.getVar("secretoPruebaId");
+  if (typeof secretoId !== "number") throw new Error("No se pudo crear el secreto de apoyo para la auditoria");
+}
+
+get {
+  url: {{baseUrl}}/api/auditoria?limit=50
+  body: json
+  auth: none
+}
+
+script:post-response {
+  if (res.status !== 200) return;
+  const secretoId = bru.getVar("secretoPruebaId");
+  const entrada = res.body.data.find((item) => item.modulo === "SECRETOS" && item.accion === "CREAR" && item.entidadId === String(secretoId));
+  if (!entrada) throw new Error("No se encontro el movimiento CREAR del secreto en la auditoria");
+  bru.setVar("audPrimerId", entrada.id);
+}
+
+assert {
+  res.status: eq 200
+  res.body.success: eq true
+  res.body.data: isArray
+  res.body.meta.total: gt 0
+}

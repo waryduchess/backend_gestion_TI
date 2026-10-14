@@ -9,10 +9,13 @@ script:pre-request {
   const token = bru.getEnvVar("token");
   if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
   req.setHeader("Authorization", "Bearer " + token);
+  const nombre = bru.getVar("nombreSecretoPrueba");
+  if (typeof nombre !== "string" || nombre === "") throw new Error("No hay nombre de secreto capturado por la creacion");
+  bru.setVar("secretoPruebaQuery", encodeURIComponent(nombre));
 }
 
 get {
-  url: {{baseUrl}}/api/secretos
+  url: {{baseUrl}}/api/secretos?q={{secretoPruebaQuery}}&limit=100
   body: json
   auth: none
 }

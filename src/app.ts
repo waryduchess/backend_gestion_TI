@@ -16,6 +16,7 @@ import licenciaRoutes from './routes/licencia.routes';
 import notificacionRoutes from './routes/notificacion.routes';
 import secretoRoutes from './routes/secreto.routes';
 import dashboardRoutes from './routes/dashboard.routes';
+import auditoriaRoutes from './routes/auditoria.routes';
 import { iniciarJobAlertasLicencias } from './jobs/licencias.job';
 import { inicializarSocketIo } from './config/socket';
 
@@ -56,6 +57,7 @@ app.use('/api/licencias', licenciaRoutes);
 app.use('/api/notificaciones', notificacionRoutes);
 app.use('/api/secretos', secretoRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/auditoria', auditoriaRoutes);
 app.use('/api/docs', docsRoutes);
 
 app.use(notFoundHandler);

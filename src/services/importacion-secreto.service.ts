@@ -1,6 +1,7 @@
 import { prisma } from '../config/prisma';
 import { cifrar } from '../utils/crypto';
 import { comoTexto } from '../utils/validacion';
+import { registrarAuditoria } from './auditoria.service';
 import {
   COLUMNAS_IMPORTACION_SECRETOS,
   DatosFilaImportadaSecreto,
@@ -292,12 +293,25 @@ export const confirmarImportacionSecretos = async (
   }
 
   const creadas = resultados.filter((fila) => fila.creado).length;
+  const rechazadas = resultados.length - creadas;
+
+  if (creadas > 0) {
+    await registrarAuditoria(prisma, {
+      modulo: 'IMPORTACIONES',
+      accion: 'IMPORTAR',
+      entidadId: null,
+      usuarioId,
+      detalle: {
+        resumen: { total: resultados.length, creadas, rechazadas },
+      },
+    });
+  }
 
   return {
     resumen: {
       total: resultados.length,
       creadas,
-      rechazadas: resultados.length - creadas,
+      rechazadas,
     },
     filas: resultados,
   };

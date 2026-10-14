@@ -10,6 +10,7 @@ import {
   ParametrosListadoSecretos,
   SecretoResumen,
 } from '../models/secreto.model';
+import { registrarAuditoria } from './auditoria.service';
 import { cifrar, descifrar } from '../utils/crypto';
 
 const SELECCIONAR_SECRETO = {
@@ -162,6 +163,15 @@ export const crearSecreto = async (
         campos: ['tipo', 'proyecto', 'nombre', 'usuario', 'password', 'comentario'],
       },
     });
+    await registrarAuditoria(tx, {
+      modulo: 'SECRETOS',
+      accion: 'CREAR',
+      entidadId: fila.id,
+      usuarioId,
+      detalle: {
+        campos: ['tipo', 'proyecto', 'nombre', 'usuario', 'password', 'comentario'],
+      },
+    });
     return mapearSecreto(fila);
   });
 
@@ -208,6 +218,13 @@ export const actualizarSecreto = async (
           campos,
         },
       });
+      await registrarAuditoria(tx, {
+        modulo: 'SECRETOS',
+        accion: 'ACTUALIZAR',
+        entidadId: id,
+        usuarioId,
+        detalle: { campos },
+      });
     }
     return mapearSecreto(fila);
   });
@@ -246,6 +263,13 @@ export const desactivarSecreto = async (
         campos: ['activo'],
       },
     });
+    await registrarAuditoria(tx, {
+      modulo: 'SECRETOS',
+      accion: 'DESACTIVAR',
+      entidadId: id,
+      usuarioId,
+      detalle: { campos: ['activo'] },
+    });
     return mapearSecreto(fila);
   });
 
@@ -270,6 +294,12 @@ export const revelarPasswordSecreto = async (
         usuarioId,
         accion: 'REVELAR',
       },
+    });
+    await registrarAuditoria(tx, {
+      modulo: 'SECRETOS',
+      accion: 'REVELAR',
+      entidadId: id,
+      usuarioId,
     });
     return { id, password };
   });

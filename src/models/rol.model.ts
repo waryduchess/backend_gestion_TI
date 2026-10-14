@@ -18,6 +18,7 @@ export const PERMISOS_DISPONIBLES = [
   'secretos:revelar',
   'secretos:administrar',
   'secretos:importar',
+  'auditoria:leer',
 ] as const;
 
 export type Permiso = (typeof PERMISOS_DISPONIBLES)[number];

@@ -1,0 +1,27 @@
+meta {
+  name: Filtrar auditoria por rango de fecha
+  type: http
+  seq: 3
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+  const hoy = new Date().toISOString().slice(0, 10);
+  bru.setVar("audHoy", hoy);
+}
+
+get {
+  url: {{baseUrl}}/api/auditoria?desde={{audHoy}}&hasta={{audHoy}}
+  body: json
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+  res.body.success: eq true
+  res.body.data: isArray
+  res.body.meta.total: gt 0
+}

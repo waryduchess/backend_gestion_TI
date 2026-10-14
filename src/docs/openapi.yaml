@@ -39,6 +39,11 @@ tags:
     description: Roles y permisos de acceso
   - name: dashboard
     description: Resumen agregado de KPIs para el panel principal
+  - name: auditoria
+    description: >
+      Bitacora global de movimientos (altas, modificaciones, bajas logicas y
+      acciones sensibles) de todos los modulos. Requiere auditoria:leer. Nunca
+      expone valores sensibles (por ejemplo, passwords); solo nombres de campos.
 
 paths:
   /api/auth/login:
@@ -3861,6 +3866,133 @@ paths:
         '403':
           description: Requiere el permiso dashboard:leer
 
+  /api/auditoria:
+    get:
+      tags: [auditoria]
+      summary: Listar movimientos de la auditoria global
+      description: >
+        Requiere auditoria:leer. Devuelve la bitacora de movimientos de todos
+        los modulos, paginada y filtrable. Nunca expone valores sensibles; el
+        campo detalle solo contiene nombres de campos o resumenes numericos.
+      operationId: listarAuditoria
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: modulo
+          in: query
+          description: Filtra por modulo afectado
+          schema:
+            $ref: '#/components/schemas/ModuloAuditoria'
+        - name: accion
+          in: query
+          description: Filtra por accion realizada
+          schema:
+            $ref: '#/components/schemas/AccionAuditoria'
+        - name: usuarioId
+          in: query
+          description: Filtra por el usuario que realizo la accion
+          schema:
+            type: string
+        - name: entidadId
+          in: query
+          description: Filtra por el id del registro afectado
+          schema:
+            type: string
+        - name: desde
+          in: query
+          description: Fecha inicial (YYYY-MM-DD, inclusive)
+          schema:
+            type: string
+            format: date
+        - name: hasta
+          in: query
+          description: Fecha final (YYYY-MM-DD, inclusive)
+          schema:
+            type: string
+            format: date
+        - name: q
+          in: query
+          description: Busca en modulo, accion, entidadId y nombre del usuario
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Auditoria obtenida correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaAuditoriaPaginada'
+        '400':
+          description: Filtros o paginacion invalidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+              example:
+                success: false
+                message: El parametro "modulo" no tiene un valor valido
+                errors:
+                  - campo: modulo
+                    valor: BOGUS
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso auditoria:leer
+
+  /api/auditoria/{id}:
+    get:
+      tags: [auditoria]
+      summary: Obtener un registro de auditoria por id
+      description: Requiere auditoria:leer.
+      operationId: obtenerAuditoria
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Identificador numerico del registro de auditoria
+          schema:
+            type: integer
+            minimum: 1
+            example: 1
+      responses:
+        '200':
+          description: Registro de auditoria obtenido correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaAuditoria'
+        '400':
+          description: El id no es un numero entero
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso auditoria:leer
+        '404':
+          description: No existe un registro de auditoria con ese id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -5207,6 +5339,80 @@ components:
               items:
                 $ref: '#/components/schemas/FilaConfirmacionImportacionSecreto'
 
+    ModuloAuditoria:
+      type: string
+      enum: [SECRETOS, ACTIVOS, USUARIOS, ROLES, CATALOGOS, LICENCIAS, INCIDENCIAS, ASIGNACIONES, IMPORTACIONES]
+
+    AccionAuditoria:
+      type: string
+      enum: [CREAR, ACTUALIZAR, DESACTIVAR, REVELAR, IMPORTAR, ASIGNAR, DEVOLVER]
+
+    AuditoriaGlobal:
+      type: object
+      required: [id, modulo, accion, entidadId, detalle, realizadaEn, usuario]
+      properties:
+        id:
+          type: integer
+          example: 1
+        modulo:
+          $ref: '#/components/schemas/ModuloAuditoria'
+        accion:
+          $ref: '#/components/schemas/AccionAuditoria'
+        entidadId:
+          type: [string, 'null']
+          description: Id del registro afectado; null si la accion no aplica a una entidad (p.ej. importacion en lote)
+          example: '42'
+        detalle:
+          type: [object, 'null']
+          description: >
+            Metadatos del movimiento. Solo nombres de campos (campos) o
+            resumenes numericos (resumen). Nunca valores sensibles.
+          example:
+            campos: [tipo, nombre, password]
+        realizadaEn:
+          type: string
+          format: date-time
+        usuario:
+          type: object
+          required: [id, nombre]
+          properties:
+            id:
+              type: string
+            nombre:
+              type: string
+
+    RespuestaAuditoria:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        errors:
+          type: array
+          items: {}
+        data:
+          $ref: '#/components/schemas/AuditoriaGlobal'
+
+    RespuestaAuditoriaPaginada:
+      type: object
+      required: [success, message, errors, data, meta]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        errors:
+          type: array
+          items: {}
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditoriaGlobal'
+        meta:
+          $ref: '#/components/schemas/MetaPaginacion'
+
     Permiso:
       type: string
       enum:
@@ -5229,6 +5435,7 @@ components:
         - secretos:revelar
         - secretos:administrar
         - secretos:importar
+        - auditoria:leer
 
     RolCreacion:
       type: object
