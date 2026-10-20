@@ -52,6 +52,24 @@ enum EstadoActivo {
   DE_BAJA
 }
 
+enum MantenimientoTipo {
+  PREVENTIVO
+  CORRECTIVO
+}
+
+enum MantenimientoEstado {
+  PROGRAMADO
+  EN_PROCESO
+  COMPLETADO
+  CANCELADO
+}
+
+enum MantenimientoPrioridad {
+  BAJA
+  MEDIA
+  ALTA
+}
+
 enum AccionAuditoriaSecreto {
   CREAR
   ACTUALIZAR
@@ -69,17 +87,17 @@ enum TipoNotificacion {
 // ------------------------------------------------------
 
 model Rol {
-  id        Int       @id @default(autoincrement())
-  nombre    String    @unique
-  permisos  Json
-  activo    Boolean   @default(true)
-  usuarios  Usuario[]
+  id       Int       @id @default(autoincrement())
+  nombre   String    @unique
+  permisos Json
+  activo   Boolean   @default(true)
+  usuarios Usuario[]
 }
 
 model Departamento {
-  id          Int           @id @default(autoincrement())
-  nombre      String        @unique
-  activo      Boolean       @default(true)
+  id          Int          @id @default(autoincrement())
+  nombre      String       @unique
+  activo      Boolean      @default(true)
   usuarios    Usuario[]
   incidencias Incidencia[]
 }
@@ -110,14 +128,14 @@ model TipoUsuario {
 // ------------------------------------------------------
 
 model Usuario {
-  id            String  @id // Clave interna del excel (ej: "A006")
-  nombre        String
-  email         String? // Sin unique: hay correos compartidos entre usuarios
-  activo        Boolean @default(true)
-  fechaInicio   DateTime?
-  fechaFin      DateTime?
+  id          String    @id // Clave interna del excel (ej: "A006")
+  nombre      String
+  email       String? // Sin unique: hay correos compartidos entre usuarios
+  activo      Boolean   @default(true)
+  fechaInicio DateTime?
+  fechaFin    DateTime?
 
-  passwordHash  String? @db.VarChar(100) // bcrypt; null = usuario sin acceso al sistema
+  passwordHash String? @db.VarChar(100) // bcrypt; null = usuario sin acceso al sistema
 
   permisosExtra     Json? // Permisos adicionales sobre los del rol (overrides)
   permisosRevocados Json? // Permisos del rol revocados solo para este usuario
@@ -134,14 +152,15 @@ model Usuario {
   tipoUsuario  TipoUsuario?  @relation(fields: [tipoUsuarioId], references: [id])
   rol          Rol?          @relation(fields: [rolId], references: [id])
 
-  incidencias         Incidencia[]           @relation("Solicitante")
-  incidenciasAsignadas Incidencia[]          @relation("AsignadoA")
-  activosResponsables Activo[]               @relation("Responsable")
-  asignaciones        AsignacionComputo[]
-  licencias           Licencia[]
-  notificaciones      Notificacion[]
-  auditoriasSecretos  AuditoriaSecreto[]
-  auditorias          Auditoria[]
+  incidencias           Incidencia[]         @relation("Solicitante")
+  incidenciasAsignadas  Incidencia[]         @relation("AsignadoA")
+  activosResponsables   Activo[]             @relation("Responsable")
+  asignaciones          AsignacionComputo[]
+  mantenimientosTecnico OrdenMantenimiento[] @relation("TecnicoMantenimiento")
+  licencias             Licencia[]
+  notificaciones        Notificacion[]
+  auditoriasSecretos    AuditoriaSecreto[]
+  auditorias            Auditoria[]
 
   @@index([email])
 }
@@ -151,27 +170,27 @@ model Usuario {
 // ------------------------------------------------------
 
 model Incidencia {
-  id                Int      @id @default(autoincrement())
-  originalId        Int?     @unique // ID original de SharePoint (reimportacion/desduplicado)
-  titulo            String   @db.VarChar(500)
-  descripcion       String   @db.Text
-  fechaNotificacion DateTime @default(now())
+  id                Int               @id @default(autoincrement())
+  originalId        Int?              @unique // ID original de SharePoint (reimportacion/desduplicado)
+  titulo            String            @db.VarChar(500)
+  descripcion       String            @db.Text
+  fechaNotificacion DateTime          @default(now())
   fechaResolucion   DateTime?
-  estado            EstadoIncidencia @default(NUEVO)
-  prioridad         Prioridad       @default(NORMAL)
+  estado            EstadoIncidencia  @default(NUEVO)
+  prioridad         Prioridad         @default(NORMAL)
   tipoRequerimiento TipoRequerimiento
-  evidenciaUrl      String?  @db.VarChar(500)
-  orden             Int      @default(0)
+  evidenciaUrl      String?           @db.VarChar(500)
+  orden             Int               @default(0)
 
   solicitanteId  String // Obligatorio: siempre hay quien reporta
   asignadoAId    String?
   departamentoId Int?
 
-  solicitante  Usuario      @relation("Solicitante", fields: [solicitanteId], references: [id])
-  asignadoA    Usuario?     @relation("AsignadoA", fields: [asignadoAId], references: [id])
-  departamento Departamento? @relation(fields: [departamentoId], references: [id])
+  solicitante     Usuario                   @relation("Solicitante", fields: [solicitanteId], references: [id])
+  asignadoA       Usuario?                  @relation("AsignadoA", fields: [asignadoAId], references: [id])
+  departamento    Departamento?             @relation(fields: [departamentoId], references: [id])
   actualizaciones ActualizacionIncidencia[]
-  notificaciones Notificacion[]
+  notificaciones  Notificacion[]
 
   @@index([estado, fechaNotificacion])
   @@index([estado, orden])
@@ -213,40 +232,41 @@ model Notificacion {
 // ------------------------------------------------------
 
 model Activo {
-  id           Int      @id @default(autoincrement())
-  claveActivo  String?  @unique // AF00007 (algunos renglones del Excel no traen clave)
-  cb23         String?
-  tipo         String // Laptop, Desktop, Mini PC, Monitor...
-  marca        String?
-  modelo       String?
-  numeroParte  String?
-  numeroSerie  String?
-  sucursal     String?
-  anydesk      String?
-  nombreRed    String?
-  procesador   String?
-  memoria      String?
-  estado       EstadoActivo @default(EN_USO)
+  id            Int          @id @default(autoincrement())
+  claveActivo   String?      @unique // AF00007 (algunos renglones del Excel no traen clave)
+  cb23          String?
+  tipo          String // Laptop, Desktop, Mini PC, Monitor...
+  marca         String?
+  modelo        String?
+  numeroParte   String?
+  numeroSerie   String?
+  sucursal      String?
+  anydesk       String?
+  nombreRed     String?
+  procesador    String?
+  memoria       String?
+  estado        EstadoActivo @default(EN_USO)
   estadoGeneral String? // Condicion fisica (ej: "Bien")
-  notas        String? @db.Text
+  notas         String?      @db.Text
 
   responsableId String?
   responsable   Usuario? @relation("Responsable", fields: [responsableId], references: [id])
 
-  asignaciones AsignacionComputo[]
+  asignaciones   AsignacionComputo[]
+  mantenimientos OrdenMantenimiento[]
 }
 
 model AsignacionComputo {
-  id              Int      @id @default(autoincrement())
+  id              Int       @id @default(autoincrement())
   usuarioId       String
   activoId        Int
   anioCompra      Int?
   numeroActivo    String?
   nombreEquipo    String? // Hostname del equipo
   bitlocker       String? // Clave de recuperacion (candidata a cifrado)
-  observacion     String? @db.Text
-  activa          Boolean @default(true)
-  fechaAsignacion DateTime @default(now())
+  observacion     String?   @db.Text
+  activa          Boolean   @default(true)
+  fechaAsignacion DateTime  @default(now())
   fechaDevolucion DateTime?
 
   usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
@@ -256,21 +276,50 @@ model AsignacionComputo {
 }
 
 // ------------------------------------------------------
+// MANTENIMIENTO DE EQUIPOS
+// ------------------------------------------------------
+
+model OrdenMantenimiento {
+  id              Int                    @id @default(autoincrement())
+  folio           String                 @unique
+  activoId        Int
+  tipo            MantenimientoTipo
+  estado          MantenimientoEstado    @default(PROGRAMADO)
+  prioridad       MantenimientoPrioridad @default(MEDIA)
+  tecnicoId       String
+  fechaProgramada DateTime
+  fechaRealizada  DateTime?
+  costo           Decimal?               @db.Decimal(10, 2)
+  descripcion     String?                @db.Text
+  evidencias      Json?
+  activo          Boolean                @default(true)
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  activoRel Activo  @relation(fields: [activoId], references: [id])
+  tecnico   Usuario @relation("TecnicoMantenimiento", fields: [tecnicoId], references: [id])
+
+  @@index([activoId, fechaProgramada])
+  @@index([estado])
+  @@index([tecnicoId])
+}
+
+// ------------------------------------------------------
 // LICENCIAS Y CREDENCIALES
 // ------------------------------------------------------
 
 model Licencia {
-  id               Int      @id @default(autoincrement())
-  software         String
-  clave            String?  @db.Text // Cifrar con AES-256-GCM antes de guardar
-  proveedor        String?
-  fechaCompra      DateTime?
-  fechaVencimiento DateTime // Obligatoria: alimenta el cron de alertas
-  activa           Boolean  @default(true)
-  asignadaAId      String?
+  id                      Int       @id @default(autoincrement())
+  software                String
+  clave                   String?   @db.Text // Cifrar con AES-256-GCM antes de guardar
+  proveedor               String?
+  fechaCompra             DateTime?
+  fechaVencimiento        DateTime // Obligatoria: alimenta el cron de alertas
+  activa                  Boolean   @default(true)
+  asignadaAId             String?
   ultimaAlertaVencimiento DateTime?
 
-  asignadaA Usuario? @relation(fields: [asignadaAId], references: [id])
+  asignadaA      Usuario?       @relation(fields: [asignadaAId], references: [id])
   notificaciones Notificacion[]
 
   @@index([activa, fechaVencimiento])

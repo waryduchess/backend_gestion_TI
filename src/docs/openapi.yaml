@@ -44,6 +44,11 @@ tags:
       Bitacora global de movimientos (altas, modificaciones, bajas logicas y
       acciones sensibles) de todos los modulos. Requiere auditoria:leer. Nunca
       expone valores sensibles (por ejemplo, passwords); solo nombres de campos.
+  - name: mantenimiento
+    description: >
+      Ordenes de mantenimiento preventivo y correctivo de activos. Requiere
+      los permisos mantenimiento:leer, mantenimiento:crear,
+      mantenimiento:editar o mantenimiento:eliminar segun la operacion.
 
 paths:
   /api/auth/login:
@@ -4152,6 +4157,298 @@ paths:
               schema:
                 $ref: '#/components/schemas/RespuestaError'
 
+  /api/mantenimiento:
+    get:
+      tags: [mantenimiento]
+      summary: Listar ordenes de mantenimiento
+      description: >
+        Listado paginado de ordenes activas. Permite buscar por folio,
+        descripcion, activo o nombre del tecnico. Requiere mantenimiento:leer.
+      operationId: listarMantenimientos
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+        - name: q
+          in: query
+          description: Busca en folio, descripcion, activo y nombre del tecnico
+          schema:
+            type: string
+        - name: tipo
+          in: query
+          schema:
+            $ref: '#/components/schemas/MantenimientoTipo'
+        - name: estado
+          in: query
+          schema:
+            $ref: '#/components/schemas/MantenimientoEstado'
+        - name: prioridad
+          in: query
+          schema:
+            $ref: '#/components/schemas/MantenimientoPrioridad'
+        - name: tecnicoId
+          in: query
+          schema:
+            type: string
+        - name: activoId
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Mantenimientos obtenidos correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaMantenimientoPaginada'
+        '400':
+          description: Filtros o paginacion invalidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso mantenimiento:leer
+    post:
+      tags: [mantenimiento]
+      summary: Crear una orden de mantenimiento
+      description: >
+        Crea una orden. El folio se genera en el servidor con formato
+        MTO-0001. Requiere mantenimiento:crear.
+      operationId: crearMantenimiento
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DatosCreacionMantenimiento'
+            example:
+              activoId: 12
+              tipo: PREVENTIVO
+              estado: PROGRAMADO
+              prioridad: MEDIA
+              tecnicoId: A006
+              fechaProgramada: '2026-11-05T09:00:00.000Z'
+              costo: 450.00
+              descripcion: Limpieza y revision de hardware
+      responses:
+        '201':
+          description: Mantenimiento creado correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaMantenimiento'
+        '400':
+          description: Datos invalidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso mantenimiento:crear
+        '404':
+          description: El activo o el tecnico no existe
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '409':
+          description: El activo esta dado de baja
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+
+  /api/mantenimiento/activo/{activoId}:
+    get:
+      tags: [mantenimiento]
+      summary: Consultar el historial de mantenimiento de un activo
+      description: >
+        Devuelve las ordenes activas del activo, ordenadas por fecha
+        programada descendente. Requiere mantenimiento:leer.
+      operationId: listarMantenimientosPorActivo
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: activoId
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Historial obtenido correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaHistorialMantenimiento'
+        '400':
+          description: El activoId no es valido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso mantenimiento:leer
+        '404':
+          description: El activo no existe
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+
+  /api/mantenimiento/{id}:
+    get:
+      tags: [mantenimiento]
+      summary: Obtener una orden de mantenimiento
+      description: Requiere mantenimiento:leer.
+      operationId: obtenerMantenimiento
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Mantenimiento obtenido correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaMantenimiento'
+        '400':
+          description: El id no es valido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso mantenimiento:leer
+        '404':
+          description: Mantenimiento no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+    patch:
+      tags: [mantenimiento]
+      summary: Actualizar una orden de mantenimiento
+      description: >
+        Actualizacion parcial. Respeta las transiciones PROGRAMADO ->
+        EN_PROCESO -> COMPLETADO y cualquier estado -> CANCELADO. Una orden
+        COMPLETADO solo puede pasar a CANCELADO. Requiere
+        mantenimiento:editar.
+      operationId: actualizarMantenimiento
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DatosEdicionMantenimiento'
+            example:
+              estado: EN_PROCESO
+              prioridad: ALTA
+      responses:
+        '200':
+          description: Mantenimiento actualizado correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaMantenimiento'
+        '400':
+          description: Datos invalidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso mantenimiento:editar
+        '404':
+          description: Mantenimiento, activo o tecnico no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '409':
+          description: Transicion no permitida o activo dado de baja
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+    delete:
+      tags: [mantenimiento]
+      summary: Dar de baja una orden de mantenimiento
+      description: >
+        Baja logica: marca activo=false y responde 204. Es idempotente.
+        Requiere mantenimiento:eliminar.
+      operationId: eliminarMantenimiento
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '204':
+          description: Mantenimiento dado de baja correctamente
+        '400':
+          description: El id no es valido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso mantenimiento:eliminar
+        '404':
+          description: Mantenimiento no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -5512,7 +5809,7 @@ components:
 
     ModuloAuditoria:
       type: string
-      enum: [SECRETOS, ACTIVOS, USUARIOS, ROLES, CATALOGOS, LICENCIAS, INCIDENCIAS, ASIGNACIONES, IMPORTACIONES]
+      enum: [SECRETOS, ACTIVOS, USUARIOS, ROLES, CATALOGOS, LICENCIAS, INCIDENCIAS, ASIGNACIONES, IMPORTACIONES, MANTENIMIENTO]
 
     AccionAuditoria:
       type: string
@@ -5598,6 +5895,10 @@ components:
         - activos:estado
         - activos:asignar
         - activos:eliminar
+        - mantenimiento:leer
+        - mantenimiento:crear
+        - mantenimiento:editar
+        - mantenimiento:eliminar
         - usuarios:administrar
         - roles:administrar
         - catalogos:administrar
@@ -6472,3 +6773,216 @@ components:
           items: {}
         data:
           $ref: '#/components/schemas/ActivoDetalle'
+
+    MantenimientoTipo:
+      type: string
+      enum: [PREVENTIVO, CORRECTIVO]
+      example: PREVENTIVO
+
+    MantenimientoEstado:
+      type: string
+      enum: [PROGRAMADO, EN_PROCESO, COMPLETADO, CANCELADO]
+      example: PROGRAMADO
+
+    MantenimientoPrioridad:
+      type: string
+      enum: [BAJA, MEDIA, ALTA]
+      example: MEDIA
+
+    ActivoMantenimientoResumen:
+      type: object
+      required: [id, cb23, tipo]
+      properties:
+        id:
+          type: integer
+          example: 12
+        cb23:
+          type: [string, 'null']
+          example: CB23-0012
+        tipo:
+          type: string
+          example: Laptop
+
+    Mantenimiento:
+      type: object
+      required:
+        - id
+        - folio
+        - activoId
+        - activo
+        - tipo
+        - estado
+        - prioridad
+        - tecnicoId
+        - tecnico
+        - fechaProgramada
+        - fechaRealizada
+        - costo
+        - descripcion
+        - evidencias
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: integer
+          example: 1
+        folio:
+          type: string
+          example: MTO-0001
+        activoId:
+          type: integer
+          example: 12
+        activo:
+          $ref: '#/components/schemas/ActivoMantenimientoResumen'
+        tipo:
+          $ref: '#/components/schemas/MantenimientoTipo'
+        estado:
+          $ref: '#/components/schemas/MantenimientoEstado'
+        prioridad:
+          $ref: '#/components/schemas/MantenimientoPrioridad'
+        tecnicoId:
+          type: string
+          example: A006
+        tecnico:
+          $ref: '#/components/schemas/UsuarioResumen'
+        fechaProgramada:
+          type: string
+          format: date-time
+          example: '2026-11-05T09:00:00.000Z'
+        fechaRealizada:
+          type: [string, 'null']
+          format: date-time
+          example: null
+        costo:
+          type: [number, 'null']
+          minimum: 0
+          example: 450.00
+        descripcion:
+          type: [string, 'null']
+          example: Limpieza y revision de hardware
+        evidencias:
+          type: [object, 'null']
+          additionalProperties: true
+          example: null
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    DatosCreacionMantenimiento:
+      type: object
+      additionalProperties: false
+      required: [activoId, tipo, tecnicoId, fechaProgramada]
+      properties:
+        activoId:
+          type: integer
+          minimum: 1
+          example: 12
+        tipo:
+          $ref: '#/components/schemas/MantenimientoTipo'
+        estado:
+          $ref: '#/components/schemas/MantenimientoEstado'
+        prioridad:
+          $ref: '#/components/schemas/MantenimientoPrioridad'
+        tecnicoId:
+          type: string
+          minLength: 1
+          example: A006
+        fechaProgramada:
+          type: string
+          format: date-time
+          example: '2026-11-05T09:00:00.000Z'
+        fechaRealizada:
+          type: [string, 'null']
+          format: date-time
+          example: null
+        costo:
+          type: [number, 'null']
+          minimum: 0
+          example: 450.00
+        descripcion:
+          type: [string, 'null']
+          example: Limpieza y revision de hardware
+
+    DatosEdicionMantenimiento:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        activoId:
+          type: integer
+          minimum: 1
+        tipo:
+          $ref: '#/components/schemas/MantenimientoTipo'
+        estado:
+          $ref: '#/components/schemas/MantenimientoEstado'
+        prioridad:
+          $ref: '#/components/schemas/MantenimientoPrioridad'
+        tecnicoId:
+          type: string
+          minLength: 1
+        fechaProgramada:
+          type: string
+          format: date-time
+        fechaRealizada:
+          type: [string, 'null']
+          format: date-time
+        costo:
+          type: [number, 'null']
+          minimum: 0
+        descripcion:
+          type: [string, 'null']
+
+    RespuestaMantenimiento:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Mantenimiento creado correctamente
+        errors:
+          type: array
+          items: {}
+        data:
+          $ref: '#/components/schemas/Mantenimiento'
+
+    RespuestaMantenimientoPaginada:
+      type: object
+      required: [success, message, errors, data, meta]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: Mantenimientos obtenidos correctamente
+        errors:
+          type: array
+          items: {}
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Mantenimiento'
+        meta:
+          $ref: '#/components/schemas/MetaPaginacion'
+
+    RespuestaHistorialMantenimiento:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: Historial de mantenimientos obtenido correctamente
+        errors:
+          type: array
+          items: {}
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Mantenimiento'

@@ -1,0 +1,57 @@
+meta {
+  name: Crear mantenimiento
+  type: http
+  seq: 2
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+  bru.setVar("fechaProgramadaMantenimiento", new Date(Date.now() - 86400000).toISOString());
+  bru.setVar("fechaRealizadaMantenimiento", new Date().toISOString());
+}
+
+post {
+  url: {{baseUrl}}/api/mantenimiento
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "activoId": {{ultimoActivoId}},
+    "tipo": "PREVENTIVO",
+    "estado": "PROGRAMADO",
+    "prioridad": "MEDIA",
+    "tecnicoId": "ADMIN",
+    "fechaProgramada": "{{fechaProgramadaMantenimiento}}",
+    "costo": 450.00,
+    "descripcion": "Mantenimiento de prueba Bruno"
+  }
+}
+
+script:post-response {
+  if (res.status === 201) bru.setVar("mantenimientoId", res.body.data.id);
+}
+
+assert {
+  res.status: eq 201
+}
+
+assert {
+  res.body.success: eq true
+}
+
+assert {
+  res.body.data.estado: eq PROGRAMADO
+}
+
+assert {
+  res.body.data.folio: isString
+}

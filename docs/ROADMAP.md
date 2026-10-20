@@ -12,6 +12,7 @@ conviene revisarlo antes de cada iteracion y actualizarlo al cerrar cada modulo.
 | Auth (`/api/auth`)                 | `POST /login`, `GET /me`                                                                                            | Si                     | 3 requests         |
 | Incidencias (`/api/incidencias`)   | `GET /`, `GET /:id`, `POST /`, `PATCH /:id/estado`                                                                     | Si                     | 19 requests        |
 | Activos (`/api/activos`)           | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `PATCH /:id/estado`, `POST /:id/asignaciones`, `DELETE /:id` | Si                     | 41 requests        |
+| Mantenimiento (`/api/mantenimiento`) | `GET /`, `GET /:id`, `GET /activo/:activoId`, `POST /`, `PATCH /:id`, `DELETE /:id` | Si | 7 requests |
 | Importaciones (`/api/activos/importaciones`) | `POST /validar`, `POST /confirmar`                                                                          | Si                     | 7 requests         |
 | Asignaciones (`/api/asignaciones`) | `GET /`, `PATCH /:id`, `DELETE /:id`, `POST /:id/devolucion`                                                             | Si                     | 21 requests        |
 | Usuarios (`/api/usuarios`)         | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `PATCH /:id/rol`, `PATCH /:id/permisos`, `PATCH /:id/password`, `DELETE /:id`                           | Si                     | 34 requests        |
@@ -105,7 +106,9 @@ prueba controlada.
 
 Permisos iniciales: `incidencias:leer`, `notificaciones:leer`,
 `activos:leer`, `activos:crear`,
-`activos:editar`, `activos:estado`, `activos:asignar`, `activos:eliminar` y
+`activos:editar`, `activos:estado`, `activos:asignar`, `activos:eliminar`,
+`mantenimiento:leer`, `mantenimiento:crear`, `mantenimiento:editar`,
+`mantenimiento:eliminar` y
 `usuarios:administrar`, `roles:administrar`, `catalogos:administrar`,
 `licencias:administrar`, `secretos:leer`, `secretos:revelar` y
 `secretos:administrar`. Se protege
@@ -305,7 +308,7 @@ Pendiente de disenar los endpoints y el alcance exacto de cada uno.
 - [ ] agregar en licencias el tipo (suscripción, perpetua).
 - [ ] Devolver en la consulta de licencias la clave
 - [X] creacion de endPoints del modulo de auditoria (fase 1 en §2.12; instrumentacion pendiente por fases)
-- [ ] creacion de endPoints del modulo de mantenimiento de equipos
+- [X] creacion de endPoints del modulo de mantenimiento de equipos (CRUD `/api/mantenimiento`; sincronizacion de estado del activo y eventos Socket.IO quedan para fase 2)
 - [ ] simular subtareas  para documentar a la memoria
 - [ ] **Recordatorios (Tareas Programadas):** Notificaciones automáticas de vencimientos
 
