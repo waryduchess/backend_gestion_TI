@@ -49,6 +49,11 @@ tags:
       Ordenes de mantenimiento preventivo y correctivo de activos. Requiere
       los permisos mantenimiento:leer, mantenimiento:crear,
       mantenimiento:editar o mantenimiento:eliminar segun la operacion.
+  - name: recordatorios
+    description: >
+      Recordatorios personales del usuario autenticado. Requiere
+      recordatorios:leer, recordatorios:crear, recordatorios:editar o
+      recordatorios:eliminar segun la operacion.
 
 paths:
   /api/auth/login:
@@ -4463,6 +4468,259 @@ paths:
               schema:
                 $ref: '#/components/schemas/RespuestaError'
 
+  /api/recordatorios:
+    get:
+      tags: [recordatorios]
+      summary: Listar recordatorios del usuario autenticado
+      description: >
+        Listado paginado de recordatorios activos del usuario autenticado.
+        Requiere recordatorios:leer. Los recordatorios sin fecha se pueden
+        consultar con sinFecha=true.
+      operationId: listarRecordatorios
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: q
+          in: query
+          description: Busca en titulo y descripcion
+          schema:
+            type: string
+        - name: completado
+          in: query
+          schema:
+            type: boolean
+        - name: prioridad
+          in: query
+          schema:
+            $ref: '#/components/schemas/PrioridadRecordatorio'
+        - name: desde
+          in: query
+          description: Fecha inicial inclusive (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+        - name: hasta
+          in: query
+          description: Fecha final inclusive (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+        - name: sinFecha
+          in: query
+          description: Si es true devuelve solo recordatorios sin fecha
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Recordatorios obtenidos correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaRecordatorioPaginada'
+        '400':
+          description: Filtros o paginacion invalidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso recordatorios:leer
+    post:
+      tags: [recordatorios]
+      summary: Crear un recordatorio
+      description: >
+        Crea un recordatorio personal. El dueño se toma del token. Requiere
+        recordatorios:crear.
+      operationId: crearRecordatorio
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DatosCreacionRecordatorio'
+            example:
+              titulo: Renovar certificado SSL
+              descripcion: Revisar vencimiento y renovar antes del corte
+              fecha: '2026-11-01T09:00:00.000Z'
+              prioridad: ALTA
+      responses:
+        '201':
+          description: Recordatorio creado correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaRecordatorio'
+        '400':
+          description: Datos invalidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso recordatorios:crear
+
+  /api/recordatorios/{id}:
+    get:
+      tags: [recordatorios]
+      summary: Obtener un recordatorio
+      description: Solo devuelve recordatorios del usuario autenticado.
+      operationId: obtenerRecordatorio
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/RecordatorioId'
+      responses:
+        '200':
+          description: Recordatorio obtenido correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaRecordatorio'
+        '400':
+          description: El id no es valido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso recordatorios:leer
+        '404':
+          description: Recordatorio no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+    patch:
+      tags: [recordatorios]
+      summary: Actualizar un recordatorio
+      description: >
+        Actualizacion parcial. No permite cambiar el dueño ni marcar como
+        completado; para eso existe /completar. Requiere recordatorios:editar.
+      operationId: actualizarRecordatorio
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/RecordatorioId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DatosEdicionRecordatorio'
+      responses:
+        '200':
+          description: Recordatorio actualizado correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaRecordatorio'
+        '400':
+          description: Datos invalidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso recordatorios:editar
+        '404':
+          description: Recordatorio no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+    delete:
+      tags: [recordatorios]
+      summary: Dar de baja un recordatorio
+      description: >
+        Baja logica; responde 204 y es idempotente. Requiere
+        recordatorios:eliminar.
+      operationId: eliminarRecordatorio
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/RecordatorioId'
+      responses:
+        '204':
+          description: Recordatorio dado de baja correctamente
+        '400':
+          description: El id no es valido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso recordatorios:eliminar
+        '404':
+          description: Recordatorio no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+
+  /api/recordatorios/{id}/completar:
+    patch:
+      tags: [recordatorios]
+      summary: Completar o reabrir un recordatorio
+      operationId: completarRecordatorio
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/RecordatorioId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DatosCompletarRecordatorio'
+      responses:
+        '200':
+          description: Recordatorio actualizado correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaRecordatorio'
+        '400':
+          description: Datos invalidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso recordatorios:editar
+        '404':
+          description: Recordatorio no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -4481,6 +4739,14 @@ components:
       schema:
         type: integer
         minimum: 1.
+
+    RecordatorioId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
 
   schemas:
     LoginRequest:
@@ -5344,8 +5610,11 @@ components:
             $ref: '#/components/schemas/LicenciaPorVencer'
         recordatorios:
           type: array
-          description: Reservado (modulo Recordatorio aun no implementado)
-          items: {}
+          description: >
+            Hasta 5 recordatorios pendientes con fecha del usuario autenticado,
+            ordenados por fecha ascendente.
+          items:
+            $ref: '#/components/schemas/RecordatorioProximo'
 
     KpisDashboard:
       type: object
@@ -5394,6 +5663,152 @@ components:
           format: date-time
         asignadaA:
           $ref: '#/components/schemas/UsuarioResumen'
+
+    PrioridadRecordatorio:
+      type: string
+      enum: [BAJA, MEDIA, ALTA]
+      example: MEDIA
+
+    Recordatorio:
+      type: object
+      required:
+        - id
+        - titulo
+        - descripcion
+        - fecha
+        - prioridad
+        - completado
+        - completadoEn
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: integer
+          example: 12
+        titulo:
+          type: string
+          maxLength: 200
+          example: Renovar certificado SSL
+        descripcion:
+          type: [string, 'null']
+          example: Revisar vencimiento y renovar antes del corte
+        fecha:
+          type: [string, 'null']
+          format: date-time
+          example: '2026-11-01T09:00:00.000Z'
+        prioridad:
+          $ref: '#/components/schemas/PrioridadRecordatorio'
+        completado:
+          type: boolean
+          example: false
+        completadoEn:
+          type: [string, 'null']
+          format: date-time
+          example: null
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    RecordatorioProximo:
+      type: object
+      required: [id, titulo, fecha, prioridad]
+      properties:
+        id:
+          type: integer
+          example: 12
+        titulo:
+          type: string
+          example: Renovar certificado SSL
+        fecha:
+          type: string
+          format: date-time
+        prioridad:
+          $ref: '#/components/schemas/PrioridadRecordatorio'
+
+    DatosCreacionRecordatorio:
+      type: object
+      additionalProperties: false
+      required: [titulo]
+      properties:
+        titulo:
+          type: string
+          minLength: 1
+          maxLength: 200
+          example: Renovar certificado SSL
+        descripcion:
+          type: [string, 'null']
+          maxLength: 10000
+          example: Revisar vencimiento y renovar antes del corte
+        fecha:
+          type: [string, 'null']
+          format: date-time
+          example: '2026-11-01T09:00:00.000Z'
+        prioridad:
+          $ref: '#/components/schemas/PrioridadRecordatorio'
+
+    DatosEdicionRecordatorio:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        titulo:
+          type: string
+          minLength: 1
+          maxLength: 200
+        descripcion:
+          type: [string, 'null']
+          maxLength: 10000
+        fecha:
+          type: [string, 'null']
+          format: date-time
+        prioridad:
+          $ref: '#/components/schemas/PrioridadRecordatorio'
+
+    DatosCompletarRecordatorio:
+      type: object
+      additionalProperties: false
+      required: [completado]
+      properties:
+        completado:
+          type: boolean
+          example: true
+
+    RespuestaRecordatorio:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: Recordatorio creado correctamente
+        errors:
+          type: array
+          items: {}
+        data:
+          $ref: '#/components/schemas/Recordatorio'
+
+    RespuestaRecordatorioPaginada:
+      type: object
+      required: [success, message, errors, data, meta]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: Recordatorios obtenidos correctamente
+        errors:
+          type: array
+          items: {}
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Recordatorio'
+        meta:
+          $ref: '#/components/schemas/MetaPaginacion'
 
     ImportacionActivosPeticion:
       type: object
@@ -5823,7 +6238,7 @@ components:
 
     ModuloAuditoria:
       type: string
-      enum: [SECRETOS, ACTIVOS, USUARIOS, ROLES, CATALOGOS, LICENCIAS, INCIDENCIAS, ASIGNACIONES, IMPORTACIONES, MANTENIMIENTO]
+      enum: [SECRETOS, ACTIVOS, USUARIOS, ROLES, CATALOGOS, LICENCIAS, INCIDENCIAS, ASIGNACIONES, IMPORTACIONES, MANTENIMIENTO, RECORDATORIOS]
 
     AccionAuditoria:
       type: string
@@ -5913,6 +6328,10 @@ components:
         - mantenimiento:crear
         - mantenimiento:editar
         - mantenimiento:eliminar
+        - recordatorios:leer
+        - recordatorios:crear
+        - recordatorios:editar
+        - recordatorios:eliminar
         - usuarios:administrar
         - roles:administrar
         - catalogos:administrar

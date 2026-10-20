@@ -1,4 +1,5 @@
 import { UsuarioResumen } from './comun.model';
+import { RecordatorioProximo } from './recordatorio.model';
 
 export type SucursalDashboard = 'CANCUN' | 'PLAYA';
 
@@ -25,5 +26,5 @@ export interface ResumenDashboard {
   kpis: KpisDashboard;
   activosPorTipo: ActivoPorTipo[];
   licenciasPorVencer: LicenciaPorVencer[];
-  recordatorios: never[];
+  recordatorios: RecordatorioProximo[];
 }

@@ -70,6 +70,12 @@ enum MantenimientoPrioridad {
   ALTA
 }
 
+enum PrioridadRecordatorio {
+  BAJA
+  MEDIA
+  ALTA
+}
+
 enum AccionAuditoriaSecreto {
   CREAR
   ACTUALIZAR
@@ -159,6 +165,7 @@ model Usuario {
   mantenimientosTecnico OrdenMantenimiento[] @relation("TecnicoMantenimiento")
   licencias             Licencia[]
   notificaciones        Notificacion[]
+  recordatorios         Recordatorio[]       @relation("Recordatorios")
   auditoriasSecretos    AuditoriaSecreto[]
   auditorias            Auditoria[]
 
@@ -273,6 +280,29 @@ model AsignacionComputo {
   activo  Activo  @relation(fields: [activoId], references: [id], onDelete: Cascade)
 
   @@unique([usuarioId, activoId])
+}
+
+// ------------------------------------------------------
+// RECORDATORIOS
+// ------------------------------------------------------
+
+model Recordatorio {
+  id           Int                   @id @default(autoincrement())
+  titulo       String                @db.VarChar(200)
+  descripcion  String?               @db.Text
+  fecha        DateTime?
+  prioridad    PrioridadRecordatorio @default(MEDIA)
+  completado   Boolean               @default(false)
+  completadoEn DateTime?
+  activo       Boolean               @default(true)
+  usuarioId    String
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+
+  usuario Usuario @relation("Recordatorios", fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId, activo, completado, fecha])
+  @@index([fecha])
 }
 
 // ------------------------------------------------------

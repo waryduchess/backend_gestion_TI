@@ -1,0 +1,34 @@
+meta {
+  name: Verificar recordatorio en dashboard
+  type: http
+  seq: 11
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+get {
+  url: {{baseUrl}}/api/dashboard/summary
+  body: json
+  auth: none
+}
+
+script:post-response {
+  if (res.status !== 200) return;
+  const encontrado = res.body.data.recordatorios.find((item) => item.id === bru.getVar("recordatorioId"));
+  if (!encontrado) throw new Error("El recordatorio con fecha no aparecio en el dashboard");
+  const sinFecha = res.body.data.recordatorios.find((item) => item.id === bru.getVar("recordatorioSinFechaId"));
+  if (sinFecha) throw new Error("El recordatorio sin fecha no debe aparecer en el dashboard");
+}
+
+assert {
+  res.status: eq 200
+}
+
+assert {
+  res.body.data.recordatorios: isArray
+}

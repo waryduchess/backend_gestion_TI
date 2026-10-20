@@ -1,0 +1,36 @@
+meta {
+  name: Listar recordatorios
+  type: http
+  seq: 3
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+get {
+  url: {{baseUrl}}/api/recordatorios?q={{qRecordatorio}}&limit=100
+  body: json
+  auth: none
+}
+
+script:post-response {
+  if (res.status !== 200) return;
+  const encontrado = res.body.data.find((item) => item.id === bru.getVar("recordatorioId"));
+  if (!encontrado) throw new Error("No se encontro el recordatorio creado");
+}
+
+assert {
+  res.status: eq 200
+}
+
+assert {
+  res.body.success: eq true
+}
+
+assert {
+  res.body.meta.page: eq 1
+}

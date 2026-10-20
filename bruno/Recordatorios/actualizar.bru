@@ -1,0 +1,55 @@
+meta {
+  name: Actualizar recordatorio
+  type: http
+  seq: 4
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+  bru.setVar("tituloRecordatorioEditado", bru.getVar("tituloRecordatorio") + " editado");
+  bru.setVar("fechaRecordatorioEditada", new Date(Date.now() + 172800000).toISOString());
+}
+
+patch {
+  url: {{baseUrl}}/api/recordatorios/{{recordatorioId}}
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "titulo": "{{tituloRecordatorioEditado}}",
+    "descripcion": "Descripcion editada",
+    "fecha": "{{fechaRecordatorioEditada}}",
+    "prioridad": "MEDIA"
+  }
+}
+
+script:post-response {
+  if (res.status === 200) {
+    bru.setVar("qRecordatorio", encodeURIComponent(bru.getVar("tituloRecordatorioEditado")));
+  }
+}
+
+assert {
+  res.status: eq 200
+}
+
+assert {
+  res.body.data.titulo: eq {{tituloRecordatorioEditado}}
+}
+
+assert {
+  res.body.data.prioridad: eq MEDIA
+}
+
+assert {
+  res.body.data.descripcion: eq Descripcion editada
+}

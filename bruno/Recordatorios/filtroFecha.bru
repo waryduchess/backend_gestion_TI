@@ -1,0 +1,32 @@
+meta {
+  name: Filtrar recordatorios por fecha
+  type: http
+  seq: 8
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+  bru.setVar("desdeRecordatorio", new Date(Date.now() - 86400000).toISOString().slice(0, 10));
+  bru.setVar("hastaRecordatorio", new Date(Date.now() + 259200000).toISOString().slice(0, 10));
+}
+
+get {
+  url: {{baseUrl}}/api/recordatorios?desde={{desdeRecordatorio}}&hasta={{hastaRecordatorio}}&q={{qRecordatorio}}
+  body: json
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}
+
+assert {
+  res.body.meta.total: gt 0
+}
+
+assert {
+  res.body.data[0].fecha: isString
+}

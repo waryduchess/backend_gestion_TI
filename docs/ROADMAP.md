@@ -26,10 +26,12 @@ conviene revisarlo antes de cada iteracion y actualizarlo al cerrar cada modulo.
 | Dashboard (`/api/dashboard`)       | `GET /summary`                                                                                                          | Si                     | 5 requests         |
 | Auditoria (`/api/auditoria`)       | `GET /`, `GET /:id`                                                                                                     | Si                     | 11 requests        |
 | Reportes                            | sin modelo ni endpoints (ver §2.13)                                                                                    | No                     | No                 |
-| Recordatorios                      | sin modelo ni endpoints                                                                                                 | No                     | No                 |
+| Recordatorios (`/api/recordatorios`) | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `PATCH /:id/completar`, `DELETE /:id`                                      | Si                     | 17 requests        |
 | Sucursal (normalizacion)           | sin catalogo; `Activo.sucursal` es texto libre                                                                          | No                     | No                 |
 
-Regresion mas reciente tras mantenimiento (sincronizacion con activo, auditoria y Socket.IO): `npm run build` limpio, OpenAPI valido y suite Bruno **281 requests (279 OK, 2 fallos preexistentes), 635/639 assertions**. `Mantenimiento/` pasa **21/21 requests y 46/46 assertions**. Los 2 fallos siguen siendo `Activos/buscarPorSerie` y su cascada `Activos/cambiarEstadoAsignacionActiva`, por drift de datos de `AF00010` (ajenos a este cambio). Verificado con curl que `MANTENIMIENTO` y `ACTIVOS` registran el cambio de estado; el detalle de activos incluye `origen=MANTENIMIENTO`.
+Regresion mas reciente tras recordatorios: `npm run build` limpio, OpenAPI valido y suite Bruno **299 requests (297 OK, 2 fallos preexistentes), 679/683 assertions**. `Recordatorios/` pasa **17/17 requests y 43/43 assertions**; el dashboard devuelve hasta 5 pendientes con fecha del usuario. Los 2 fallos siguen siendo `Activos/buscarPorSerie` y su cascada `Activos/cambiarEstadoAsignacionActiva`, por drift de datos de `AF00010` (ajenos a este cambio).
+
+Regresion previa tras mantenimiento (sincronizacion con activo, auditoria y Socket.IO): `npm run build` limpio, OpenAPI valido y suite Bruno **281 requests (279 OK, 2 fallos preexistentes), 635/639 assertions**. `Mantenimiento/` pasa **21/21 requests y 46/46 assertions**. Verificado con curl que `MANTENIMIENTO` y `ACTIVOS` registran el cambio de estado; el detalle de activos incluye `origen=MANTENIMIENTO`.
 
 Regresion previa tras hard delete (licencias/secretos) y auditoria fase 2 (activos+asignaciones): `npx tsc --noEmit` limpio, OpenAPI valido y suite Bruno **259 requests (257 OK, 2 fallos preexistentes), 588/592 assertions**. Los 13 requests nuevos (`Licencias/` 5 + `Secretos/` 5 + `Roles/denegarEliminarLicencia` + `Roles/denegarEliminarSecreto` + `Auditoria/fase2Activos`) pasan en verde; verificado ademas con curl (hard delete 200/400/404 + cascada, y movimientos ACTIVOS/ASIGNACIONES en `GET /api/auditoria`).
 
@@ -110,7 +112,8 @@ Permisos iniciales: `incidencias:leer`, `notificaciones:leer`,
 `activos:leer`, `activos:crear`,
 `activos:editar`, `activos:estado`, `activos:asignar`, `activos:eliminar`,
 `mantenimiento:leer`, `mantenimiento:crear`, `mantenimiento:editar`,
-`mantenimiento:eliminar` y
+`mantenimiento:eliminar`, `recordatorios:leer`, `recordatorios:crear`,
+`recordatorios:editar`, `recordatorios:eliminar` y
 `usuarios:administrar`, `roles:administrar`, `catalogos:administrar`,
 `licencias:administrar`, `secretos:leer`, `secretos:revelar` y
 `secretos:administrar`. Se protege
@@ -196,7 +199,7 @@ y recibe un JSON diminuto con todos los indicadores, calculados con
 - [X] `activosPorTipo` con `GROUP BY tipo`, ordenado por total descendente.
 - [X] `licenciasPorVencer`: top 5 por `fechaVencimiento` mas cercana entre las
   activas (incluye vencidas), con software, proveedor, fecha y asignado.
-- [X] `recordatorios: []` reservado hasta implementar §2.10.
+- [X] `recordatorios` devuelve hasta 5 pendientes con fecha del usuario autenticado (§2.10).
 - [X] RBAC JWT + permiso `dashboard:leer` (migracion lo agrega a roles con
   `activos:leer`); documentado en OpenAPI y cubierto en Bruno (200/400/401/403).
 - [ ] **Filtro de sucursal parcial (temporal):** hoy el filtro se aplica solo a los
@@ -206,20 +209,28 @@ y recibe un JSON diminuto con todos los indicadores, calculados con
   hasta completar §2.11 (normalizacion), momento en que el filtro cubrira todos
   los bloques.
 
-### 2.10 Recordatorios (idea, por definir)
+### 2.10 Recordatorios
 
-Recordatorios de cosas que no deben olvidarse (tareas propias de TI), junto con
-las notificaciones existentes. Se muestran en el dashboard (§2.9) y tienen su
-propio ciclo de vida; **no** sustituyen a `Notificacion`.
+Recordatorios personales de cosas que no deben olvidarse (tareas propias de TI).
+Tienen su propio ciclo de vida y **no** sustituyen a `Notificacion`.
 
-- [ ] Modelo propio `Recordatorio`: `titulo`, `fecha`, `descripcion`, dueño
-  (`usuarioId`) y `completado` (baja logica/marcar como cumplido).
-- [ ] CRUD `GET /api/recordatorios` (paginado y filtrable por rango de fecha y
-  `completado`), `POST`, `PATCH /:id` y `DELETE /:id` (baja logica, §4.6).
-- [ ] Definir si el recordatorio es personal (solo su dueño) o compartido, y su
-  relacion con las notificaciones persistentes (¿emite aviso al llegar la fecha?).
-- [ ] RBAC por definir; documentar en OpenAPI y cubrir validaciones, filtros,
-  permisos y baja logica con Bruno.
+- [X] Modelo `Recordatorio`: `titulo`, `descripcion`, `fecha` opcional,
+  `prioridad`, `completado`, `completadoEn`, `activo`, dueño (`usuarioId`).
+  Migracion `20261020214217_recordatorios`.
+- [X] CRUD personal: `GET /api/recordatorios` (paginado y filtrable por `q`,
+  `completado`, `prioridad`, `desde`/`hasta` y `sinFecha`), `GET /:id`, `POST`,
+  `PATCH /:id`, `PATCH /:id/completar` y `DELETE /:id` (baja logica 204).
+- [X] Permisos `recordatorios:leer/crear/editar/eliminar` y aislamiento por
+  dueño; un recordatorio ajeno responde `404`.
+- [X] El dashboard devuelve hasta 5 recordatorios pendientes con fecha del
+  usuario autenticado.
+- [X] Auditoria `RECORDATORIOS` en crear, actualizar, completar/descompletar y
+  baja logica.
+- [X] Swagger + Bruno (`Recordatorios/` 17 requests + 403 en Roles).
+- [ ] Notificaciones al llegar la fecha: requiere ampliar `TipoNotificacion`,
+  relacion/FK con `Recordatorio`, job y Socket.IO.
+- [ ] Recordatorios compartidos, etiquetas/categorias y recurrencia: no
+  implementados.
 
 ### 2.11 Normalizacion de sucursal (prerrequisito del dashboard)
 

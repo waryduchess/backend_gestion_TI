@@ -11,6 +11,7 @@ export const MODULOS_AUDITORIA = [
   'ASIGNACIONES',
   'IMPORTACIONES',
   'MANTENIMIENTO',
+  'RECORDATORIOS',
 ] as const;
 
 export type ModuloAuditoria = (typeof MODULOS_AUDITORIA)[number];

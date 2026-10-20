@@ -9,6 +9,9 @@ const SUCURSALES_VALIDAS = ['CANCUN', 'PLAYA'] as const;
 
 export const obtenerResumenDashboard = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
+    if (!req.usuario) {
+      throw new HttpError(401, 'Autenticacion requerida');
+    }
     const texto = comoTexto(req.query.sucursal).toUpperCase();
 
     let sucursal: SucursalDashboard | null = null;
@@ -24,7 +27,7 @@ export const obtenerResumenDashboard = asyncHandler(
       sucursal = texto as SucursalDashboard;
     }
 
-    const data = await obtenerResumen(sucursal);
+    const data = await obtenerResumen(sucursal, req.usuario.id);
 
     res.status(200).json({
       success: true,
