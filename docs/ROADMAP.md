@@ -12,7 +12,7 @@ conviene revisarlo antes de cada iteracion y actualizarlo al cerrar cada modulo.
 | Auth (`/api/auth`)                 | `POST /login`, `GET /me`                                                                                            | Si                     | 3 requests         |
 | Incidencias (`/api/incidencias`)   | `GET /`, `GET /:id`, `POST /`, `PATCH /:id/estado`                                                                     | Si                     | 19 requests        |
 | Activos (`/api/activos`)           | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `PATCH /:id/estado`, `POST /:id/asignaciones`, `DELETE /:id` | Si                     | 41 requests        |
-| Mantenimiento (`/api/mantenimiento`) | `GET /`, `GET /:id`, `GET /activo/:activoId`, `POST /`, `PATCH /:id`, `DELETE /:id` | Si | 7 requests |
+| Mantenimiento (`/api/mantenimiento`) | `GET /`, `GET /:id`, `GET /activo/:activoId`, `POST /`, `PATCH /:id`, `DELETE /:id` | Si | 21 requests |
 | Importaciones (`/api/activos/importaciones`) | `POST /validar`, `POST /confirmar`                                                                          | Si                     | 7 requests         |
 | Asignaciones (`/api/asignaciones`) | `GET /`, `PATCH /:id`, `DELETE /:id`, `POST /:id/devolucion`                                                             | Si                     | 21 requests        |
 | Usuarios (`/api/usuarios`)         | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `PATCH /:id/rol`, `PATCH /:id/permisos`, `PATCH /:id/password`, `DELETE /:id`                           | Si                     | 34 requests        |
@@ -29,7 +29,9 @@ conviene revisarlo antes de cada iteracion y actualizarlo al cerrar cada modulo.
 | Recordatorios                      | sin modelo ni endpoints                                                                                                 | No                     | No                 |
 | Sucursal (normalizacion)           | sin catalogo; `Activo.sucursal` es texto libre                                                                          | No                     | No                 |
 
-Regresion mas reciente tras hard delete (licencias/secretos) y auditoria fase 2 (activos+asignaciones): `npx tsc --noEmit` limpio, OpenAPI valido y suite Bruno **259 requests (257 OK, 2 fallos preexistentes), 588/592 assertions**. Los 2 fallos siguen siendo `Activos/buscarPorSerie` y su cascada `Activos/cambiarEstadoAsignacionActiva`, por drift de datos de `AF00010` (ajenos a este cambio). Los 13 requests nuevos (`Licencias/` 5 + `Secretos/` 5 + `Roles/denegarEliminarLicencia` + `Roles/denegarEliminarSecreto` + `Auditoria/fase2Activos`) pasan en verde; verificado ademas con curl (hard delete 200/400/404 + cascada, y movimientos ACTIVOS/ASIGNACIONES en `GET /api/auditoria`).
+Regresion mas reciente tras mantenimiento (sincronizacion con activo, auditoria y Socket.IO): `npm run build` limpio, OpenAPI valido y suite Bruno **281 requests (279 OK, 2 fallos preexistentes), 635/639 assertions**. `Mantenimiento/` pasa **21/21 requests y 46/46 assertions**. Los 2 fallos siguen siendo `Activos/buscarPorSerie` y su cascada `Activos/cambiarEstadoAsignacionActiva`, por drift de datos de `AF00010` (ajenos a este cambio). Verificado con curl que `MANTENIMIENTO` y `ACTIVOS` registran el cambio de estado; el detalle de activos incluye `origen=MANTENIMIENTO`.
+
+Regresion previa tras hard delete (licencias/secretos) y auditoria fase 2 (activos+asignaciones): `npx tsc --noEmit` limpio, OpenAPI valido y suite Bruno **259 requests (257 OK, 2 fallos preexistentes), 588/592 assertions**. Los 13 requests nuevos (`Licencias/` 5 + `Secretos/` 5 + `Roles/denegarEliminarLicencia` + `Roles/denegarEliminarSecreto` + `Auditoria/fase2Activos`) pasan en verde; verificado ademas con curl (hard delete 200/400/404 + cascada, y movimientos ACTIVOS/ASIGNACIONES en `GET /api/auditoria`).
 
 Regresion previa tras los permisos por usuario: `npx tsc --noEmit` limpio, OpenAPI valido y suite Bruno **246 requests (244 OK, 2 fallos preexistentes), 563/567 assertions**. Los 2 fallos siguen siendo `Activos/buscarPorSerie` y su cascada `Activos/cambiarEstadoAsignacionActiva`, por drift de datos de `AF00010` (ajenos a este cambio). Los 7 requests nuevos (`Usuarios/permisos*` 6 + `Roles/denegarAsignarPermisos`) pasan en verde; verificado ademas con curl end-to-end (conceder permiso habilita la ruta, revocarlo la bloquea).
 
@@ -263,8 +265,11 @@ Vista unica y filtrable para responder "quien hizo que, cuando y sobre que".
   `PATCH /api/usuarios/:id/permisos` ya registra auditoria `USUARIOS/ACTUALIZAR`.)
 - [ ] **Fase 4 - LICENCIAS + INCIDENCIAS**: instrumentar alta/edicion/baja de
   licencias y alta/edicion/cambio de estado de incidencias.
-- [ ] **Fase 5 - NOTIFICACIONES + MANTENIMIENTO**: instrumentar marcar leida y
-  leer-todas; CRUD de mantenimiento de equipos cuando exista.
+- [X] **Fase 5 - MANTENIMIENTO**: CRUD de mantenimiento instrumentado con
+  auditoria en crear, actualizar y baja logica; la sincronizacion del estado
+  del activo tambien registra el cambio en `ACTIVOS`.
+- [ ] **Fase 5 - NOTIFICACIONES**: instrumentar marcar leida y leer-todas.
+  Notificar al tecnico de mantenimiento queda como pendiente separado (§2.14).
 - [ ] **Fase 6 - PROYECTOS + RECORDATORIOS + SUCURSAL**: instrumentar cuando se
   implementen (alta, edicion y baja logica de cada modelo).
 - [ ] **(Opcional) Fase 7 - SESIONES**: registrar login/logout exitoso y fallido
@@ -293,6 +298,39 @@ Pendiente de disenar los endpoints y el alcance exacto de cada uno.
 - [ ] Definir generacion sincrona vs en background (job + descarga) por reporte.
 - [ ] Swagger + Bruno por cada reporte al implementarse.
 
+### 2.14 Mantenimiento de equipos
+
+Modulo de ordenes preventivas/correctivas montado en `/api/mantenimiento`.
+
+- [X] CRUD base: listado paginado, detalle, historial por activo, alta con folio
+  `MTO-0001`, edicion, baja logica y permisos `mantenimiento:*`.
+- [X] Transiciones `PROGRAMADO -> EN_PROCESO -> COMPLETADO` y cualquier estado
+  a `CANCELADO`; una orden completada solo puede cancelarse.
+- [X] Auditoria en crear, actualizar y baja logica con `registrarAuditoria`.
+- [X] **Sincronizacion con el activo:** al entrar en `EN_PROCESO` el activo pasa
+  a `EN_MANTENIMIENTO` y se guarda `estadoActivoPrevio`; al completar o cancelar
+  se restaura el estado previo (o `EN_USO`/`EN_ALMACEN` como respaldo). No se
+  permite mas de una orden en proceso por activo, cambiar el activo de una orden
+  en proceso ni eliminar una orden en proceso.
+- [X] **Socket.IO:** sala `mantenimiento` y eventos `mantenimiento:creado`,
+  `mantenimiento:actualizado` y `mantenimiento:eliminado` para usuarios con
+  `mantenimiento:leer` (incluye permisos efectivos).
+- [ ] **Evidencias:** `OrdenMantenimiento.evidencias` queda reservado y vacio.
+  No se acepta en `POST`/`PATCH`, no existe endpoint de subida, no hay
+  almacenamiento S3 ni consumo desde el frontend. Pendiente definir formato,
+  validacion, endpoint `POST /api/mantenimiento/:id/evidencias`, almacenamiento
+  y visualizacion.
+- [ ] **Notificaciones al tecnico:** notificar al crear o reasignar una orden.
+  Requiere ampliar `TipoNotificacion`, agregar relacion/FK a mantenimiento y
+  migracion; no implementado.
+- [ ] **Concurrencia:** la validacion de una sola orden en proceso es de
+  aplicacion; no hay bloqueo pesimista a nivel BD. Documentar la limitacion si
+  se requiere operacion concurrente.
+- [ ] **Pruebas de Socket.IO:** no hay cliente de sockets instalado; validar
+  manualmente o agregar un cliente de pruebas en una iteracion futura.
+- [ ] **Auditoria avanzada:** snapshots `valoresAnteriores`/`valoresNuevos` y
+  endpoint por entidad; forma parte de la ampliacion pendiente de §2.12.
+
 ## 3. Features tecnicas pendientes
 
 - [X] `src/utils/crypto.ts` - AES-256-GCM con `AES_SECRET_KEY` para `Licencia.clave` y `Secreto.password`
@@ -300,7 +338,7 @@ Pendiente de disenar los endpoints y el alcance exacto de cada uno.
 - [ ] Emitir los eventos Socket.IO desde las operaciones de alta y cambio de estado de incidencias cuando se implementen esos endpoints
 - [X] `node-cron` - job diario de correo y recordatorios persistentes de vencimiento de licencias; pendiente SLA de tickets
 - [X] Nodemailer (`src/config/mailer.ts`) - correos de alerta de licencias; pendiente otras notificaciones
-- [ ] S3 (`src/config/s3.ts`, `@aws-sdk/client-s3`) - evidencias de incidencias y adjuntos
+- [ ] S3 (`src/config/s3.ts`, `@aws-sdk/client-s3`) - evidencias de incidencias, adjuntos y evidencias de mantenimiento (ver §2.14)
 - [ ] Puppeteer - reportes PDF (§2.13)
 - [ ] Ollama (`llama3.1:8b`) - asistente IA + Function Calling (servicio `ollama` en docker, profile `ai`)
 - [ ] CORS restrictivo - hoy `app.use(cors())` abierto; restringir a la URL del frontend
@@ -308,7 +346,7 @@ Pendiente de disenar los endpoints y el alcance exacto de cada uno.
 - [ ] agregar en licencias el tipo (suscripción, perpetua).
 - [ ] Devolver en la consulta de licencias la clave
 - [X] creacion de endPoints del modulo de auditoria (fase 1 en §2.12; instrumentacion pendiente por fases)
-- [X] creacion de endPoints del modulo de mantenimiento de equipos (CRUD `/api/mantenimiento`; sincronizacion de estado del activo y eventos Socket.IO quedan para fase 2)
+- [X] modulo de mantenimiento de equipos: CRUD `/api/mantenimiento`, sincronizacion del estado del activo, auditoria y eventos Socket.IO. Pendientes: evidencias, notificaciones al tecnico y pruebas de sockets (§2.14).
 - [ ] simular subtareas  para documentar a la memoria
 - [ ] **Recordatorios (Tareas Programadas):** Notificaciones automáticas de vencimientos
 

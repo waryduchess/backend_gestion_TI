@@ -1,0 +1,41 @@
+meta {
+  name: Rechazar costo negativo
+  type: http
+  seq: 19
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+  bru.setVar("fechaProgramadaCosto", new Date(Date.now() - 86400000).toISOString());
+}
+
+post {
+  url: {{baseUrl}}/api/mantenimiento
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "activoId": {{ultimoActivoId}},
+    "tipo": "PREVENTIVO",
+    "tecnicoId": "ADMIN",
+    "fechaProgramada": "{{fechaProgramadaCosto}}",
+    "costo": -1
+  }
+}
+
+assert {
+  res.status: eq 400
+}
+
+assert {
+  res.body.errors[0].campo: eq costo
+}

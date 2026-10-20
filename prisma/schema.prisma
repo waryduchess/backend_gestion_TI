@@ -280,21 +280,22 @@ model AsignacionComputo {
 // ------------------------------------------------------
 
 model OrdenMantenimiento {
-  id              Int                    @id @default(autoincrement())
-  folio           String                 @unique
-  activoId        Int
-  tipo            MantenimientoTipo
-  estado          MantenimientoEstado    @default(PROGRAMADO)
-  prioridad       MantenimientoPrioridad @default(MEDIA)
-  tecnicoId       String
-  fechaProgramada DateTime
-  fechaRealizada  DateTime?
-  costo           Decimal?               @db.Decimal(10, 2)
-  descripcion     String?                @db.Text
-  evidencias      Json?
-  activo          Boolean                @default(true)
-  createdAt       DateTime               @default(now())
-  updatedAt       DateTime               @updatedAt
+  id                 Int                    @id @default(autoincrement())
+  folio              String                 @unique
+  activoId           Int
+  tipo               MantenimientoTipo
+  estado             MantenimientoEstado    @default(PROGRAMADO)
+  estadoActivoPrevio EstadoActivo?
+  prioridad          MantenimientoPrioridad @default(MEDIA)
+  tecnicoId          String
+  fechaProgramada    DateTime
+  fechaRealizada     DateTime?
+  costo              Decimal?               @db.Decimal(10, 2)
+  descripcion        String?                @db.Text
+  evidencias         Json?
+  activo             Boolean                @default(true)
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
 
   activoRel Activo  @relation(fields: [activoId], references: [id])
   tecnico   Usuario @relation("TecnicoMantenimiento", fields: [tecnicoId], references: [id])

@@ -1,0 +1,36 @@
+meta {
+  name: Iniciar mantenimiento para cancelar
+  type: http
+  seq: 11
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+patch {
+  url: {{baseUrl}}/api/mantenimiento/{{mantenimientoCancelarId}}
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "estado": "EN_PROCESO"
+  }
+}
+
+assert {
+  res.status: eq 200
+}
+
+assert {
+  res.body.data.estado: eq EN_PROCESO
+}

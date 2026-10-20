@@ -14,6 +14,12 @@ import {
   ResultadoListadoMantenimiento,
 } from '../models/mantenimiento.model';
 import { registrarAuditoria } from './auditoria.service';
+import {
+  emitirMantenimientoActualizado,
+  emitirMantenimientoCreado,
+  emitirMantenimientoEliminado,
+  type MantenimientoEvento,
+} from '../config/socket';
 
 const INCLUDE_MANTENIMIENTO = {
   activoRel: {
@@ -70,8 +76,44 @@ const mapearMantenimiento = (
   updatedAt: fila.updatedAt,
 });
 
-const verificarActivo = async (activoId: number): Promise<void> => {
-  const activo = await prisma.activo.findUnique({
+const crearEventoMantenimiento = (
+  fila: FilaMantenimiento
+): MantenimientoEvento => ({
+  id: fila.id,
+  folio: fila.folio,
+  activoId: fila.activoId,
+  estado: fila.estado,
+  tipo: fila.tipo,
+  prioridad: fila.prioridad,
+  tecnicoId: fila.tecnicoId,
+  fechaProgramada: fila.fechaProgramada.toISOString(),
+});
+
+const resolverEstadoRestauracion = (
+  estadoPrevio: EstadoActivo | null,
+  estadoActual: EstadoActivo,
+  responsableId: string | null
+): EstadoActivo => {
+  if (estadoActual === EstadoActivo.DE_BAJA) {
+    return EstadoActivo.DE_BAJA;
+  }
+
+  if (
+    estadoPrevio !== null &&
+    estadoPrevio !== EstadoActivo.DE_BAJA &&
+    estadoPrevio !== EstadoActivo.EN_MANTENIMIENTO
+  ) {
+    return estadoPrevio;
+  }
+
+  return responsableId ? EstadoActivo.EN_USO : EstadoActivo.EN_ALMACEN;
+};
+
+const verificarActivo = async (
+  tx: Prisma.TransactionClient,
+  activoId: number
+): Promise<void> => {
+  const activo = await tx.activo.findUnique({
     where: { id: activoId },
     select: { id: true, estado: true },
   });
@@ -90,8 +132,11 @@ const verificarActivo = async (activoId: number): Promise<void> => {
   }
 };
 
-const verificarTecnico = async (tecnicoId: string): Promise<void> => {
-  const tecnico = await prisma.usuario.findFirst({
+const verificarTecnico = async (
+  tx: Prisma.TransactionClient,
+  tecnicoId: string
+): Promise<void> => {
+  const tecnico = await tx.usuario.findFirst({
     where: { id: tecnicoId, activo: true },
     select: { id: true },
   });
@@ -101,6 +146,139 @@ const verificarTecnico = async (tecnicoId: string): Promise<void> => {
       { campo: 'tecnicoId', valor: tecnicoId },
     ]);
   }
+};
+
+const verificarOtraOrdenEnProceso = async (
+  tx: Prisma.TransactionClient,
+  activoId: number,
+  excluirId?: number
+): Promise<void> => {
+  const otra = await tx.ordenMantenimiento.findFirst({
+    where: {
+      activoId,
+      estado: MantenimientoEstado.EN_PROCESO,
+      activo: true,
+      ...(excluirId ? { id: { not: excluirId } } : {}),
+    },
+    select: { id: true, folio: true },
+  });
+
+  if (otra) {
+    throw new HttpError(
+      409,
+      'El activo ya tiene una orden de mantenimiento en proceso',
+      [
+        { campo: 'activoId', valor: activoId },
+        { campo: 'mantenimientoId', valor: otra.id },
+        { campo: 'folio', valor: otra.folio },
+      ]
+    );
+  }
+};
+
+const auditarCambioEstadoActivo = async (
+  tx: Prisma.TransactionClient,
+  activoId: number,
+  ejecutorId: string,
+  estadoAnterior: EstadoActivo,
+  estadoNuevo: EstadoActivo
+): Promise<void> => {
+  if (estadoAnterior === estadoNuevo) return;
+
+  await registrarAuditoria(tx, {
+    modulo: 'ACTIVOS',
+    accion: 'ACTUALIZAR',
+    entidadId: activoId,
+    usuarioId: ejecutorId,
+    detalle: {
+      campos: ['estado'],
+      origen: 'MANTENIMIENTO',
+      estadoAnterior,
+      estadoNuevo,
+    },
+  });
+};
+
+const ponerActivoEnMantenimiento = async (
+  tx: Prisma.TransactionClient,
+  activoId: number,
+  ejecutorId: string
+): Promise<EstadoActivo | null> => {
+  const activo = await tx.activo.findUnique({
+    where: { id: activoId },
+    select: { id: true, estado: true },
+  });
+
+  if (!activo) {
+    throw new HttpError(404, 'El activo no existe', [
+      { campo: 'activoId', valor: activoId },
+    ]);
+  }
+
+  if (activo.estado === EstadoActivo.DE_BAJA) {
+    throw new HttpError(409, 'El activo esta dado de baja', [
+      { campo: 'activoId', valor: activoId },
+      { campo: 'estado', valor: activo.estado },
+    ]);
+  }
+
+  if (activo.estado === EstadoActivo.EN_MANTENIMIENTO) {
+    return null;
+  }
+
+  await tx.activo.update({
+    where: { id: activoId },
+    data: { estado: EstadoActivo.EN_MANTENIMIENTO },
+  });
+  await auditarCambioEstadoActivo(
+    tx,
+    activoId,
+    ejecutorId,
+    activo.estado,
+    EstadoActivo.EN_MANTENIMIENTO
+  );
+
+  return activo.estado;
+};
+
+const restaurarActivo = async (
+  tx: Prisma.TransactionClient,
+  activoId: number,
+  estadoPrevio: EstadoActivo | null,
+  ejecutorId: string
+): Promise<{ anterior: EstadoActivo; nuevo: EstadoActivo }> => {
+  const activo = await tx.activo.findUnique({
+    where: { id: activoId },
+    select: { id: true, estado: true, responsableId: true },
+  });
+
+  if (!activo) {
+    throw new HttpError(404, 'El activo no existe', [
+      { campo: 'activoId', valor: activoId },
+    ]);
+  }
+
+  const estadoNuevo = resolverEstadoRestauracion(
+    estadoPrevio,
+    activo.estado,
+    activo.responsableId
+  );
+
+  if (estadoNuevo !== activo.estado) {
+    await tx.activo.update({
+      where: { id: activoId },
+      data: { estado: estadoNuevo },
+    });
+    await auditarCambioEstadoActivo(
+      tx,
+      activoId,
+      ejecutorId,
+      activo.estado,
+      estadoNuevo
+    );
+  }
+
+  return { anterior: activo.estado, nuevo: estadoNuevo };
 };
 
 const validarFechas = (
@@ -245,11 +423,6 @@ export const crearMantenimiento = async (
   datos: DatosCreacionMantenimiento,
   ejecutorId: string
 ): Promise<MantenimientoResumen> => {
-  await Promise.all([
-    verificarActivo(datos.activoId),
-    verificarTecnico(datos.tecnicoId),
-  ]);
-
   const fechaRealizada =
     datos.estado === MantenimientoEstado.COMPLETADO
       ? datos.fechaRealizada ?? new Date()
@@ -258,12 +431,26 @@ export const crearMantenimiento = async (
   validarFechas(datos.fechaProgramada, fechaRealizada);
 
   const fila = await prisma.$transaction(async (tx) => {
+    await verificarActivo(tx, datos.activoId);
+    await verificarTecnico(tx, datos.tecnicoId);
+
+    let estadoActivoPrevio: EstadoActivo | null = null;
+    if (datos.estado === MantenimientoEstado.EN_PROCESO) {
+      await verificarOtraOrdenEnProceso(tx, datos.activoId);
+      estadoActivoPrevio = await ponerActivoEnMantenimiento(
+        tx,
+        datos.activoId,
+        ejecutorId
+      );
+    }
+
     const creado = await tx.ordenMantenimiento.create({
       data: {
         folio: `TMP-${randomUUID()}`,
         activoId: datos.activoId,
         tipo: datos.tipo,
         estado: datos.estado,
+        estadoActivoPrevio,
         prioridad: datos.prioridad,
         tecnicoId: datos.tecnicoId,
         fechaProgramada: datos.fechaProgramada,
@@ -295,12 +482,21 @@ export const crearMantenimiento = async (
           'tecnicoId',
           'fechaProgramada',
         ],
+        ...(datos.estado === MantenimientoEstado.EN_PROCESO
+          ? {
+              activoEstado: {
+                anterior: estadoActivoPrevio,
+                nuevo: EstadoActivo.EN_MANTENIMIENTO,
+              },
+            }
+          : {}),
       },
     });
 
     return actualizado;
   });
 
+  emitirMantenimientoCreado(crearEventoMantenimiento(fila));
   return mapearMantenimiento(fila);
 };
 
@@ -309,103 +505,152 @@ export const actualizarMantenimiento = async (
   datos: DatosEdicionMantenimiento,
   ejecutorId: string
 ): Promise<MantenimientoResumen> => {
-  const existente = await prisma.ordenMantenimiento.findFirst({
-    where: { id, activo: true },
-    select: {
-      id: true,
-      estado: true,
-      activoId: true,
-      tecnicoId: true,
-      fechaProgramada: true,
-      fechaRealizada: true,
-    },
-  });
-
-  if (!existente) {
-    throw new HttpError(404, 'Mantenimiento no encontrado', [
-      { campo: 'id', valor: id },
-    ]);
-  }
-
-  const estadoDestino = datos.estado ?? existente.estado;
-  verificarTransicion(existente.estado, estadoDestino);
-
-  if (existente.estado === MantenimientoEstado.COMPLETADO) {
-    const campos = Object.keys(datos);
-    const soloCancela =
-      campos.length === 1 &&
-      campos[0] === 'estado' &&
-      estadoDestino === MantenimientoEstado.CANCELADO;
-
-    if (!soloCancela) {
-      throw new HttpError(
-        409,
-        'Un mantenimiento completado solo se puede cancelar',
-        [
-          { campo: 'estado', valor: estadoDestino },
-          { campo: 'estadoActual', valor: existente.estado },
-        ]
-      );
-    }
-  }
-
-  if (
-    datos.activoId !== undefined &&
-    datos.activoId !== existente.activoId
-  ) {
-    await verificarActivo(datos.activoId);
-  }
-
-  if (
-    datos.tecnicoId !== undefined &&
-    datos.tecnicoId !== existente.tecnicoId
-  ) {
-    await verificarTecnico(datos.tecnicoId);
-  }
-
-  const fechaProgramada = datos.fechaProgramada ?? existente.fechaProgramada;
-  let fechaRealizada =
-    datos.fechaRealizada !== undefined
-      ? datos.fechaRealizada
-      : existente.fechaRealizada;
-
-  if (
-    estadoDestino === MantenimientoEstado.COMPLETADO &&
-    existente.estado !== MantenimientoEstado.COMPLETADO &&
-    fechaRealizada === null
-  ) {
-    fechaRealizada = new Date();
-  }
-
-  if (
-    estadoDestino !== MantenimientoEstado.COMPLETADO &&
-    existente.estado === MantenimientoEstado.COMPLETADO
-  ) {
-    fechaRealizada = null;
-  }
-
-  validarFechas(fechaProgramada, fechaRealizada);
-
-  const data: Prisma.OrdenMantenimientoUncheckedUpdateInput = {
-    ...(datos.activoId !== undefined ? { activoId: datos.activoId } : {}),
-    ...(datos.tipo !== undefined ? { tipo: datos.tipo } : {}),
-    ...(datos.estado !== undefined ? { estado: datos.estado } : {}),
-    ...(datos.prioridad !== undefined
-      ? { prioridad: datos.prioridad }
-      : {}),
-    ...(datos.tecnicoId !== undefined ? { tecnicoId: datos.tecnicoId } : {}),
-    ...(datos.costo !== undefined ? { costo: datos.costo } : {}),
-    ...(datos.descripcion !== undefined
-      ? { descripcion: datos.descripcion }
-      : {}),
-    fechaProgramada,
-    fechaRealizada,
-  };
-
+  let estadoAnterior: MantenimientoEstado;
   let fila: FilaMantenimiento;
 
   try {
-    fila = await prisma.$transaction(async (tx) => {
+    const resultado = await prisma.$transaction(async (tx) => {
+      const existente = await tx.ordenMantenimiento.findFirst({
+        where: { id, activo: true },
+        select: {
+          id: true,
+          estado: true,
+          activoId: true,
+          tecnicoId: true,
+          fechaProgramada: true,
+          fechaRealizada: true,
+          estadoActivoPrevio: true,
+        },
+      });
+
+      if (!existente) {
+        throw new HttpError(404, 'Mantenimiento no encontrado', [
+          { campo: 'id', valor: id },
+        ]);
+      }
+
+      const estadoDestino = datos.estado ?? existente.estado;
+      verificarTransicion(existente.estado, estadoDestino);
+
+      if (existente.estado === MantenimientoEstado.COMPLETADO) {
+        const campos = Object.keys(datos);
+        const soloCancela =
+          campos.length === 1 &&
+          campos[0] === 'estado' &&
+          estadoDestino === MantenimientoEstado.CANCELADO;
+
+        if (!soloCancela) {
+          throw new HttpError(
+            409,
+            'Un mantenimiento completado solo se puede cancelar',
+            [
+              { campo: 'estado', valor: estadoDestino },
+              { campo: 'estadoActual', valor: existente.estado },
+            ]
+          );
+        }
+      }
+
+      const activoIdDestino = datos.activoId ?? existente.activoId;
+
+      if (datos.activoId !== undefined && datos.activoId !== existente.activoId) {
+        if (existente.estado === MantenimientoEstado.EN_PROCESO) {
+          throw new HttpError(
+            409,
+            'No se puede cambiar el activo de una orden en proceso',
+            [
+              { campo: 'activoId', valor: datos.activoId },
+              { campo: 'activoActualId', valor: existente.activoId },
+            ]
+          );
+        }
+        await verificarActivo(tx, datos.activoId);
+      }
+
+      if (
+        datos.tecnicoId !== undefined &&
+        datos.tecnicoId !== existente.tecnicoId
+      ) {
+        await verificarTecnico(tx, datos.tecnicoId);
+      }
+
+      const fechaProgramada =
+        datos.fechaProgramada ?? existente.fechaProgramada;
+      let fechaRealizada =
+        datos.fechaRealizada !== undefined
+          ? datos.fechaRealizada
+          : existente.fechaRealizada;
+
+      if (
+        estadoDestino === MantenimientoEstado.COMPLETADO &&
+        existente.estado !== MantenimientoEstado.COMPLETADO &&
+        fechaRealizada === null
+      ) {
+        fechaRealizada = new Date();
+      }
+
+      if (
+        estadoDestino !== MantenimientoEstado.COMPLETADO &&
+        existente.estado === MantenimientoEstado.COMPLETADO
+      ) {
+        fechaRealizada = null;
+      }
+
+      validarFechas(fechaProgramada, fechaRealizada);
+
+      let estadoActivoPrevio: EstadoActivo | null | undefined;
+      let cambioEstadoActivo:
+        | { anterior: EstadoActivo | null; nuevo: EstadoActivo }
+        | undefined;
+
+      if (
+        existente.estado !== MantenimientoEstado.EN_PROCESO &&
+        estadoDestino === MantenimientoEstado.EN_PROCESO
+      ) {
+        await verificarOtraOrdenEnProceso(tx, activoIdDestino, id);
+        const previo = await ponerActivoEnMantenimiento(
+          tx,
+          activoIdDestino,
+          ejecutorId
+        );
+        estadoActivoPrevio = previo;
+        cambioEstadoActivo = {
+          anterior: previo,
+          nuevo: EstadoActivo.EN_MANTENIMIENTO,
+        };
+      } else if (
+        existente.estado === MantenimientoEstado.EN_PROCESO &&
+        estadoDestino !== MantenimientoEstado.EN_PROCESO
+      ) {
+        const restauracion = await restaurarActivo(
+          tx,
+          existente.activoId,
+          existente.estadoActivoPrevio,
+          ejecutorId
+        );
+        estadoActivoPrevio = null;
+        cambioEstadoActivo = restauracion;
+      }
+
+      const data: Prisma.OrdenMantenimientoUncheckedUpdateInput = {
+        ...(datos.activoId !== undefined ? { activoId: datos.activoId } : {}),
+        ...(datos.tipo !== undefined ? { tipo: datos.tipo } : {}),
+        ...(datos.estado !== undefined ? { estado: datos.estado } : {}),
+        ...(datos.prioridad !== undefined
+          ? { prioridad: datos.prioridad }
+          : {}),
+        ...(datos.tecnicoId !== undefined
+          ? { tecnicoId: datos.tecnicoId }
+          : {}),
+        ...(datos.costo !== undefined ? { costo: datos.costo } : {}),
+        ...(datos.descripcion !== undefined
+          ? { descripcion: datos.descripcion }
+          : {}),
+        ...(estadoActivoPrevio !== undefined ? { estadoActivoPrevio } : {}),
+        fechaProgramada,
+        fechaRealizada,
+      };
+
       const actualizado = await tx.ordenMantenimiento.update({
         where: { id },
         data,
@@ -417,11 +662,19 @@ export const actualizarMantenimiento = async (
         accion: 'ACTUALIZAR',
         entidadId: id,
         usuarioId: ejecutorId,
-        detalle: { campos: Object.keys(datos) },
+        detalle: {
+          campos: Object.keys(datos),
+          ...(cambioEstadoActivo
+            ? { activoEstado: cambioEstadoActivo }
+            : {}),
+        },
       });
 
-      return actualizado;
+      return { fila: actualizado, estado: existente.estado };
     });
+
+    fila = resultado.fila;
+    estadoAnterior = resultado.estado;
   } catch (error) {
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -434,6 +687,11 @@ export const actualizarMantenimiento = async (
     throw error;
   }
 
+  emitirMantenimientoActualizado({
+    ...crearEventoMantenimiento(fila),
+    estadoAnterior,
+  });
+
   return mapearMantenimiento(fila);
 };
 
@@ -441,20 +699,37 @@ export const desactivarMantenimiento = async (
   id: number,
   ejecutorId: string
 ): Promise<void> => {
-  const existente = await prisma.ordenMantenimiento.findUnique({
-    where: { id },
-    select: { id: true, activo: true },
-  });
+  const eliminado = await prisma.$transaction(async (tx) => {
+    const existente = await tx.ordenMantenimiento.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        folio: true,
+        activoId: true,
+        activo: true,
+        estado: true,
+      },
+    });
 
-  if (!existente) {
-    throw new HttpError(404, 'Mantenimiento no encontrado', [
-      { campo: 'id', valor: id },
-    ]);
-  }
+    if (!existente) {
+      throw new HttpError(404, 'Mantenimiento no encontrado', [
+        { campo: 'id', valor: id },
+      ]);
+    }
 
-  if (!existente.activo) return;
+    if (!existente.activo) return null;
 
-  await prisma.$transaction(async (tx) => {
+    if (existente.estado === MantenimientoEstado.EN_PROCESO) {
+      throw new HttpError(
+        409,
+        'No se puede eliminar una orden en proceso; cancelala primero',
+        [
+          { campo: 'id', valor: id },
+          { campo: 'estado', valor: existente.estado },
+        ]
+      );
+    }
+
     await tx.ordenMantenimiento.update({
       where: { id },
       data: { activo: false },
@@ -465,6 +740,17 @@ export const desactivarMantenimiento = async (
       accion: 'DESACTIVAR',
       entidadId: id,
       usuarioId: ejecutorId,
+      detalle: { campos: ['activo'] },
     });
+
+    return existente;
   });
+
+  if (eliminado) {
+    emitirMantenimientoEliminado({
+      id: eliminado.id,
+      folio: eliminado.folio,
+      activoId: eliminado.activoId,
+    });
+  }
 };

@@ -5,8 +5,16 @@ import {
   EstadoIncidenciaValor,
   PrioridadValor,
 } from '../models/incidencia.model';
-import { PERMISOS_DISPONIBLES, Permiso } from '../models/rol.model';
+import {
+  MantenimientoEstado,
+  MantenimientoPrioridad,
+  MantenimientoTipo,
+} from '../generated/prisma/client';
 import { verificarToken } from '../utils/jwt';
+import {
+  calcularPermisosEfectivos,
+  normalizarPermisos,
+} from '../utils/permisos';
 
 interface IncidenciaNueva {
   id: number;
@@ -35,18 +43,47 @@ interface RecordatorioLicencia {
   creadaEn: string;
 }
 
+export interface MantenimientoEvento {
+  id: number;
+  folio: string;
+  activoId: number;
+  estado: MantenimientoEstado;
+  tipo: MantenimientoTipo;
+  prioridad: MantenimientoPrioridad;
+  tecnicoId: string;
+  fechaProgramada: string;
+}
+
+export interface MantenimientoActualizadoEvento
+  extends MantenimientoEvento {
+  estadoAnterior: MantenimientoEstado;
+}
+
+export interface MantenimientoEliminadoEvento {
+  id: number;
+  folio: string;
+  activoId: number;
+}
+
 interface EventosServidor {
   'incidencias:nueva': (incidencia: IncidenciaNueva) => void;
   'incidencias:estado-cambiado': (cambio: CambioEstadoIncidencia) => void;
   'licencias:por-vencer': (recordatorio: RecordatorioLicencia) => void;
+  'mantenimiento:creado': (evento: MantenimientoEvento) => void;
+  'mantenimiento:actualizado': (
+    evento: MantenimientoActualizadoEvento
+  ) => void;
+  'mantenimiento:eliminado': (evento: MantenimientoEliminadoEvento) => void;
 }
 
 interface DatosSocket {
   usuarioId: string;
   puedeLeerIncidencias: boolean;
+  puedeLeerMantenimiento: boolean;
 }
 
 const SALA_INCIDENCIAS = 'incidencias';
+const SALA_MANTENIMIENTO = 'mantenimiento';
 type SocketIo = SocketIoServer<
   Record<string, never>,
   EventosServidor,
@@ -57,10 +94,6 @@ type SocketIo = SocketIoServer<
 let socketIo: SocketIo | undefined;
 
 const salaUsuario = (usuarioId: string): string => `usuario:${usuarioId}`;
-
-const esPermiso = (valor: unknown): valor is Permiso =>
-  typeof valor === 'string' &&
-  PERMISOS_DISPONIBLES.includes(valor as Permiso);
 
 const obtenerOrigenesPermitidos = (): string | string[] => {
   const configuracion = process.env.SOCKET_CORS_ORIGIN?.trim();
@@ -121,6 +154,8 @@ export const inicializarSocketIo = (servidor: HttpServer): SocketIo => {
         where: { id: usuarioId },
         select: {
           activo: true,
+          permisosExtra: true,
+          permisosRevocados: true,
           rol: {
             select: {
               activo: true,
@@ -130,28 +165,48 @@ export const inicializarSocketIo = (servidor: HttpServer): SocketIo => {
         },
       })
       .then((usuario) => {
-        if (
-          !usuario?.activo ||
-          !usuario.rol?.activo ||
-          !Array.isArray(usuario.rol.permisos) ||
-          !usuario.rol.permisos.every(esPermiso)
-        ) {
+        if (!usuario?.activo || !usuario.rol?.activo) {
           next(new Error('No tienes permiso para recibir notificaciones'));
           return;
         }
 
+        const permisosRol = normalizarPermisos(
+          usuario.rol.permisos,
+          `El rol del usuario ${usuarioId}`
+        );
+        const permisosExtra = normalizarPermisos(
+          usuario.permisosExtra,
+          `El usuario ${usuarioId} (permisosExtra)`
+        );
+        const permisosRevocados = normalizarPermisos(
+          usuario.permisosRevocados,
+          `El usuario ${usuarioId} (permisosRevocados)`
+        );
+        const permisos = calcularPermisosEfectivos(
+          permisosRol,
+          permisosExtra,
+          permisosRevocados
+        );
+
         const puedeLeerIncidencias =
-          usuario.rol.permisos.includes('incidencias:leer') &&
-          usuario.rol.permisos.includes('notificaciones:leer');
+          permisos.includes('incidencias:leer') &&
+          permisos.includes('notificaciones:leer');
         const puedeLeerNotificaciones =
-          usuario.rol.permisos.includes('notificaciones:leer');
-        if (!puedeLeerIncidencias && !puedeLeerNotificaciones) {
+          permisos.includes('notificaciones:leer');
+        const puedeLeerMantenimiento =
+          permisos.includes('mantenimiento:leer');
+        if (
+          !puedeLeerIncidencias &&
+          !puedeLeerNotificaciones &&
+          !puedeLeerMantenimiento
+        ) {
           next(new Error('No tienes permiso para recibir notificaciones'));
           return;
         }
 
         socket.data.usuarioId = usuarioId;
         socket.data.puedeLeerIncidencias = puedeLeerIncidencias;
+        socket.data.puedeLeerMantenimiento = puedeLeerMantenimiento;
         next();
       })
       .catch((error: unknown) => {
@@ -164,6 +219,9 @@ export const inicializarSocketIo = (servidor: HttpServer): SocketIo => {
     socket.join(salaUsuario(socket.data.usuarioId));
     if (socket.data.puedeLeerIncidencias) {
       socket.join(SALA_INCIDENCIAS);
+    }
+    if (socket.data.puedeLeerMantenimiento) {
+      socket.join(SALA_MANTENIMIENTO);
     }
   });
 
@@ -202,4 +260,26 @@ export const emitirRecordatorioLicencia = (
   obtenerSocketIo()
     .to(salaUsuario(usuarioId))
     .emit('licencias:por-vencer', recordatorio);
+};
+
+export const emitirMantenimientoCreado = (
+  evento: MantenimientoEvento
+): void => {
+  obtenerSocketIo().to(SALA_MANTENIMIENTO).emit('mantenimiento:creado', evento);
+};
+
+export const emitirMantenimientoActualizado = (
+  evento: MantenimientoActualizadoEvento
+): void => {
+  obtenerSocketIo()
+    .to(SALA_MANTENIMIENTO)
+    .emit('mantenimiento:actualizado', evento);
+};
+
+export const emitirMantenimientoEliminado = (
+  evento: MantenimientoEliminadoEvento
+): void => {
+  obtenerSocketIo()
+    .to(SALA_MANTENIMIENTO)
+    .emit('mantenimiento:eliminado', evento);
 };
