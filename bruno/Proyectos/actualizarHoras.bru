@@ -1,0 +1,36 @@
+meta {
+  name: Actualizar registro de horas
+  type: http
+  seq: 44
+}
+
+script:pre-request {
+  await bru.runRequest("Proyectos/crearHoras");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+patch {
+  url: {{baseUrl}}/api/proyectos/{{proyectoId}}/horas/{{registroHorasId}}
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "horas": 3.5
+  }
+}
+
+assert {
+  res.status: eq 200
+}
+
+assert {
+  res.body.data.horas: eq 3.5
+}

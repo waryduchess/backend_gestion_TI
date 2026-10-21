@@ -1,0 +1,61 @@
+meta {
+  name: Crear tarea de proyecto
+  type: http
+  seq: 18
+}
+
+script:pre-request {
+  await bru.runRequest("Proyectos/crear");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+  const ahora = Date.now();
+  bru.setVar("tituloTarea", "Tarea Bruno " + ahora);
+  bru.setVar("fechaInicioTarea", new Date(ahora - 86400000).toISOString());
+  bru.setVar("fechaFinTarea", new Date(ahora + 7 * 86400000).toISOString());
+}
+
+post {
+  url: {{baseUrl}}/api/proyectos/{{proyectoId}}/tareas
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "titulo": "{{tituloTarea}}",
+    "descripcion": "Tarea de prueba de Bruno",
+    "prioridad": "ALTA",
+    "asignadoAId": "ADMIN",
+    "fechaInicio": "{{fechaInicioTarea}}",
+    "fechaVencimiento": "{{fechaFinTarea}}"
+  }
+}
+
+script:post-response {
+  if (res.status === 201) bru.setVar("tareaId", res.body.data.id);
+}
+
+assert {
+  res.status: eq 201
+}
+
+assert {
+  res.body.data.parentId: eq null
+}
+
+assert {
+  res.body.data.estado: eq PENDIENTE
+}
+
+assert {
+  res.body.data.asignadoA.id: eq ADMIN
+}
+
+assert {
+  res.body.data.subtareas: isArray
+}

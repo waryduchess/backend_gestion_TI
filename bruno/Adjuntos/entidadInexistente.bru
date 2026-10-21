@@ -1,0 +1,32 @@
+meta {
+  name: Rechazar adjunto de entidad inexistente
+  type: http
+  seq: 7
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+post {
+  url: {{baseUrl}}/api/adjuntos
+  body: multipartForm
+  auth: none
+}
+
+body:multipart-form {
+  archivo: @file(./Adjuntos/fixtures/imagen-prueba.png) @contentType(image/png)
+  entidadTipo: ACTIVO
+  entidadId: 99999999
+}
+
+assert {
+  res.status: eq 404
+}
+
+assert {
+  res.body.success: eq false
+}

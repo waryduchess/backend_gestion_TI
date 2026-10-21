@@ -1,0 +1,42 @@
+meta {
+  name: Obtener URL temporal de descarga
+  type: http
+  seq: 3
+}
+
+script:pre-request {
+  await bru.runRequest("Adjuntos/subirImagen");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+get {
+  url: {{baseUrl}}/api/adjuntos/{{adjuntoId}}/descarga
+  body: none
+  auth: none
+}
+
+script:post-response {
+  if (res.status === 200) {
+    const url = res.body.data.url;
+    if (typeof url !== "string" || !url.startsWith("http://localhost:4566")) {
+      throw new Error("La URL de descarga no apunta al endpoint publico de S3");
+    }
+    if (res.headers["cache-control"] !== "no-store") {
+      throw new Error("La respuesta de descarga debe usar Cache-Control no-store");
+    }
+  }
+}
+
+assert {
+  res.status: eq 200
+}
+
+assert {
+  res.body.data.url: isString
+}
+
+assert {
+  res.body.data.expiraEn: isString
+}

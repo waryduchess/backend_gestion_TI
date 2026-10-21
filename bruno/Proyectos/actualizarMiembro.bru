@@ -1,0 +1,36 @@
+meta {
+  name: Actualizar rol de miembro
+  type: http
+  seq: 14
+}
+
+script:pre-request {
+  await bru.runRequest("Proyectos/agregarMiembro");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+patch {
+  url: {{baseUrl}}/api/proyectos/{{proyectoId}}/miembros/ADMIN
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "rol": "QA"
+  }
+}
+
+assert {
+  res.status: eq 200
+}
+
+assert {
+  res.body.data.rol: eq QA
+}

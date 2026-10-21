@@ -1,0 +1,74 @@
+meta {
+  name: Crear proyecto
+  type: http
+  seq: 1
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+  const ahora = Date.now();
+  bru.setVar("nombreProyecto", "Proyecto Bruno " + ahora);
+  bru.setVar("qProyecto", encodeURIComponent("Proyecto Bruno " + ahora));
+  bru.setVar("fechaInicioProyecto", new Date(ahora + 86400000).toISOString());
+  bru.setVar("fechaFinProyecto", new Date(ahora + 90 * 86400000).toISOString());
+}
+
+post {
+  url: {{baseUrl}}/api/proyectos
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "nombre": "{{nombreProyecto}}",
+    "descripcion": "Proyecto de prueba de Bruno",
+    "prioridad": "ALTA",
+    "fechaInicio": "{{fechaInicioProyecto}}",
+    "fechaFinPlanificada": "{{fechaFinProyecto}}",
+    "presupuesto": 150000.5,
+    "responsableId": "ADMIN"
+  }
+}
+
+script:post-response {
+  if (res.status === 201) {
+    const codigo = res.body.data.codigo;
+    if (typeof codigo !== "string" || !codigo.startsWith("PRY-")) {
+      throw new Error("El codigo del proyecto no tiene el formato PRY-####");
+    }
+    bru.setVar("proyectoId", res.body.data.id);
+    bru.setVar("codigoProyecto", codigo);
+  }
+}
+
+assert {
+  res.status: eq 201
+}
+
+assert {
+  res.body.data.estado: eq PLANIFICADO
+}
+
+assert {
+  res.body.data.prioridad: eq ALTA
+}
+
+assert {
+  res.body.data.activo: eq true
+}
+
+assert {
+  res.body.data.responsable.id: eq ADMIN
+}
+
+assert {
+  res.body.data.presupuesto: gt 0
+}

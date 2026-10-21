@@ -1,0 +1,32 @@
+meta {
+  name: Subir imagen a un proyecto
+  type: http
+  seq: 8
+}
+
+script:pre-request {
+  await bru.runRequest("Proyectos/crear");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+post {
+  url: {{baseUrl}}/api/adjuntos
+  body: multipartForm
+  auth: none
+}
+
+body:multipart-form {
+  archivo: @file(./Adjuntos/fixtures/imagen-prueba.png) @contentType(image/png)
+  entidadTipo: PROYECTO
+  entidadId: {{proyectoId}}
+}
+
+assert {
+  res.status: eq 201
+}
+
+assert {
+  res.body.data.entidadTipo: eq PROYECTO
+}

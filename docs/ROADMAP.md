@@ -20,16 +20,19 @@ conviene revisarlo antes de cada iteracion y actualizarlo al cerrar cada modulo.
 | Catalogos (`/api/catalogos`)       | `GET /` + CRUD `/api/departamentos`, `/api/ubicaciones`, `/api/puestos`, `/api/tipos-usuario`                 | Si                     | CRUD Bruno         |
 | RBAC / roles                         | CRUD`/api/roles`, asignar rol a usuario                                                                               | Si                     | 21 requests        |
 | Licencias (`/api/licencias`)       | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `DELETE /:id`, `DELETE /:id/hard`                                                    | Si                     | 17 requests        |
-| Proyectos                           | Sin modelo ni endpoints                                                                                              | No                     | No                 |
+| Proyectos (`/api/proyectos`)       | CRUD `/`, `/:id`; miembros `/:id/miembros`; tareas `/:id/tareas`; dependencias; hitos `/:id/hitos`; horas `/:id/horas` | Si | 47 requests |
 | Secretos (`/api/secretos`)         | `GET /`, `POST /`, `GET /:id`, `GET /:id/password`, `GET /:id/auditoria`, `PATCH /:id`, `DELETE /:id`, `DELETE /:id/hard`, `POST /importaciones/validar`, `POST /importaciones/confirmar`                  | Si                     | 26 requests        |
+| Adjuntos (`/api/adjuntos`)         | `POST /`, `GET /`, `GET /:id/descarga`, `DELETE /:id`                                                                 | Si                     | 8 requests         |
 | Notificaciones (`/api/notificaciones`) | `GET /`, `PATCH /:id/leer`, `PATCH /leer-todas`; incidencias y recordatorios de licencias                         | Si                     | 10 requests        |
-| Dashboard (`/api/dashboard`)       | `GET /summary`                                                                                                          | Si                     | 5 requests         |
+| Dashboard (`/api/dashboard`)       | `GET /summary`, `GET /proyectos`                                                                                        | Si                     | 6 requests         |
 | Auditoria (`/api/auditoria`)       | `GET /`, `GET /:id`                                                                                                     | Si                     | 11 requests        |
 | Reportes                            | sin modelo ni endpoints (ver §2.13)                                                                                    | No                     | No                 |
 | Recordatorios (`/api/recordatorios`) | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `PATCH /:id/completar`, `DELETE /:id`                                      | Si                     | 17 requests        |
 | Sucursal (normalizacion)           | sin catalogo; `Activo.sucursal` es texto libre                                                                          | No                     | No                 |
 
-Regresion mas reciente tras recordatorios: `npm run build` limpio, OpenAPI valido y suite Bruno **299 requests (297 OK, 2 fallos preexistentes), 679/683 assertions**. `Recordatorios/` pasa **17/17 requests y 43/43 assertions**; el dashboard devuelve hasta 5 pendientes con fecha del usuario. Los 2 fallos siguen siendo `Activos/buscarPorSerie` y su cascada `Activos/cambiarEstadoAsignacionActiva`, por drift de datos de `AF00010` (ajenos a este cambio).
+Regresion mas reciente tras implementar visibilidad por proyecto y KPIs de proyectos: `npm run build` limpio, OpenAPI valido y suite Bruno **362 requests (360 OK, 2 fallos preexistentes), 848/852 assertions**. `Proyectos/` sigue en **47/47 requests y 136/136 assertions**; `Dashboard/proyectos` valida el endpoint agregado de KPIs. La visibilidad se verifico manualmente: usuario no miembro recibe lista vacia y `404` en detalle; al agregarlo como miembro recibe el proyecto y `200`. Los 2 fallos siguen siendo `Activos/buscarPorSerie` y su cascada `Activos/cambiarEstadoAsignacionActiva`, por drift de datos de `AF00010` (ajenos a este cambio).
+
+Regresion previa tras recordatorios: `npm run build` limpio, OpenAPI valido y suite Bruno **299 requests (297 OK, 2 fallos preexistentes), 679/683 assertions**. `Recordatorios/` pasa **17/17 requests y 43/43 assertions**; el dashboard devuelve hasta 5 pendientes con fecha del usuario.
 
 Regresion previa tras mantenimiento (sincronizacion con activo, auditoria y Socket.IO): `npm run build` limpio, OpenAPI valido y suite Bruno **281 requests (279 OK, 2 fallos preexistentes), 635/639 assertions**. `Mantenimiento/` pasa **21/21 requests y 46/46 assertions**. Verificado con curl que `MANTENIMIENTO` y `ACTIVOS` registran el cambio de estado; el detalle de activos incluye `origen=MANTENIMIENTO`.
 
@@ -113,7 +116,9 @@ Permisos iniciales: `incidencias:leer`, `notificaciones:leer`,
 `activos:editar`, `activos:estado`, `activos:asignar`, `activos:eliminar`,
 `mantenimiento:leer`, `mantenimiento:crear`, `mantenimiento:editar`,
 `mantenimiento:eliminar`, `recordatorios:leer`, `recordatorios:crear`,
-`recordatorios:editar`, `recordatorios:eliminar` y
+`recordatorios:editar`, `recordatorios:eliminar`, `proyectos:leer`,
+`proyectos:crear`, `proyectos:editar`, `proyectos:eliminar`, `proyectos:ver-todos`, `adjuntos:subir`,
+`adjuntos:leer`, `adjuntos:eliminar` y
 `usuarios:administrar`, `roles:administrar`, `catalogos:administrar`,
 `licencias:administrar`, `secretos:leer`, `secretos:revelar` y
 `secretos:administrar`. Se protege
@@ -161,27 +166,51 @@ adicional.
 - [X] El evento `licencias:por-vencer` se emite despues de persistir y solo a la sala privada de cada destinatario; el payload incluye `notificacionId`, licencia, vencimiento e hito. La lista REST contiene la informacion para recuperar eventos perdidos.
 - [ ] Politica de retencion/limpieza; por ahora los registros se conservan sin expiracion.
 
-### 2.8 Proyectos - pendiente de modelado e implementacion
+### 2.8 Proyectos (implementado)
 
-El backend no tiene actualmente un modelo Prisma ni endpoints dedicados a
-proyectos. `Secreto.proyecto` es texto libre, no una relacion con un catalogo
-de proyectos.
+Registro y gestion de proyectos de TI. `Secreto.proyecto` sigue siendo texto
+libre; la relacion formal queda para una fase posterior.
 
-- [ ] Definir el alcance y los campos del proyecto (por ejemplo: nombre unico,
-  descripcion, responsable, fechas y estado) antes de crear el modelo.
-- [ ] Definir relaciones con secretos y otros modulos que deban clasificar por
-  proyecto. Si `Secreto.proyecto` pasa a ser una relacion, decidir como
-  normalizar/migrar sus valores de texto existentes y conservar los registros.
-- [ ] Definir permisos RBAC para lectura y administracion; no reutilizar
-  `secretos:administrar` como permiso de proyectos.
-- [ ] Implementar listado y detalle (`GET /api/proyectos`, `GET
-  /api/proyectos/:id`), alta (`POST /api/proyectos`), edicion (`PATCH
-  /api/proyectos/:id`) y baja logica (`DELETE /api/proyectos/:id`) cuando el
-  modelo y las reglas de ciclo de vida esten aprobados.
-- [ ] Definir filtros/paginacion, unicidad y comportamiento de proyectos
-  inactivos o referenciados antes de publicar los endpoints.
-- [ ] Documentar rutas y esquemas en OpenAPI; cubrir validaciones, relaciones,
-  permisos, baja logica y compatibilidad de datos con Bruno.
+- [X] Modelo `Proyecto` con `codigo` unico auto-generado (`PRY-0001`), nombre,
+  descripcion, estado, prioridad, fechas de inicio/fin planificado/fin real,
+  responsable, departamento opcional, baja logica y timestamps.
+- [X] Estados `PLANIFICADO`, `EN_PROGRESO`, `PAUSADO`, `COMPLETADO` y `CANCELADO`
+  con transiciones validadas; al completar se asigna `fechaFinReal` si falta.
+- [X] CRUD `/api/proyectos` con listado paginado y filtros por `q`, estado,
+  prioridad, responsable, departamento y `activo`. Baja logica idempotente y
+  reactivacion con `PATCH { activo: true }`.
+- [X] Permisos `proyectos:leer/crear/editar/eliminar`; auditoria
+  `PROYECTOS/CREAR|ACTUALIZAR|DESACTIVAR|ASIGNAR|ELIMINAR`.
+- [X] Miembros del proyecto con rol `LIDER`, `DESARROLLADOR`, `QA` o
+  `STAKEHOLDER`: listar, agregar, cambiar rol y quitar. Unicidad por
+  `(proyecto, usuario)`, 409 en duplicados y auditoria `PROYECTOS`.
+- [X] Tareas y subtareas: CRUD anidado de un nivel, estado, prioridad,
+  asignado, fechas, orden y baja logica. Una tarea principal desactiva sus
+  subtareas. El asignado debe ser responsable o miembro del proyecto.
+- [X] Progreso automatico en `GET /api/proyectos/:id`: porcentaje y resumen de
+  tareas/subtareas activas. Si una tarea tiene subtareas, se cuentan las
+  subtareas como unidades; las canceladas no cuentan en el denominador.
+- [X] Hitos del proyecto: CRUD, estado `PENDIENTE|COMPLETADO|CANCELADO`,
+  fecha planificada, fecha de completado automatica, orden y baja logica.
+- [X] Dependencias entre tareas: listar, agregar y quitar; valida mismo
+  proyecto, tareas activas, autodependencia, duplicados y ciclos.
+- [X] Presupuesto del proyecto y registro de horas por tarea: CRUD de horas,
+  filtros por tarea/usuario/fecha, baja logica y resumen en el detalle del
+  proyecto (`totalHoras`, `totalRegistros`).
+- [X] Adjuntos: `PROYECTO` agregado a `EntidadAdjunto` y validado contra
+  proyectos activos.
+- [X] OpenAPI + Bruno (`Proyectos/` 47 requests, `Roles/denegarProyectos`,
+  `Roles/denegarMiembrosProyecto`, `Roles/denegarTareasProyecto`,
+  `Roles/denegarHitosProyecto`, `Roles/denegarDependenciasProyecto` y
+  `Roles/denegarHorasProyecto` 403).
+- [ ] Relacion formal `Secreto.proyectoId` y migracion de textos existentes.
+- [X] **Visibilidad por proyecto:** visibilidad hibrida con
+  `proyectos:ver-todos`. Sin ese permiso, el listado, detalle y subrecursos
+  (miembros, tareas, dependencias, hitos, horas, adjuntos de proyecto) solo
+  permiten proyectos donde el usuario es responsable o miembro activo. Un
+  proyecto ajeno responde `404`. El creador sin `ver-todos` se agrega como
+  miembro `LIDER` si asigna el proyecto a otra persona.
+- [X] Los KPIs de proyectos se implementaron en §2.9.
 
 ### 2.9 Dashboard / KPIs
 
@@ -200,6 +229,11 @@ y recibe un JSON diminuto con todos los indicadores, calculados con
 - [X] `licenciasPorVencer`: top 5 por `fechaVencimiento` mas cercana entre las
   activas (incluye vencidas), con software, proveedor, fecha y asignado.
 - [X] `recordatorios` devuelve hasta 5 pendientes con fecha del usuario autenticado (§2.10).
+- [X] **`GET /api/dashboard/proyectos`** con `dashboard:leer` + `proyectos:leer`:
+  KPIs de proyectos activos, en progreso, vencidos, proximos a 7/30 dias,
+  tareas pendientes/vencidas, hitos proximos/vencidos y horas registradas.
+  Agrupaciones por estado y prioridad, top 5 de proximos a vencer. Respeta la
+  visibilidad por proyecto.
 - [X] RBAC JWT + permiso `dashboard:leer` (migracion lo agrega a roles con
   `activos:leer`); documentado en OpenAPI y cubierto en Bruno (200/400/401/403).
 - [ ] **Filtro de sucursal parcial (temporal):** hoy el filtro se aplica solo a los
@@ -281,8 +315,7 @@ Vista unica y filtrable para responder "quien hizo que, cuando y sobre que".
   del activo tambien registra el cambio en `ACTIVOS`.
 - [ ] **Fase 5 - NOTIFICACIONES**: instrumentar marcar leida y leer-todas.
   Notificar al tecnico de mantenimiento queda como pendiente separado (§2.14).
-- [ ] **Fase 6 - PROYECTOS + RECORDATORIOS + SUCURSAL**: instrumentar cuando se
-  implementen (alta, edicion y baja logica de cada modelo).
+- [X] **Fase 6 - PROYECTOS + RECORDATORIOS**: instrumentados en crear, actualizar y baja logica; la normalizacion de sucursal sigue pendiente.
 - [ ] **(Opcional) Fase 7 - SESIONES**: registrar login/logout exitoso y fallido
   (a confirmar como modulo aparte).
 - [ ] **AuditoriaSecreto convive temporalmente**: la tabla por-secreto y su
@@ -327,10 +360,10 @@ Modulo de ordenes preventivas/correctivas montado en `/api/mantenimiento`.
   `mantenimiento:actualizado` y `mantenimiento:eliminado` para usuarios con
   `mantenimiento:leer` (incluye permisos efectivos).
 - [ ] **Evidencias:** `OrdenMantenimiento.evidencias` queda reservado y vacio.
-  No se acepta en `POST`/`PATCH`, no existe endpoint de subida, no hay
-  almacenamiento S3 ni consumo desde el frontend. Pendiente definir formato,
-  validacion, endpoint `POST /api/mantenimiento/:id/evidencias`, almacenamiento
-  y visualizacion.
+  La infraestructura S3 ya esta conectada y permite subir imagenes, pero no se
+  acepta evidencia en `POST`/`PATCH`, no existe el endpoint
+  `POST /api/mantenimiento/:id/evidencias` ni consumo desde el frontend.
+  Pendiente definir formato, validacion, almacenamiento y visualizacion.
 - [ ] **Notificaciones al tecnico:** notificar al crear o reasignar una orden.
   Requiere ampliar `TipoNotificacion`, agregar relacion/FK a mantenimiento y
   migracion; no implementado.
@@ -342,6 +375,32 @@ Modulo de ordenes preventivas/correctivas montado en `/api/mantenimiento`.
 - [ ] **Auditoria avanzada:** snapshots `valoresAnteriores`/`valoresNuevos` y
   endpoint por entidad; forma parte de la ampliacion pendiente de §2.12.
 
+### 2.15 Archivos adjuntos
+
+Modulo de archivos adjuntos en S3 compatible (Floci local).
+
+- [X] Conexion Docker estable: red externa `gestion_ti_shared` entre
+  `gestion_ti_api` y `floci_s3`; el API usa `http://floci:4566`.
+- [X] `src/config/s3.ts` con `S3Client`, `forcePathStyle`, aseguramiento
+  idempotente del bucket y variables `AWS_ENDPOINT_URL`, `AWS_DEFAULT_REGION`,
+  `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` y `S3_BUCKET`.
+- [X] Modelo `Adjunto` + enum `EntidadAdjunto` (`ACTIVO`, `MANTENIMIENTO`,
+  `INCIDENCIA`), migracion `20261021015640_adjuntos` y permisos
+  `adjuntos:subir/leer/eliminar`.
+- [X] `POST /api/adjuntos` multipart para imagenes PNG/JPEG/WebP, limite
+  configurable, validacion de firma, entidad existente y 10 MB por defecto.
+- [X] Subida real a S3, metadatos en MySQL y auditoria `ADJUNTOS/CREAR`.
+  Verificado con Bruno (`Adjuntos/`) y prueba manual. Bucket:
+  `gestion-ti-adjuntos`.
+- [X] Listado paginado por `entidadTipo`/`entidadId`, URL temporal presignada y
+  eliminacion fisica (S3 + MySQL) con auditoria `ADJUNTOS/ELIMINAR`. Verificado
+  con descarga real del PNG, expiracion de la URL (200 antes, 403 despues del
+  TTL) y comprobacion de fila/objeto eliminados.
+- [X] Casos negativos: tipo no permitido, tamano excedido, solicitud sin archivo,
+  entidad inexistente y usuario sin `adjuntos:subir` (403).
+- [X] `PROYECTO` habilitado en adjuntos y validado contra proyectos activos.
+- [ ] Integracion de evidencias de mantenimiento e incidencias sobre este modulo.
+
 ## 3. Features tecnicas pendientes
 
 - [X] `src/utils/crypto.ts` - AES-256-GCM con `AES_SECRET_KEY` para `Licencia.clave` y `Secreto.password`
@@ -349,11 +408,11 @@ Modulo de ordenes preventivas/correctivas montado en `/api/mantenimiento`.
 - [ ] Emitir los eventos Socket.IO desde las operaciones de alta y cambio de estado de incidencias cuando se implementen esos endpoints
 - [X] `node-cron` - job diario de correo y recordatorios persistentes de vencimiento de licencias; pendiente SLA de tickets
 - [X] Nodemailer (`src/config/mailer.ts`) - correos de alerta de licencias; pendiente otras notificaciones
-- [ ] S3 (`src/config/s3.ts`, `@aws-sdk/client-s3`) - evidencias de incidencias, adjuntos y evidencias de mantenimiento (ver §2.14)
+- [X] S3 (`src/config/s3.ts`, `@aws-sdk/client-s3`) - conexion con Floci, bucket, subida, listado, URL de descarga y eliminacion en `/api/adjuntos` (§2.15). Pendiente integrar evidencias de mantenimiento/incidencias.
 - [ ] Puppeteer - reportes PDF (§2.13)
 - [ ] Ollama (`llama3.1:8b`) - asistente IA + Function Calling (servicio `ollama` en docker, profile `ai`)
 - [ ] CORS restrictivo - hoy `app.use(cors())` abierto; restringir a la URL del frontend
-- [X] `.env.example` documenta SMTP y variables de alertas de licencias; quedan pendientes `S3_*`, `OLLAMA_*`, `CORS_ORIGIN` y la revision de nombres previos del roadmap
+- [X] `.env.example` documenta SMTP, alertas de licencias y variables S3/Floci; quedan pendientes `OLLAMA_*`, `CORS_ORIGIN` y la revision de nombres previos del roadmap
 - [ ] agregar en licencias el tipo (suscripción, perpetua).
 - [ ] Devolver en la consulta de licencias la clave
 - [X] creacion de endPoints del modulo de auditoria (fase 1 en §2.12; instrumentacion pendiente por fases)

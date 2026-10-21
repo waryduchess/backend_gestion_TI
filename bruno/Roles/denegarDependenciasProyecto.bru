@@ -1,0 +1,22 @@
+meta {
+  name: Denegar dependencias de tarea sin permiso
+  type: http
+  seq: 18
+}
+
+script:pre-request {
+  await bru.runRequest("Roles/loginUsuarioPrueba");
+  const token = bru.getVar("tokenUsuarioRbac");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No hay token del usuario RBAC de prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+get {
+  url: {{baseUrl}}/api/proyectos/1/tareas/1/dependencias
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 403
+}

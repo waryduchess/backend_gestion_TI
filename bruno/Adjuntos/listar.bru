@@ -1,0 +1,38 @@
+meta {
+  name: Listar adjuntos de un activo
+  type: http
+  seq: 2
+}
+
+script:pre-request {
+  await bru.runRequest("Adjuntos/subirImagen");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+get {
+  url: {{baseUrl}}/api/adjuntos?entidadTipo=ACTIVO&entidadId={{primerActivoId}}&page=1&limit=10
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}
+
+assert {
+  res.body.data: isArray
+}
+
+assert {
+  res.body.meta.total: gt 0
+}
+
+assert {
+  res.body.data[0].mimeType: isString
+}
+
+assert {
+  res.body.data[0].entidadTipo: eq ACTIVO
+}

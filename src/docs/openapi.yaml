@@ -54,6 +54,15 @@ tags:
       Recordatorios personales del usuario autenticado. Requiere
       recordatorios:leer, recordatorios:crear, recordatorios:editar o
       recordatorios:eliminar segun la operacion.
+  - name: proyectos
+    description: >
+      Registro y gestion de proyectos de TI. Requiere proyectos:leer,
+      proyectos:crear, proyectos:editar o proyectos:eliminar segun la operacion.
+  - name: adjuntos
+    description: >
+      Archivos adjuntos almacenados en S3. La subida requiere adjuntos:subir;
+      el listado y la URL temporal requieren adjuntos:leer; la eliminacion
+      requiere adjuntos:eliminar. El bucket y la s3Key nunca se exponen.
 
 paths:
   /api/auth/login:
@@ -4035,6 +4044,30 @@ paths:
         '403':
           description: Requiere el permiso dashboard:leer
 
+  /api/dashboard/proyectos:
+    get:
+      tags: [dashboard]
+      summary: KPIs agregados de proyectos
+      description: >
+        Devuelve KPIs y agrupaciones de proyectos activos. Requiere
+        dashboard:leer y proyectos:leer. Si el usuario no tiene
+        proyectos:ver-todos, solo se contabilizan proyectos donde es
+        responsable o miembro activo.
+      operationId: obtenerResumenProyectosDashboard
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Resumen de proyectos obtenido correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaResumenProyectosDashboard'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere dashboard:leer y proyectos:leer
+
   /api/auditoria:
     get:
       tags: [auditoria]
@@ -4721,6 +4754,1315 @@ paths:
               schema:
                 $ref: '#/components/schemas/RespuestaError'
 
+  /api/adjuntos:
+    get:
+      tags: [adjuntos]
+      summary: Listar adjuntos de una entidad
+      description: >
+        Requiere JWT y adjuntos:leer. Devuelve los metadatos paginados de los
+        adjuntos asociados a una entidad existente. Nunca devuelve s3Key ni
+        credenciales de S3.
+      operationId: listarAdjuntos
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: entidadTipo
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/EntidadAdjunto'
+        - name: entidadId
+          in: query
+          required: true
+          schema:
+            type: string
+            pattern: '^[1-9][0-9]*$'
+            example: '532'
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Adjuntos obtenidos correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaAdjuntosPaginada'
+        '400':
+          description: Paginacion o filtros invalidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso adjuntos:leer
+        '404':
+          description: La entidad asociada no existe o no esta disponible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+    post:
+      tags: [adjuntos]
+      summary: Subir una imagen adjunta
+      description: >
+        Recibe multipart/form-data con el archivo en el campo archivo y los
+        campos entidadTipo y entidadId. Valida que la entidad exista, que el
+        contenido sea una imagen PNG, JPEG o WebP y que no supere el limite
+        configurado. La imagen se guarda en S3 y los metadatos en MySQL. La
+        respuesta nunca expone la clave del objeto en S3.
+      operationId: crearAdjunto
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [archivo, entidadTipo, entidadId]
+              properties:
+                archivo:
+                  type: string
+                  format: binary
+                  description: Imagen PNG, JPEG o WebP
+                entidadTipo:
+                  $ref: '#/components/schemas/EntidadAdjunto'
+                entidadId:
+                  type: string
+                  pattern: '^[1-9][0-9]*$'
+                  example: '10'
+      responses:
+        '201':
+          description: Imagen almacenada correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaAdjunto'
+        '400':
+          description: Archivo invalido o campos obligatorios faltantes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso adjuntos:subir
+        '404':
+          description: La entidad asociada no existe o no esta disponible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '503':
+          description: El almacenamiento S3 no esta disponible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+
+  /api/adjuntos/{id}/descarga:
+    get:
+      tags: [adjuntos]
+      summary: Obtener URL temporal de descarga
+      description: >
+        Requiere JWT y adjuntos:leer. Genera una URL presignada de S3 con
+        expiracion corta. La URL debe usarse de inmediato y no almacenarse de
+        forma permanente. La respuesta no es cacheable.
+      operationId: descargarAdjunto
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AdjuntoId'
+      responses:
+        '200':
+          description: URL temporal generada correctamente
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaDescargaAdjunto'
+        '400':
+          description: Identificador invalido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso adjuntos:leer
+        '404':
+          description: Adjunto no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '503':
+          description: No se pudo generar la URL por un problema con S3
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+
+  /api/adjuntos/{id}:
+    delete:
+      tags: [adjuntos]
+      summary: Eliminar un adjunto
+      description: >
+        Requiere JWT y adjuntos:eliminar. Elimina el objeto de S3 y luego el
+        registro en MySQL, con auditoria ADJUNTOS/ELIMINAR. La respuesta no
+        tiene body.
+      operationId: eliminarAdjunto
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AdjuntoId'
+      responses:
+        '204':
+          description: Adjunto eliminado correctamente
+        '400':
+          description: Identificador invalido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso adjuntos:eliminar
+        '404':
+          description: Adjunto no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '503':
+          description: No se pudo eliminar el objeto de S3
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+
+  /api/proyectos:
+    get:
+      tags: [proyectos]
+      summary: Listar proyectos
+      description: >
+        Requiere JWT y proyectos:leer. Devuelve proyectos paginados y permite
+        filtrar por estado, prioridad, responsable, departamento, actividad y
+        texto. Incluye proyectos inactivos cuando activo=false.
+      operationId: listarProyectos
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: q
+          in: query
+          description: Busca en codigo, nombre y descripcion
+          schema:
+            type: string
+        - name: estado
+          in: query
+          schema:
+            $ref: '#/components/schemas/EstadoProyecto'
+        - name: prioridad
+          in: query
+          schema:
+            $ref: '#/components/schemas/Prioridad'
+        - name: responsableId
+          in: query
+          schema:
+            type: string
+        - name: departamentoId
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        - name: activo
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Proyectos obtenidos correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaProyectosPaginada'
+        '400':
+          description: Filtros o paginacion invalidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso proyectos:leer
+    post:
+      tags: [proyectos]
+      summary: Crear un proyecto
+      description: >
+        Requiere JWT y proyectos:crear. El codigo se genera automaticamente
+        como PRY-####. El responsable debe existir y estar activo; el
+        departamento es opcional. fechaFinPlanificada no puede ser anterior a
+        fechaInicio. La respuesta no expone datos internos de auditoria.
+      operationId: crearProyecto
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProyectoRequest'
+      responses:
+        '201':
+          description: Proyecto creado correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaProyecto'
+        '400':
+          description: Datos invalidos, fechas invalidas o relaciones inactivas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso proyectos:crear
+
+  /api/proyectos/{id}/horas:
+    get:
+      tags: [proyectos]
+      summary: Listar horas registradas del proyecto
+      description: >
+        Requiere JWT y proyectos:leer. Devuelve registros activos paginados,
+        ordenados por fecha descendente. Permite filtrar por tarea, usuario y
+        rango de fechas.
+      operationId: listarHorasProyecto
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProyectoId'
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: tareaId
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        - name: usuarioId
+          in: query
+          schema:
+            type: string
+        - name: desde
+          in: query
+          description: Fecha inicial inclusive (YYYY-MM-DD o ISO 8601)
+          schema:
+            type: string
+        - name: hasta
+          in: query
+          description: Fecha final inclusive (YYYY-MM-DD o ISO 8601)
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Registros de horas obtenidos correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaHorasProyectoPaginada'
+        '400':
+          description: Filtros o paginacion invalidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso proyectos:leer
+        '404':
+          description: Proyecto no encontrado o inactivo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+    post:
+      tags: [proyectos]
+      summary: Registrar horas
+      description: >
+        Requiere JWT y proyectos:editar. El usuario debe ser el responsable o
+        un miembro del proyecto. Si se envia tareaId, la tarea debe pertenecer
+        al proyecto. horas debe ser mayor a cero y menor o igual a 24.
+      operationId: crearHorasProyecto
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProyectoId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegistroHorasRequest'
+      responses:
+        '201':
+          description: Registro de horas creado correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaRegistroHoras'
+        '400':
+          description: Datos, usuario, tarea u horas invalidas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso proyectos:editar
+        '404':
+          description: Proyecto o tarea no encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+
+  /api/proyectos/{id}/horas/{registroId}:
+    get:
+      tags: [proyectos]
+      summary: Consultar un registro de horas
+      description: Requiere JWT y proyectos:leer.
+      operationId: obtenerHorasProyecto
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProyectoId'
+        - $ref: '#/components/parameters/RegistroHorasId'
+      responses:
+        '200':
+          description: Registro obtenido correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaRegistroHoras'
+        '400':
+          description: Identificador invalido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso proyectos:leer
+        '404':
+          description: Proyecto o registro no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+    patch:
+      tags: [proyectos]
+      summary: Editar un registro de horas
+      description: Requiere JWT y proyectos:editar.
+      operationId: actualizarHorasProyecto
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProyectoId'
+        - $ref: '#/components/parameters/RegistroHorasId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegistroHorasEdicion'
+      responses:
+        '200':
+          description: Registro actualizado correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaRegistroHoras'
+        '400':
+          description: Datos invalidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso proyectos:editar
+        '404':
+          description: Proyecto, tarea o registro no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+    delete:
+      tags: [proyectos]
+      summary: Dar de baja un registro de horas
+      description: Requiere JWT y proyectos:editar. Baja logica idempotente.
+      operationId: eliminarHorasProyecto
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProyectoId'
+        - $ref: '#/components/parameters/RegistroHorasId'
+      responses:
+        '200':
+          description: Registro de horas desactivado correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaRegistroHoras'
+        '400':
+          description: Identificador invalido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso proyectos:editar
+        '404':
+          description: Proyecto o registro no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+
+  /api/proyectos/{id}/hitos:
+    get:
+      tags: [proyectos]
+      summary: Listar hitos de un proyecto
+      description: Requiere JWT y proyectos:leer. Devuelve los hitos activos ordenados por fecha planificada y orden.
+      operationId: listarHitosProyecto
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProyectoId'
+      responses:
+        '200':
+          description: Hitos obtenidos correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaHitosProyecto'
+        '400':
+          description: Identificador invalido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso proyectos:leer
+        '404':
+          description: Proyecto no encontrado o inactivo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+    post:
+      tags: [proyectos]
+      summary: Crear un hito
+      description: >
+        Requiere JWT y proyectos:editar. Si el estado es COMPLETADO y falta
+        fechaCompletada, se usa la fecha actual. fechaCompletada solo se acepta
+        con estado COMPLETADO.
+      operationId: crearHitoProyecto
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProyectoId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HitoProyectoRequest'
+      responses:
+        '201':
+          description: Hito creado correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaHitoProyecto'
+        '400':
+          description: Datos o fechas invalidas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso proyectos:editar
+        '404':
+          description: Proyecto no encontrado o inactivo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+
+  /api/proyectos/{id}/hitos/{hitoId}:
+    get:
+      tags: [proyectos]
+      summary: Consultar un hito
+      description: Requiere JWT y proyectos:leer.
+      operationId: obtenerHitoProyecto
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProyectoId'
+        - $ref: '#/components/parameters/HitoId'
+      responses:
+        '200':
+          description: Hito obtenido correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaHitoProyecto'
+        '400':
+          description: Identificador invalido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso proyectos:leer
+        '404':
+          description: Proyecto u hito no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+    patch:
+      tags: [proyectos]
+      summary: Editar un hito
+      description: >
+        Requiere JWT y proyectos:editar. Al pasar a COMPLETADO se asigna
+        fechaCompletada si falta; al salir de COMPLETADO se limpia.
+      operationId: actualizarHitoProyecto
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProyectoId'
+        - $ref: '#/components/parameters/HitoId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HitoProyectoEdicion'
+      responses:
+        '200':
+          description: Hito actualizado correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaHitoProyecto'
+        '400':
+          description: Datos o fechas invalidas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso proyectos:editar
+        '404':
+          description: Proyecto u hito no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+    delete:
+      tags: [proyectos]
+      summary: Dar de baja un hito
+      description: Requiere JWT y proyectos:editar. Baja logica idempotente.
+      operationId: eliminarHitoProyecto
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProyectoId'
+        - $ref: '#/components/parameters/HitoId'
+      responses:
+        '200':
+          description: Hito desactivado correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaHitoProyecto'
+        '400':
+          description: Identificador invalido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso proyectos:editar
+        '404':
+          description: Proyecto u hito no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+
+  /api/proyectos/{id}/tareas:
+    get:
+      tags: [proyectos]
+      summary: Listar tareas de un proyecto
+      description: >
+        Requiere JWT y proyectos:leer. Devuelve solo tareas principales
+        activas, con sus subtareas activas anidadas. Las subtareas no se
+        cuentan en meta.total.
+      operationId: listarTareasProyecto
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProyectoId'
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: q
+          in: query
+          description: Busca en titulo y descripcion de tareas principales
+          schema:
+            type: string
+        - name: estado
+          in: query
+          schema:
+            $ref: '#/components/schemas/EstadoTarea'
+        - name: prioridad
+          in: query
+          schema:
+            $ref: '#/components/schemas/Prioridad'
+        - name: asignadoAId
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Tareas obtenidas correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaTareasProyectoPaginada'
+        '400':
+          description: Filtros o paginacion invalidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso proyectos:leer
+        '404':
+          description: Proyecto no encontrado o inactivo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+    post:
+      tags: [proyectos]
+      summary: Crear una tarea o subtarea
+      description: >
+        Requiere JWT y proyectos:editar. Si se envia parentId, la tarea se crea
+        como subtarea de una tarea principal del mismo proyecto. No se permiten
+        subtareas de subtareas. El asignado debe ser el responsable o un
+        miembro del proyecto. Si el estado es COMPLETADA y falta
+        fechaCompletada, se usa la fecha actual.
+      operationId: crearTareaProyecto
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProyectoId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TareaProyectoRequest'
+      responses:
+        '201':
+          description: Tarea creada correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaTareaProyecto'
+        '400':
+          description: Datos, fechas, asignado o parentId invalidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso proyectos:editar
+        '404':
+          description: Proyecto o tarea padre no encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+
+  /api/proyectos/{id}/tareas/{tareaId}/dependencias:
+    get:
+      tags: [proyectos]
+      summary: Listar dependencias de una tarea
+      description: >
+        Requiere JWT y proyectos:leer. Devuelve las tareas de las que depende
+        la tarea actual y las tareas que dependen de ella.
+      operationId: listarDependenciasTarea
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProyectoId'
+        - $ref: '#/components/parameters/TareaId'
+      responses:
+        '200':
+          description: Dependencias obtenidas correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaDependenciasTarea'
+        '400':
+          description: Identificador invalido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso proyectos:leer
+        '404':
+          description: Proyecto o tarea no encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+    post:
+      tags: [proyectos]
+      summary: Agregar una dependencia
+      description: >
+        Requiere JWT y proyectos:editar. La tarea actual pasara a depender de
+        dependeDeId. Ambas tareas deben estar activas y pertenecer al mismo
+        proyecto. Se rechazan autodependencias, duplicados y ciclos.
+      operationId: agregarDependenciaTarea
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProyectoId'
+        - $ref: '#/components/parameters/TareaId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DependenciaTareaRequest'
+      responses:
+        '201':
+          description: Dependencia agregada correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaDependenciasTarea'
+        '400':
+          description: Autodependencia o datos invalidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso proyectos:editar
+        '404':
+          description: Proyecto o tarea no encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '409':
+          description: Dependencia duplicada o ciclo detectado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+
+  /api/proyectos/{id}/tareas/{tareaId}/dependencias/{dependeDeId}:
+    delete:
+      tags: [proyectos]
+      summary: Quitar una dependencia
+      description: Requiere JWT y proyectos:editar. Elimina la relacion; no elimina tareas.
+      operationId: eliminarDependenciaTarea
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProyectoId'
+        - $ref: '#/components/parameters/TareaId'
+        - $ref: '#/components/parameters/DependeDeId'
+      responses:
+        '204':
+          description: Dependencia eliminada correctamente
+        '400':
+          description: Identificador invalido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso proyectos:editar
+        '404':
+          description: Proyecto, tarea o dependencia no encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+
+  /api/proyectos/{id}/tareas/{tareaId}:
+    get:
+      tags: [proyectos]
+      summary: Consultar una tarea
+      description: Requiere JWT y proyectos:leer.
+      operationId: obtenerTareaProyecto
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProyectoId'
+        - $ref: '#/components/parameters/TareaId'
+      responses:
+        '200':
+          description: Tarea obtenida correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaTareaProyecto'
+        '400':
+          description: Identificador invalido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso proyectos:leer
+        '404':
+          description: Proyecto o tarea no encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+    patch:
+      tags: [proyectos]
+      summary: Editar una tarea
+      description: >
+        Requiere JWT y proyectos:editar. parentId no es editable. Al pasar a
+        COMPLETADA se asigna fechaCompletada si falta; al salir de COMPLETADA
+        se limpia.
+      operationId: actualizarTareaProyecto
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProyectoId'
+        - $ref: '#/components/parameters/TareaId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TareaProyectoEdicion'
+      responses:
+        '200':
+          description: Tarea actualizada correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaTareaProyecto'
+        '400':
+          description: Datos, fechas o asignado invalidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso proyectos:editar
+        '404':
+          description: Proyecto o tarea no encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+    delete:
+      tags: [proyectos]
+      summary: Dar de baja una tarea
+      description: >
+        Requiere JWT y proyectos:editar. Baja logica idempotente; si es una
+        tarea principal, tambien desactiva sus subtareas.
+      operationId: eliminarTareaProyecto
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProyectoId'
+        - $ref: '#/components/parameters/TareaId'
+      responses:
+        '200':
+          description: Tarea desactivada correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaTareaProyecto'
+        '400':
+          description: Identificador invalido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso proyectos:editar
+        '404':
+          description: Proyecto o tarea no encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+
+  /api/proyectos/{id}/miembros:
+    get:
+      tags: [proyectos]
+      summary: Listar miembros de un proyecto
+      description: Requiere JWT y proyectos:leer. Devuelve los usuarios activos asociados al proyecto y su rol.
+      operationId: listarMiembrosProyecto
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProyectoId'
+      responses:
+        '200':
+          description: Miembros obtenidos correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaMiembrosProyecto'
+        '400':
+          description: Identificador invalido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso proyectos:leer
+        '404':
+          description: Proyecto no encontrado o inactivo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+    post:
+      tags: [proyectos]
+      summary: Agregar un miembro al proyecto
+      description: >
+        Requiere JWT y proyectos:editar. El usuario debe existir y estar activo.
+        Si ya es miembro responde 409. El rol por defecto es DESARROLLADOR.
+      operationId: agregarMiembroProyecto
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProyectoId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MiembroProyectoRequest'
+      responses:
+        '201':
+          description: Miembro agregado correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaProyectoMiembro'
+        '400':
+          description: Usuario inexistente/inactivo o datos invalidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso proyectos:editar
+        '404':
+          description: Proyecto no encontrado o inactivo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '409':
+          description: El usuario ya es miembro del proyecto
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+
+  /api/proyectos/{id}/miembros/{usuarioId}:
+    patch:
+      tags: [proyectos]
+      summary: Cambiar el rol de un miembro
+      description: Requiere JWT y proyectos:editar.
+      operationId: actualizarMiembroProyecto
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProyectoId'
+        - $ref: '#/components/parameters/UsuarioIdProyecto'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MiembroProyectoEdicion'
+      responses:
+        '200':
+          description: Miembro actualizado correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaProyectoMiembro'
+        '400':
+          description: Rol o datos invalidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso proyectos:editar
+        '404':
+          description: Proyecto o miembro no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+    delete:
+      tags: [proyectos]
+      summary: Quitar un miembro del proyecto
+      description: Requiere JWT y proyectos:editar. Elimina la membresia; no elimina al usuario.
+      operationId: eliminarMiembroProyecto
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProyectoId'
+        - $ref: '#/components/parameters/UsuarioIdProyecto'
+      responses:
+        '204':
+          description: Miembro eliminado correctamente
+        '400':
+          description: Identificador invalido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso proyectos:editar
+        '404':
+          description: Proyecto o miembro no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+
+  /api/proyectos/{id}:
+    get:
+      tags: [proyectos]
+      summary: Consultar un proyecto activo
+      operationId: obtenerProyecto
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProyectoId'
+      responses:
+        '200':
+          description: Proyecto obtenido correctamente, incluyendo sus miembros
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaProyectoDetalle'
+        '400':
+          description: Identificador invalido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso proyectos:leer
+        '404':
+          description: Proyecto no encontrado o inactivo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+    patch:
+      tags: [proyectos]
+      summary: Editar o reactivar un proyecto
+      description: >
+        Requiere JWT y proyectos:editar. El codigo no es editable. Las
+        transiciones de estado se validan. enviar activo=true reactiva un
+        proyecto dado de baja. Si pasa a COMPLETADO y no se envia fechaFinReal,
+        se usa la fecha actual.
+      operationId: actualizarProyecto
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProyectoId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProyectoEdicion'
+      responses:
+        '200':
+          description: Proyecto actualizado correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaProyecto'
+        '400':
+          description: Datos, fechas o transicion de estado invalidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso proyectos:editar
+        '404':
+          description: Proyecto no encontrado o inactivo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+    delete:
+      tags: [proyectos]
+      summary: Dar de baja un proyecto
+      description: >
+        Requiere JWT y proyectos:eliminar. Baja logica idempotente: cambia
+        activo=false y conserva el registro y sus adjuntos.
+      operationId: eliminarProyecto
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProyectoId'
+      responses:
+        '200':
+          description: Proyecto desactivado correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaProyecto'
+        '400':
+          description: Identificador invalido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso proyectos:eliminar
+        '404':
+          description: Proyecto no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -4747,6 +6089,63 @@ components:
       schema:
         type: integer
         minimum: 1
+
+    AdjuntoId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+
+    ProyectoId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+
+    RegistroHorasId:
+      name: registroId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+
+    DependeDeId:
+      name: dependeDeId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+
+    HitoId:
+      name: hitoId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+
+    TareaId:
+      name: tareaId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+
+    UsuarioIdProyecto:
+      name: usuarioId
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 191
 
   schemas:
     LoginRequest:
@@ -5633,6 +7032,129 @@ components:
           description: Activos no dados de baja con responsable asignado
           example: 134
 
+    KpisProyectos:
+      type: object
+      required:
+        - proyectosActivos
+        - proyectosEnProgreso
+        - proyectosVencidos
+        - proyectosProximos7Dias
+        - proyectosProximos30Dias
+        - tareasPendientes
+        - tareasVencidas
+        - hitosProximos30Dias
+        - hitosVencidos
+        - horasRegistradas
+      properties:
+        proyectosActivos:
+          type: integer
+          example: 12
+        proyectosEnProgreso:
+          type: integer
+          example: 7
+        proyectosVencidos:
+          type: integer
+          description: Proyectos con fin planificado anterior a hoy y estado distinto de COMPLETADO/CANCELADO
+          example: 2
+        proyectosProximos7Dias:
+          type: integer
+          example: 3
+        proyectosProximos30Dias:
+          type: integer
+          example: 5
+        tareasPendientes:
+          type: integer
+          description: Tareas activas en PENDIENTE o EN_PROGRESO
+          example: 38
+        tareasVencidas:
+          type: integer
+          example: 6
+        hitosProximos30Dias:
+          type: integer
+          example: 4
+        hitosVencidos:
+          type: integer
+          example: 2
+        horasRegistradas:
+          type: number
+          example: 126.5
+
+    ProyectoPorEstado:
+      type: object
+      required: [estado, total]
+      properties:
+        estado:
+          $ref: '#/components/schemas/EstadoProyecto'
+        total:
+          type: integer
+          example: 7
+
+    ProyectoPorPrioridad:
+      type: object
+      required: [prioridad, total]
+      properties:
+        prioridad:
+          $ref: '#/components/schemas/Prioridad'
+        total:
+          type: integer
+          example: 5
+
+    ProyectoProximoDashboard:
+      type: object
+      required: [id, codigo, nombre, estado, prioridad, fechaFinPlanificada]
+      properties:
+        id:
+          type: integer
+          example: 1
+        codigo:
+          type: string
+          example: PRY-0001
+        nombre:
+          type: string
+          example: Migracion de infraestructura
+        estado:
+          $ref: '#/components/schemas/EstadoProyecto'
+        prioridad:
+          $ref: '#/components/schemas/Prioridad'
+        fechaFinPlanificada:
+          type: string
+          format: date-time
+
+    ResumenProyectosDashboard:
+      type: object
+      required: [kpis, proyectosPorEstado, proyectosPorPrioridad, proyectosProximos]
+      properties:
+        kpis:
+          $ref: '#/components/schemas/KpisProyectos'
+        proyectosPorEstado:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProyectoPorEstado'
+        proyectosPorPrioridad:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProyectoPorPrioridad'
+        proyectosProximos:
+          type: array
+          description: Hasta 5 proyectos activos que vencen en los proximos 30 dias
+          items:
+            $ref: '#/components/schemas/ProyectoProximoDashboard'
+
+    RespuestaResumenProyectosDashboard:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: Resumen de proyectos obtenido correctamente
+        errors:
+          type: array
+          items: {}
+        data:
+          $ref: '#/components/schemas/ResumenProyectosDashboard'
+
     ActivoPorTipo:
       type: object
       required: [tipo, total]
@@ -5809,6 +7331,977 @@ components:
             $ref: '#/components/schemas/Recordatorio'
         meta:
           $ref: '#/components/schemas/MetaPaginacion'
+
+    EntidadAdjunto:
+      type: string
+      enum: [ACTIVO, MANTENIMIENTO, INCIDENCIA, PROYECTO]
+      example: ACTIVO
+
+    Adjunto:
+      type: object
+      required:
+        - id
+        - entidadTipo
+        - entidadId
+        - nombreOriginal
+        - mimeType
+        - extension
+        - tamano
+        - subidoEn
+      properties:
+        id:
+          type: integer
+          example: 7
+        entidadTipo:
+          $ref: '#/components/schemas/EntidadAdjunto'
+        entidadId:
+          type: string
+          example: '10'
+        nombreOriginal:
+          type: string
+          example: foto-equipo.png
+        mimeType:
+          type: string
+          example: image/png
+        extension:
+          type: string
+          example: .png
+        tamano:
+          type: integer
+          example: 24576
+        subidoEn:
+          type: string
+          format: date-time
+
+    RespuestaAdjunto:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: Imagen almacenada correctamente
+        errors:
+          type: array
+          items: {}
+        data:
+          $ref: '#/components/schemas/Adjunto'
+
+    RespuestaAdjuntosPaginada:
+      type: object
+      required: [success, message, errors, data, meta]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: Adjuntos obtenidos correctamente
+        errors:
+          type: array
+          items: {}
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Adjunto'
+        meta:
+          $ref: '#/components/schemas/MetaPaginacion'
+
+    DescargaAdjunto:
+      type: object
+      required: [url, expiraEn]
+      properties:
+        url:
+          type: string
+          format: uri
+          description: URL presignada temporal para descargar el objeto
+        expiraEn:
+          type: string
+          format: date-time
+          description: Momento en que expira la URL
+
+    RespuestaDescargaAdjunto:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: URL de descarga generada correctamente
+        errors:
+          type: array
+          items: {}
+        data:
+          $ref: '#/components/schemas/DescargaAdjunto'
+
+    EstadoProyecto:
+      type: string
+      enum: [PLANIFICADO, EN_PROGRESO, PAUSADO, COMPLETADO, CANCELADO]
+      example: EN_PROGRESO
+
+    Proyecto:
+      type: object
+      required:
+        - id
+        - codigo
+        - nombre
+        - descripcion
+        - estado
+        - prioridad
+        - fechaInicio
+        - fechaFinPlanificada
+        - fechaFinReal
+        - activo
+        - responsable
+        - departamento
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: integer
+          example: 1
+        codigo:
+          type: string
+          example: PRY-0001
+        nombre:
+          type: string
+          maxLength: 200
+          example: Migracion de infraestructura
+        descripcion:
+          type: [string, 'null']
+          example: Migracion de servidores y servicios internos
+        estado:
+          $ref: '#/components/schemas/EstadoProyecto'
+        prioridad:
+          $ref: '#/components/schemas/Prioridad'
+        fechaInicio:
+          type: string
+          format: date-time
+        fechaFinPlanificada:
+          type: string
+          format: date-time
+        fechaFinReal:
+          type: [string, 'null']
+          format: date-time
+        presupuesto:
+          type: [number, 'null']
+          minimum: 0
+          example: 150000.5
+        activo:
+          type: boolean
+          example: true
+        responsable:
+          $ref: '#/components/schemas/UsuarioResumen'
+        departamento:
+          oneOf:
+            - $ref: '#/components/schemas/DepartamentoResumen'
+            - type: 'null'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ProyectoRequest:
+      type: object
+      additionalProperties: false
+      required: [nombre, fechaInicio, fechaFinPlanificada, responsableId]
+      properties:
+        nombre:
+          type: string
+          minLength: 1
+          maxLength: 200
+          example: Migracion de infraestructura
+        descripcion:
+          type: [string, 'null']
+          maxLength: 10000
+          example: Migracion de servidores y servicios internos
+        estado:
+          $ref: '#/components/schemas/EstadoProyecto'
+        prioridad:
+          $ref: '#/components/schemas/Prioridad'
+        fechaInicio:
+          type: string
+          format: date-time
+          example: '2026-11-01T00:00:00.000Z'
+        fechaFinPlanificada:
+          type: string
+          format: date-time
+          example: '2027-01-31T00:00:00.000Z'
+        fechaFinReal:
+          type: [string, 'null']
+          format: date-time
+        presupuesto:
+          type: [number, 'null']
+          minimum: 0
+          example: 150000.5
+        responsableId:
+          type: string
+          example: ADMIN
+        departamentoId:
+          type: [integer, 'null']
+          minimum: 1
+          example: 1
+
+    ProyectoEdicion:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        nombre:
+          type: string
+          minLength: 1
+          maxLength: 200
+        descripcion:
+          type: [string, 'null']
+          maxLength: 10000
+        estado:
+          $ref: '#/components/schemas/EstadoProyecto'
+        prioridad:
+          $ref: '#/components/schemas/Prioridad'
+        fechaInicio:
+          type: string
+          format: date-time
+        fechaFinPlanificada:
+          type: string
+          format: date-time
+        fechaFinReal:
+          type: [string, 'null']
+          format: date-time
+        presupuesto:
+          type: [number, 'null']
+          minimum: 0
+        responsableId:
+          type: string
+        departamentoId:
+          type: [integer, 'null']
+          minimum: 1
+        activo:
+          type: boolean
+          enum: [true]
+          description: Solo true, para reactivar un proyecto dado de baja
+
+    RespuestaProyecto:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: Proyecto creado correctamente
+        errors:
+          type: array
+          items: {}
+        data:
+          $ref: '#/components/schemas/Proyecto'
+
+    RespuestaProyectosPaginada:
+      type: object
+      required: [success, message, errors, data, meta]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: Proyectos obtenidos correctamente
+        errors:
+          type: array
+          items: {}
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Proyecto'
+        meta:
+          $ref: '#/components/schemas/MetaPaginacion'
+
+    TareaHorasResumen:
+      type: object
+      required: [id, titulo]
+      properties:
+        id:
+          type: integer
+          example: 1
+        titulo:
+          type: string
+          example: Preparar entorno
+
+    RegistroHoras:
+      type: object
+      required:
+        - id
+        - proyectoId
+        - tareaId
+        - tarea
+        - usuarioId
+        - usuario
+        - fecha
+        - horas
+        - descripcion
+        - activo
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: integer
+          example: 1
+        proyectoId:
+          type: integer
+          example: 1
+        tareaId:
+          type: [integer, 'null']
+          example: 1
+        tarea:
+          oneOf:
+            - $ref: '#/components/schemas/TareaHorasResumen'
+            - type: 'null'
+        usuarioId:
+          type: string
+          example: ADMIN
+        usuario:
+          $ref: '#/components/schemas/UsuarioResumen'
+        fecha:
+          type: string
+          format: date-time
+        horas:
+          type: number
+          minimum: 0
+          maximum: 24
+          example: 2.5
+        descripcion:
+          type: [string, 'null']
+          example: Analisis de requerimientos
+        activo:
+          type: boolean
+          example: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    RegistroHorasRequest:
+      type: object
+      additionalProperties: false
+      required: [fecha, horas]
+      properties:
+        tareaId:
+          type: [integer, 'null']
+          minimum: 1
+        usuarioId:
+          type: string
+          description: Si se omite, se usa el usuario autenticado
+          example: ADMIN
+        fecha:
+          type: string
+          format: date-time
+        horas:
+          type: number
+          exclusiveMinimum: 0
+          maximum: 24
+          example: 2.5
+        descripcion:
+          type: [string, 'null']
+          maxLength: 10000
+
+    RegistroHorasEdicion:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        tareaId:
+          type: [integer, 'null']
+          minimum: 1
+        usuarioId:
+          type: string
+        fecha:
+          type: string
+          format: date-time
+        horas:
+          type: number
+          exclusiveMinimum: 0
+          maximum: 24
+        descripcion:
+          type: [string, 'null']
+          maxLength: 10000
+
+    RespuestaRegistroHoras:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: Registro de horas creado correctamente
+        errors:
+          type: array
+          items: {}
+        data:
+          $ref: '#/components/schemas/RegistroHoras'
+
+    RespuestaHorasProyectoPaginada:
+      type: object
+      required: [success, message, errors, data, meta]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: Registros de horas obtenidos correctamente
+        errors:
+          type: array
+          items: {}
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/RegistroHoras'
+        meta:
+          $ref: '#/components/schemas/MetaPaginacion'
+
+    EstadoHito:
+      type: string
+      enum: [PENDIENTE, COMPLETADO, CANCELADO]
+      example: PENDIENTE
+
+    HitoProyecto:
+      type: object
+      required:
+        - id
+        - proyectoId
+        - titulo
+        - descripcion
+        - estado
+        - fechaPlanificada
+        - fechaCompletada
+        - orden
+        - activo
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: integer
+          example: 1
+        proyectoId:
+          type: integer
+          example: 1
+        titulo:
+          type: string
+          maxLength: 200
+          example: Entrega de fase 1
+        descripcion:
+          type: [string, 'null']
+          example: Validacion con el area solicitante
+        estado:
+          $ref: '#/components/schemas/EstadoHito'
+        fechaPlanificada:
+          type: string
+          format: date-time
+        fechaCompletada:
+          type: [string, 'null']
+          format: date-time
+        orden:
+          type: integer
+          minimum: 0
+          example: 0
+        activo:
+          type: boolean
+          example: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    HitoProyectoRequest:
+      type: object
+      additionalProperties: false
+      required: [titulo, fechaPlanificada]
+      properties:
+        titulo:
+          type: string
+          minLength: 1
+          maxLength: 200
+          example: Entrega de fase 1
+        descripcion:
+          type: [string, 'null']
+          maxLength: 10000
+        estado:
+          $ref: '#/components/schemas/EstadoHito'
+        fechaPlanificada:
+          type: string
+          format: date-time
+        fechaCompletada:
+          type: [string, 'null']
+          format: date-time
+        orden:
+          type: integer
+          minimum: 0
+          default: 0
+
+    HitoProyectoEdicion:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        titulo:
+          type: string
+          minLength: 1
+          maxLength: 200
+        descripcion:
+          type: [string, 'null']
+          maxLength: 10000
+        estado:
+          $ref: '#/components/schemas/EstadoHito'
+        fechaPlanificada:
+          type: string
+          format: date-time
+        fechaCompletada:
+          type: [string, 'null']
+          format: date-time
+        orden:
+          type: integer
+          minimum: 0
+
+    RespuestaHitoProyecto:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: Hito creado correctamente
+        errors:
+          type: array
+          items: {}
+        data:
+          $ref: '#/components/schemas/HitoProyecto'
+
+    RespuestaHitosProyecto:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: Hitos del proyecto obtenidos correctamente
+        errors:
+          type: array
+          items: {}
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/HitoProyecto'
+
+    EstadoTarea:
+      type: string
+      enum: [PENDIENTE, EN_PROGRESO, COMPLETADA, CANCELADA]
+      example: EN_PROGRESO
+
+    TareaProyecto:
+      type: object
+      required:
+        - id
+        - proyectoId
+        - parentId
+        - titulo
+        - descripcion
+        - estado
+        - prioridad
+        - asignadoAId
+        - asignadoA
+        - fechaInicio
+        - fechaVencimiento
+        - fechaCompletada
+        - orden
+        - activo
+        - subtareas
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: integer
+          example: 1
+        proyectoId:
+          type: integer
+          example: 1
+        parentId:
+          type: [integer, 'null']
+          example: null
+        titulo:
+          type: string
+          maxLength: 200
+          example: Preparar entorno de pruebas
+        descripcion:
+          type: [string, 'null']
+          example: Configurar servidores y credenciales
+        estado:
+          $ref: '#/components/schemas/EstadoTarea'
+        prioridad:
+          $ref: '#/components/schemas/Prioridad'
+        asignadoAId:
+          type: [string, 'null']
+          example: ADMIN
+        asignadoA:
+          oneOf:
+            - $ref: '#/components/schemas/UsuarioResumen'
+            - type: 'null'
+        fechaInicio:
+          type: [string, 'null']
+          format: date-time
+        fechaVencimiento:
+          type: [string, 'null']
+          format: date-time
+        fechaCompletada:
+          type: [string, 'null']
+          format: date-time
+        orden:
+          type: integer
+          minimum: 0
+          example: 0
+        activo:
+          type: boolean
+          example: true
+        subtareas:
+          type: array
+          items:
+            $ref: '#/components/schemas/TareaProyecto'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    TareaProyectoRequest:
+      type: object
+      additionalProperties: false
+      required: [titulo]
+      properties:
+        titulo:
+          type: string
+          minLength: 1
+          maxLength: 200
+          example: Preparar entorno de pruebas
+        descripcion:
+          type: [string, 'null']
+          maxLength: 10000
+          example: Configurar servidores y credenciales
+        estado:
+          $ref: '#/components/schemas/EstadoTarea'
+        prioridad:
+          $ref: '#/components/schemas/Prioridad'
+        parentId:
+          type: [integer, 'null']
+          minimum: 1
+          description: Si se envia, crea una subtarea de esta tarea principal
+        asignadoAId:
+          type: [string, 'null']
+          example: ADMIN
+        fechaInicio:
+          type: [string, 'null']
+          format: date-time
+        fechaVencimiento:
+          type: [string, 'null']
+          format: date-time
+        fechaCompletada:
+          type: [string, 'null']
+          format: date-time
+        orden:
+          type: integer
+          minimum: 0
+          default: 0
+
+    TareaProyectoEdicion:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        titulo:
+          type: string
+          minLength: 1
+          maxLength: 200
+        descripcion:
+          type: [string, 'null']
+          maxLength: 10000
+        estado:
+          $ref: '#/components/schemas/EstadoTarea'
+        prioridad:
+          $ref: '#/components/schemas/Prioridad'
+        asignadoAId:
+          type: [string, 'null']
+        fechaInicio:
+          type: [string, 'null']
+          format: date-time
+        fechaVencimiento:
+          type: [string, 'null']
+          format: date-time
+        fechaCompletada:
+          type: [string, 'null']
+          format: date-time
+        orden:
+          type: integer
+          minimum: 0
+
+    TareaDependenciaResumen:
+      type: object
+      required: [id, titulo, estado, parentId]
+      properties:
+        id:
+          type: integer
+          example: 2
+        titulo:
+          type: string
+          example: Preparar entorno de pruebas
+        estado:
+          $ref: '#/components/schemas/EstadoTarea'
+        parentId:
+          type: [integer, 'null']
+          example: null
+
+    DependenciasTarea:
+      type: object
+      required: [dependeDe, dependientes]
+      properties:
+        dependeDe:
+          type: array
+          description: Tareas de las que depende la tarea actual
+          items:
+            $ref: '#/components/schemas/TareaDependenciaResumen'
+        dependientes:
+          type: array
+          description: Tareas que dependen de la tarea actual
+          items:
+            $ref: '#/components/schemas/TareaDependenciaResumen'
+
+    DependenciaTareaRequest:
+      type: object
+      additionalProperties: false
+      required: [dependeDeId]
+      properties:
+        dependeDeId:
+          type: integer
+          minimum: 1
+          example: 1
+
+    RespuestaDependenciasTarea:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: Dependencias de la tarea obtenidas correctamente
+        errors:
+          type: array
+          items: {}
+        data:
+          $ref: '#/components/schemas/DependenciasTarea'
+
+    RespuestaTareaProyecto:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: Tarea creada correctamente
+        errors:
+          type: array
+          items: {}
+        data:
+          $ref: '#/components/schemas/TareaProyecto'
+
+    RespuestaTareasProyectoPaginada:
+      type: object
+      required: [success, message, errors, data, meta]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: Tareas obtenidas correctamente
+        errors:
+          type: array
+          items: {}
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/TareaProyecto'
+        meta:
+          $ref: '#/components/schemas/MetaPaginacion'
+
+    RolProyecto:
+      type: string
+      enum: [LIDER, DESARROLLADOR, QA, STAKEHOLDER]
+      example: DESARROLLADOR
+
+    ProyectoMiembro:
+      type: object
+      required: [proyectoId, usuarioId, rol, usuario, createdAt]
+      properties:
+        proyectoId:
+          type: integer
+          example: 1
+        usuarioId:
+          type: string
+          example: ADMIN
+        rol:
+          $ref: '#/components/schemas/RolProyecto'
+        usuario:
+          $ref: '#/components/schemas/UsuarioResumen'
+        createdAt:
+          type: string
+          format: date-time
+
+    MiembroProyectoRequest:
+      type: object
+      additionalProperties: false
+      required: [usuarioId]
+      properties:
+        usuarioId:
+          type: string
+          minLength: 1
+          maxLength: 191
+          example: ADMIN
+        rol:
+          $ref: '#/components/schemas/RolProyecto'
+
+    MiembroProyectoEdicion:
+      type: object
+      additionalProperties: false
+      required: [rol]
+      properties:
+        rol:
+          $ref: '#/components/schemas/RolProyecto'
+
+    RespuestaProyectoMiembro:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: Miembro agregado al proyecto correctamente
+        errors:
+          type: array
+          items: {}
+        data:
+          $ref: '#/components/schemas/ProyectoMiembro'
+
+    RespuestaMiembrosProyecto:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: Miembros del proyecto obtenidos correctamente
+        errors:
+          type: array
+          items: {}
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProyectoMiembro'
+
+    ResumenTareasProyecto:
+      type: object
+      required: [total, completadas, pendientes, enProgreso, canceladas, subtareasTotal, subtareasCompletadas]
+      properties:
+        total:
+          type: integer
+          minimum: 0
+          description: Unidades consideradas; si una tarea tiene subtareas, se cuentan las subtareas
+          example: 4
+        completadas:
+          type: integer
+          minimum: 0
+          example: 3
+        pendientes:
+          type: integer
+          minimum: 0
+          example: 1
+        enProgreso:
+          type: integer
+          minimum: 0
+          example: 0
+        canceladas:
+          type: integer
+          minimum: 0
+          example: 0
+        subtareasTotal:
+          type: integer
+          minimum: 0
+          example: 2
+        subtareasCompletadas:
+          type: integer
+          minimum: 0
+          example: 1
+
+    ResumenHorasProyecto:
+      type: object
+      required: [totalHoras, totalRegistros]
+      properties:
+        totalHoras:
+          type: number
+          example: 12.5
+        totalRegistros:
+          type: integer
+          minimum: 0
+          example: 3
+
+    ProgresoProyecto:
+      type: object
+      required: [progreso, resumenTareas]
+      properties:
+        progreso:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Porcentaje calculado a partir de tareas y subtareas activas
+          example: 75
+        resumenTareas:
+          $ref: '#/components/schemas/ResumenTareasProyecto'
+
+    ProyectoDetalle:
+      allOf:
+        - $ref: '#/components/schemas/Proyecto'
+        - $ref: '#/components/schemas/ProgresoProyecto'
+        - type: object
+          required: [miembros, resumenHoras]
+          properties:
+            miembros:
+              type: array
+              items:
+                $ref: '#/components/schemas/ProyectoMiembro'
+            resumenHoras:
+              $ref: '#/components/schemas/ResumenHorasProyecto'
+
+    RespuestaProyectoDetalle:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: Proyecto obtenido correctamente
+        errors:
+          type: array
+          items: {}
+        data:
+          $ref: '#/components/schemas/ProyectoDetalle'
 
     ImportacionActivosPeticion:
       type: object
@@ -6238,7 +8731,7 @@ components:
 
     ModuloAuditoria:
       type: string
-      enum: [SECRETOS, ACTIVOS, USUARIOS, ROLES, CATALOGOS, LICENCIAS, INCIDENCIAS, ASIGNACIONES, IMPORTACIONES, MANTENIMIENTO, RECORDATORIOS]
+      enum: [SECRETOS, ACTIVOS, USUARIOS, ROLES, CATALOGOS, LICENCIAS, INCIDENCIAS, ASIGNACIONES, IMPORTACIONES, MANTENIMIENTO, RECORDATORIOS, ADJUNTOS, PROYECTOS]
 
     AccionAuditoria:
       type: string
@@ -6332,6 +8825,14 @@ components:
         - recordatorios:crear
         - recordatorios:editar
         - recordatorios:eliminar
+        - proyectos:leer
+        - proyectos:crear
+        - proyectos:editar
+        - proyectos:eliminar
+        - proyectos:ver-todos
+        - adjuntos:subir
+        - adjuntos:leer
+        - adjuntos:eliminar
         - usuarios:administrar
         - roles:administrar
         - catalogos:administrar

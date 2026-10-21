@@ -1,0 +1,54 @@
+meta {
+  name: Obtener proyecto
+  type: http
+  seq: 3
+}
+
+script:pre-request {
+  await bru.runRequest("Proyectos/crear");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+get {
+  url: {{baseUrl}}/api/proyectos/{{proyectoId}}
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}
+
+assert {
+  res.body.data.id: eq {{proyectoId}}
+}
+
+assert {
+  res.body.data.nombre: isString
+}
+
+assert {
+  res.body.data.responsable.id: eq ADMIN
+}
+
+assert {
+  res.body.data.miembros: isArray
+}
+
+assert {
+  res.body.data.progreso: eq 0
+}
+
+assert {
+  res.body.data.resumenTareas.total: eq 0
+}
+
+assert {
+  res.body.data.resumenHoras.totalHoras: eq 0
+}
+
+assert {
+  res.body.data.resumenHoras.totalRegistros: eq 0
+}

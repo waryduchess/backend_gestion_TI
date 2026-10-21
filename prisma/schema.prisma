@@ -83,6 +83,41 @@ enum AccionAuditoriaSecreto {
   REVELAR
 }
 
+enum EntidadAdjunto {
+  ACTIVO
+  MANTENIMIENTO
+  INCIDENCIA
+  PROYECTO
+}
+
+enum EstadoProyecto {
+  PLANIFICADO
+  EN_PROGRESO
+  PAUSADO
+  COMPLETADO
+  CANCELADO
+}
+
+enum RolProyecto {
+  LIDER
+  DESARROLLADOR
+  QA
+  STAKEHOLDER
+}
+
+enum EstadoTarea {
+  PENDIENTE
+  EN_PROGRESO
+  COMPLETADA
+  CANCELADA
+}
+
+enum EstadoHito {
+  PENDIENTE
+  COMPLETADO
+  CANCELADO
+}
+
 enum TipoNotificacion {
   INCIDENCIA_NUEVA
   LICENCIA_POR_VENCER
@@ -106,6 +141,7 @@ model Departamento {
   activo      Boolean      @default(true)
   usuarios    Usuario[]
   incidencias Incidencia[]
+  proyectos   Proyecto[]
 }
 
 model Ubicacion {
@@ -168,6 +204,11 @@ model Usuario {
   recordatorios         Recordatorio[]       @relation("Recordatorios")
   auditoriasSecretos    AuditoriaSecreto[]
   auditorias            Auditoria[]
+  adjuntosSubidos       Adjunto[]            @relation("AdjuntosSubidos")
+  proyectosResponsables Proyecto[]           @relation("ResponsableProyecto")
+  proyectosMiembro      ProyectoMiembro[]    @relation("MiembrosProyecto")
+  tareasProyecto        ProyectoTarea[]       @relation("TareasProyecto")
+  registrosHorasProyecto ProyectoRegistroHoras[] @relation("HorasProyecto")
 
   @@index([email])
 }
@@ -303,6 +344,157 @@ model Recordatorio {
 
   @@index([usuarioId, activo, completado, fecha])
   @@index([fecha])
+}
+
+// ------------------------------------------------------
+// ARCHIVOS ADJUNTOS
+// ------------------------------------------------------
+
+model Adjunto {
+  id             Int            @id @default(autoincrement())
+  entidadTipo    EntidadAdjunto
+  entidadId      String         @db.VarChar(191)
+  s3Bucket       String         @db.VarChar(191)
+  s3Key          String         @unique @db.VarChar(512)
+  nombreOriginal String         @db.VarChar(255)
+  mimeType       String         @db.VarChar(127)
+  extension      String         @db.VarChar(20)
+  tamano         Int
+  subidoPorId    String
+  subidoEn       DateTime       @default(now())
+
+  subidoPor Usuario @relation("AdjuntosSubidos", fields: [subidoPorId], references: [id], onDelete: Restrict)
+
+  @@index([entidadTipo, entidadId, subidoEn])
+  @@index([subidoPorId])
+}
+
+// ------------------------------------------------------
+// PROYECTOS
+// ------------------------------------------------------
+
+model Proyecto {
+  id                  Int            @id @default(autoincrement())
+  codigo              String         @unique @db.VarChar(20)
+  nombre              String         @db.VarChar(200)
+  descripcion         String?        @db.Text
+  estado              EstadoProyecto @default(PLANIFICADO)
+  prioridad           Prioridad      @default(NORMAL)
+  fechaInicio         DateTime
+  fechaFinPlanificada DateTime
+  fechaFinReal        DateTime?
+  presupuesto         Decimal?       @db.Decimal(12, 2)
+  responsableId       String
+  departamentoId      Int?
+  activo              Boolean        @default(true)
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  responsable  Usuario       @relation("ResponsableProyecto", fields: [responsableId], references: [id])
+  departamento Departamento? @relation(fields: [departamentoId], references: [id])
+  miembros      ProyectoMiembro[]
+  tareas        ProyectoTarea[]
+  hitos         ProyectoHito[]
+  registrosHoras ProyectoRegistroHoras[]
+
+  @@index([estado, fechaFinPlanificada])
+  @@index([responsableId])
+  @@index([departamentoId])
+  @@index([activo])
+}
+
+model ProyectoMiembro {
+  proyectoId Int
+  usuarioId  String
+  rol        RolProyecto @default(DESARROLLADOR)
+  createdAt  DateTime    @default(now())
+
+  proyecto Proyecto @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
+  usuario  Usuario  @relation("MiembrosProyecto", fields: [usuarioId], references: [id], onDelete: Restrict)
+
+  @@id([proyectoId, usuarioId])
+  @@index([usuarioId])
+}
+
+model ProyectoHito {
+  id               Int         @id @default(autoincrement())
+  proyectoId       Int
+  titulo           String      @db.VarChar(200)
+  descripcion      String?     @db.Text
+  estado           EstadoHito  @default(PENDIENTE)
+  fechaPlanificada DateTime
+  fechaCompletada  DateTime?
+  orden            Int         @default(0)
+  activo           Boolean     @default(true)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  proyecto Proyecto @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
+
+  @@index([proyectoId, activo, fechaPlanificada])
+}
+
+model ProyectoTarea {
+  id              Int          @id @default(autoincrement())
+  proyectoId      Int
+  parentId        Int?
+  titulo          String       @db.VarChar(200)
+  descripcion     String?      @db.Text
+  estado          EstadoTarea  @default(PENDIENTE)
+  prioridad       Prioridad    @default(NORMAL)
+  asignadoAId     String?
+  fechaInicio     DateTime?
+  fechaVencimiento DateTime?
+  fechaCompletada DateTime?
+  orden           Int          @default(0)
+  activo          Boolean      @default(true)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  proyecto    Proyecto       @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
+  parent       ProyectoTarea? @relation("Subtareas", fields: [parentId], references: [id], onDelete: Cascade)
+  subtareas    ProyectoTarea[] @relation("Subtareas")
+  asignadoA    Usuario?       @relation("TareasProyecto", fields: [asignadoAId], references: [id])
+  dependencias  ProyectoTareaDependencia[] @relation("DependenciasTarea")
+  dependientes  ProyectoTareaDependencia[] @relation("DependientesTarea")
+  registrosHoras ProyectoRegistroHoras[]
+
+  @@index([proyectoId, activo, orden])
+  @@index([parentId])
+  @@index([asignadoAId])
+}
+
+model ProyectoRegistroHoras {
+  id          Int      @id @default(autoincrement())
+  proyectoId  Int
+  tareaId     Int?
+  usuarioId   String
+  fecha       DateTime
+  horas       Decimal  @db.Decimal(6, 2)
+  descripcion String?  @db.Text
+  activo      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  proyecto Proyecto      @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
+  tarea    ProyectoTarea? @relation(fields: [tareaId], references: [id], onDelete: SetNull)
+  usuario  Usuario       @relation("HorasProyecto", fields: [usuarioId], references: [id], onDelete: Restrict)
+
+  @@index([proyectoId, activo, fecha])
+  @@index([tareaId])
+  @@index([usuarioId])
+}
+
+model ProyectoTareaDependencia {
+  tareaId      Int
+  dependeDeId  Int
+  createdAt    DateTime @default(now())
+
+  tarea      ProyectoTarea @relation("DependenciasTarea", fields: [tareaId], references: [id], onDelete: Cascade)
+  dependeDe  ProyectoTarea @relation("DependientesTarea", fields: [dependeDeId], references: [id], onDelete: Cascade)
+
+  @@id([tareaId, dependeDeId])
+  @@index([dependeDeId])
 }
 
 // ------------------------------------------------------

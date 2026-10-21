@@ -1,0 +1,49 @@
+meta {
+  name: Subir imagen a S3
+  type: http
+  seq: 1
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  await bru.runRequest("Activos/listar");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+post {
+  url: {{baseUrl}}/api/adjuntos
+  body: multipartForm
+  auth: none
+}
+
+body:multipart-form {
+  archivo: @file(./Adjuntos/fixtures/imagen-prueba.png) @contentType(image/png)
+  entidadTipo: ACTIVO
+  entidadId: {{primerActivoId}}
+}
+
+script:post-response {
+  if (res.status === 201) bru.setEnvVar("adjuntoId", res.body.data.id);
+}
+
+assert {
+  res.status: eq 201
+}
+
+assert {
+  res.body.data.entidadTipo: eq ACTIVO
+}
+
+assert {
+  res.body.data.mimeType: eq image/png
+}
+
+assert {
+  res.body.data.extension: eq .png
+}
+
+assert {
+  res.body.data.tamano: gt 0
+}

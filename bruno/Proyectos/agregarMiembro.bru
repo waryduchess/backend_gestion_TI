@@ -1,0 +1,41 @@
+meta {
+  name: Agregar miembro al proyecto
+  type: http
+  seq: 12
+}
+
+script:pre-request {
+  await bru.runRequest("Proyectos/crear");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+post {
+  url: {{baseUrl}}/api/proyectos/{{proyectoId}}/miembros
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "usuarioId": "ADMIN",
+    "rol": "LIDER"
+  }
+}
+
+assert {
+  res.status: eq 201
+}
+
+assert {
+  res.body.data.usuario.id: eq ADMIN
+}
+
+assert {
+  res.body.data.rol: eq LIDER
+}

@@ -1,0 +1,40 @@
+meta {
+  name: Completar hito
+  type: http
+  seq: 32
+}
+
+script:pre-request {
+  await bru.runRequest("Proyectos/crearHito");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+patch {
+  url: {{baseUrl}}/api/proyectos/{{proyectoId}}/hitos/{{hitoId}}
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "estado": "COMPLETADO"
+  }
+}
+
+assert {
+  res.status: eq 200
+}
+
+assert {
+  res.body.data.estado: eq COMPLETADO
+}
+
+assert {
+  res.body.data.fechaCompletada: isString
+}

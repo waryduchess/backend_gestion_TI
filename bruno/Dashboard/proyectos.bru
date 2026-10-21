@@ -1,0 +1,43 @@
+meta {
+  name: Resumen de proyectos
+  type: http
+  seq: 6
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+get {
+  url: {{baseUrl}}/api/dashboard/proyectos
+  body: none
+  auth: none
+}
+
+script:post-response {
+  if (res.status === 200) {
+    const kpis = res.body.data.kpis;
+    if (!kpis || typeof kpis.proyectosActivos !== "number") {
+      throw new Error("La respuesta no contiene kpis de proyectos");
+    }
+  }
+}
+
+assert {
+  res.status: eq 200
+}
+
+assert {
+  res.body.data.proyectosPorEstado: isArray
+}
+
+assert {
+  res.body.data.proyectosPorPrioridad: isArray
+}
+
+assert {
+  res.body.data.proyectosProximos: isArray
+}

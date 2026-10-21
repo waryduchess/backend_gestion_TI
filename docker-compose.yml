@@ -33,6 +33,8 @@ services:
       NODE_ENV: development
       PORT: 3000
       DATABASE_URL: mysql://${MYSQL_USER:-gestion_ti}:${MYSQL_PASSWORD:-gestion_ti_pass}@db:3306/${MYSQL_DATABASE:-gestion_ti}
+      AWS_ENDPOINT_URL: http://floci:4566
+      S3_PUBLIC_ENDPOINT: http://localhost:4566
     ports:
       - "${PORT:-3000}:3000"
     volumes:
@@ -41,6 +43,9 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    networks:
+      - default
+      - gestion_ti_shared
     command: sh -c "npx prisma generate && npx prisma migrate deploy && npm run dev"
 
   phpmyadmin:
@@ -69,6 +74,10 @@ services:
       - "${OLLAMA_PORT:-11434}:11434"
     volumes:
       - ollama_data:/root/.ollama
+
+networks:
+  gestion_ti_shared:
+    external: true
 
 volumes:
   db_data:

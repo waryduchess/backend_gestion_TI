@@ -1,0 +1,28 @@
+meta {
+  name: Denegar subida de adjunto sin permiso
+  type: http
+  seq: 18
+}
+
+script:pre-request {
+  await bru.runRequest("Roles/loginUsuarioPrueba");
+  const token = bru.getVar("tokenUsuarioRbac");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No hay token del usuario RBAC de prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+post {
+  url: {{baseUrl}}/api/adjuntos
+  body: multipartForm
+  auth: none
+}
+
+body:multipart-form {
+  archivo: @file(./Adjuntos/fixtures/imagen-prueba.png) @contentType(image/png)
+  entidadTipo: ACTIVO
+  entidadId: 1
+}
+
+assert {
+  res.status: eq 403
+}

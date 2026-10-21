@@ -19,8 +19,11 @@ import dashboardRoutes from './routes/dashboard.routes';
 import auditoriaRoutes from './routes/auditoria.routes';
 import mantenimientoRoutes from './routes/mantenimiento.routes';
 import recordatorioRoutes from './routes/recordatorio.routes';
+import adjuntoRoutes from './routes/adjunto.routes';
+import proyectoRoutes from './routes/proyecto.routes';
 import { iniciarJobAlertasLicencias } from './jobs/licencias.job';
 import { inicializarSocketIo } from './config/socket';
+import { asegurarBucket, BUCKET_ADJUNTOS } from './config/s3';
 
 const app: Application = express();
 const servidor = createServer(app);
@@ -62,6 +65,8 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/auditoria', auditoriaRoutes);
 app.use('/api/mantenimiento', mantenimientoRoutes);
 app.use('/api/recordatorios', recordatorioRoutes);
+app.use('/api/adjuntos', adjuntoRoutes);
+app.use('/api/proyectos', proyectoRoutes);
 app.use('/api/docs', docsRoutes);
 
 app.use(notFoundHandler);
@@ -72,6 +77,13 @@ const PORT = Number(process.env.PORT) || 3000;
 servidor.listen(PORT, () => {
   console.log(`Servidor escuchando en el puerto ${PORT}`);
   iniciarJobAlertasLicencias();
+  void asegurarBucket()
+    .then(() => {
+      console.log(`[S3] Bucket listo: ${BUCKET_ADJUNTOS}`);
+    })
+    .catch((error: unknown) => {
+      console.error('[S3] No se pudo inicializar el almacenamiento', error);
+    });
 });
 
 export default app;

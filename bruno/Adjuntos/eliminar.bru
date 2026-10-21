@@ -1,0 +1,26 @@
+meta {
+  name: Eliminar adjunto
+  type: http
+  seq: 4
+}
+
+script:pre-request {
+  await bru.runRequest("Adjuntos/subirImagen");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+delete {
+  url: {{baseUrl}}/api/adjuntos/{{adjuntoId}}
+  body: none
+  auth: none
+}
+
+script:post-response {
+  if (res.status === 204) bru.setEnvVar("adjuntoId", "");
+}
+
+assert {
+  res.status: eq 204
+}

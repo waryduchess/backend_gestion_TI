@@ -1,0 +1,38 @@
+meta {
+  name: Ver progreso automatico del proyecto
+  type: http
+  seq: 28
+}
+
+script:pre-request {
+  await bru.runRequest("Proyectos/completarTarea");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+get {
+  url: {{baseUrl}}/api/proyectos/{{proyectoId}}
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}
+
+assert {
+  res.body.data.progreso: eq 100
+}
+
+assert {
+  res.body.data.resumenTareas.total: eq 1
+}
+
+assert {
+  res.body.data.resumenTareas.completadas: eq 1
+}
+
+assert {
+  res.body.data.resumenTareas.subtareasTotal: eq 0
+}

@@ -1,0 +1,32 @@
+meta {
+  name: Rechazar archivo que no es imagen
+  type: http
+  seq: 5
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+post {
+  url: {{baseUrl}}/api/adjuntos
+  body: multipartForm
+  auth: none
+}
+
+body:multipart-form {
+  archivo: @file(./Adjuntos/fixtures/archivo-invalido.txt) @contentType(text/plain)
+  entidadTipo: ACTIVO
+  entidadId: 1
+}
+
+assert {
+  res.status: eq 400
+}
+
+assert {
+  res.body.success: eq false
+}

@@ -1,0 +1,43 @@
+meta {
+  name: Crear segunda tarea para dependencias
+  type: http
+  seq: 35
+}
+
+script:pre-request {
+  await bru.runRequest("Proyectos/crearTarea");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+  bru.setVar("tareaAId", bru.getVar("tareaId"));
+}
+
+post {
+  url: {{baseUrl}}/api/proyectos/{{proyectoId}}/tareas
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "titulo": "Tarea dependiente de prueba",
+    "asignadoAId": "ADMIN",
+    "prioridad": "NORMAL"
+  }
+}
+
+script:post-response {
+  if (res.status === 201) bru.setVar("tareaBId", res.body.data.id);
+}
+
+assert {
+  res.status: eq 201
+}
+
+assert {
+  res.body.data.parentId: eq null
+}
