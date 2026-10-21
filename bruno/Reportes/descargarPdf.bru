@@ -1,0 +1,27 @@
+meta {
+  name: Descargar reporte de inventario en PDF
+  type: http
+  seq: 5
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+get {
+  url: {{baseUrl}}/api/reportes/inventario-general/descargar?formato=pdf&estado=EN_USO
+  body: none
+  auth: none
+}
+
+script:post-response {
+  const tipo = String(res.headers["content-type"] || "");
+  if (!tipo.includes("application/pdf")) throw new Error("El PDF no tiene el Content-Type esperado");
+}
+
+assert {
+  res.status: eq 200
+}

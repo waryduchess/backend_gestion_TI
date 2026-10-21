@@ -1,0 +1,44 @@
+meta {
+  name: Actualizar programacion de reporte
+  type: http
+  seq: 35
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+  if (!bru.getEnvVar("programacionReporteId")) {
+    await bru.runRequest("Reportes/crearProgramacion");
+  }
+}
+
+patch {
+  url: {{baseUrl}}/api/reportes/programaciones/{{programacionReporteId}}
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "cron": "0 10 1 1 *",
+    "destinatarios": ["ti@example.invalid", "soporte@example.invalid"]
+  }
+}
+
+assert {
+  res.status: eq 200
+}
+
+assert {
+  res.body.data.cron: eq 0 10 1 1 *
+}
+
+assert {
+  res.body.data.destinatarios: isArray
+}

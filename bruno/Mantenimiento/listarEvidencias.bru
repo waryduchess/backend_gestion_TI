@@ -1,0 +1,36 @@
+meta {
+  name: Listar evidencias de mantenimiento
+  type: http
+  seq: 31
+}
+
+script:pre-request {
+  if (!bru.getEnvVar("evidenciaMantenimientoOrdenId") || !bru.getEnvVar("evidenciaMantenimientoId")) {
+    await bru.runRequest("Mantenimiento/subirEvidencia");
+  }
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+get {
+  url: {{baseUrl}}/api/mantenimiento/{{evidenciaMantenimientoOrdenId}}/evidencias?page=1&limit=10
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}
+
+assert {
+  res.body.data: isArray
+}
+
+assert {
+  res.body.meta.total: gt 0
+}
+
+assert {
+  res.body.data[0].entidadTipo: eq MANTENIMIENTO
+}

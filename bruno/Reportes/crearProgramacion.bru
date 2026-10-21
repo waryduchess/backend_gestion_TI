@@ -1,0 +1,54 @@
+meta {
+  name: Crear programacion de reporte
+  type: http
+  seq: 33
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+post {
+  url: {{baseUrl}}/api/reportes/programaciones
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "codigo": "inventario-general",
+    "formato": "csv",
+    "parametros": {
+      "estado": "EN_USO"
+    },
+    "cron": "0 9 1 1 *",
+    "destinatarios": ["ti@example.invalid"]
+  }
+}
+
+script:post-response {
+  if (res.status === 201) bru.setEnvVar("programacionReporteId", res.body.data.id);
+}
+
+assert {
+  res.status: eq 201
+}
+
+assert {
+  res.body.data.codigo: eq inventario-general
+}
+
+assert {
+  res.body.data.cron: eq 0 9 1 1 *
+}
+
+assert {
+  res.body.data.activo: eq true
+}

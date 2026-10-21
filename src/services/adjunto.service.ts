@@ -4,7 +4,11 @@ import {
   PutObjectCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { EstadoActivo, Prisma } from '../generated/prisma/client';
+import {
+  EstadoActivo,
+  MantenimientoEstado,
+  Prisma,
+} from '../generated/prisma/client';
 import { prisma } from '../config/prisma';
 import {
   asegurarBucket,
@@ -30,6 +34,12 @@ import {
   filtroProyectosVisibles,
   puedeVerTodosProyectos,
 } from '../utils/proyecto-visibilidad';
+import { usuarioTienePermiso } from '../utils/permisos-usuario';
+
+const ESTADOS_MANTENIMIENTO_EDITABLES: MantenimientoEstado[] = [
+  MantenimientoEstado.PROGRAMADO,
+  MantenimientoEstado.EN_PROCESO,
+];
 
 const validarEntidad = async (
   entidadTipo: DatosCreacionAdjunto['entidadTipo'],
@@ -102,6 +112,48 @@ const validarEntidad = async (
   return id;
 };
 
+const validarAccesoEntidad = async (
+  entidadTipo: DatosCreacionAdjunto['entidadTipo'],
+  entidadId: string,
+  usuarioId: string,
+  operacion: 'leer' | 'escribir'
+): Promise<void> => {
+  if (entidadTipo !== 'MANTENIMIENTO') return;
+
+  const permiso =
+    operacion === 'leer' ? 'mantenimiento:leer' : 'mantenimiento:editar';
+
+  if (!(await usuarioTienePermiso(usuarioId, permiso))) {
+    throw new HttpError(403, `Requiere el permiso ${permiso}`, [
+      { campo: 'permiso', valor: permiso },
+    ]);
+  }
+
+  if (operacion === 'escribir') {
+    const orden = await prisma.ordenMantenimiento.findUnique({
+      where: { id: Number(entidadId) },
+      select: { estado: true },
+    });
+    if (!orden) {
+      throw new HttpError(
+        404,
+        'La entidad asociada no existe o no está disponible',
+        [{ campo: 'entidadId', valor: entidadId }]
+      );
+    }
+    if (!ESTADOS_MANTENIMIENTO_EDITABLES.includes(orden.estado)) {
+      throw new HttpError(
+        409,
+        'No se pueden modificar las evidencias de una orden completada o cancelada',
+        [
+          { campo: 'estado', valor: orden.estado },
+          { campo: 'permitidos', valor: ESTADOS_MANTENIMIENTO_EDITABLES },
+        ]
+      );
+    }
+  }
+};
+
 const mapearAdjunto = (fila: {
   id: number;
   entidadTipo: DatosCreacionAdjunto['entidadTipo'];
@@ -139,6 +191,13 @@ export const listarAdjuntos = async (
       usuarioId
     )
   );
+  await validarAccesoEntidad(
+    parametros.entidadTipo,
+    entidadId,
+    usuarioId,
+    'leer'
+  );
+
   const where: Prisma.AdjuntoWhereInput = {
     entidadTipo: parametros.entidadTipo,
     entidadId,
@@ -178,11 +237,13 @@ export const listarAdjuntos = async (
 const validarAccesoAdjunto = async (
   entidadTipo: DatosCreacionAdjunto['entidadTipo'],
   entidadId: string,
-  usuarioId: string
+  usuarioId: string,
+  operacion: 'leer' | 'escribir'
 ): Promise<void> => {
-  if (entidadTipo === 'PROYECTO') {
-    await validarEntidad('PROYECTO', entidadId, usuarioId);
+  if (entidadTipo === 'PROYECTO' || entidadTipo === 'MANTENIMIENTO') {
+    await validarEntidad(entidadTipo, entidadId, usuarioId);
   }
+  await validarAccesoEntidad(entidadTipo, entidadId, usuarioId, operacion);
 };
 
 export const generarUrlDescarga = async (
@@ -204,7 +265,12 @@ export const generarUrlDescarga = async (
       { campo: 'id', valor: id },
     ]);
   }
-  await validarAccesoAdjunto(fila.entidadTipo, fila.entidadId, usuarioId);
+  await validarAccesoAdjunto(
+    fila.entidadTipo,
+    fila.entidadId,
+    usuarioId,
+    'leer'
+  );
 
   try {
     const url = await getSignedUrl(
@@ -245,7 +311,12 @@ export const eliminarAdjunto = async (
       { campo: 'id', valor: id },
     ]);
   }
-  await validarAccesoAdjunto(fila.entidadTipo, fila.entidadId, usuarioId);
+  await validarAccesoAdjunto(
+    fila.entidadTipo,
+    fila.entidadId,
+    usuarioId,
+    'escribir'
+  );
 
   try {
     await s3.send(
@@ -278,6 +349,12 @@ export const crearAdjunto = async (
     datos.entidadTipo,
     datos.entidadId,
     usuarioId
+  );
+  await validarAccesoEntidad(
+    datos.entidadTipo,
+    String(entidadId),
+    usuarioId,
+    'escribir'
   );
   const mimeType = datos.archivo.mimetype.toLowerCase();
   const extension = EXTENSION_POR_MIME[mimeType] ?? '.bin';

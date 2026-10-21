@@ -118,6 +118,13 @@ enum EstadoHito {
   CANCELADO
 }
 
+enum EstadoReporteGenerado {
+  PENDIENTE
+  GENERANDO
+  COMPLETADO
+  FALLIDO
+}
+
 enum TipoNotificacion {
   INCIDENCIA_NUEVA
   LICENCIA_POR_VENCER
@@ -209,6 +216,8 @@ model Usuario {
   proyectosMiembro      ProyectoMiembro[]    @relation("MiembrosProyecto")
   tareasProyecto        ProyectoTarea[]       @relation("TareasProyecto")
   registrosHorasProyecto ProyectoRegistroHoras[] @relation("HorasProyecto")
+  reportesGenerados     ReporteGenerado[]      @relation("ReportesGenerados")
+  reportesProgramados   ReporteProgramado[]    @relation("ReportesProgramados")
 
   @@index([email])
 }
@@ -514,7 +523,7 @@ model OrdenMantenimiento {
   fechaRealizada     DateTime?
   costo              Decimal?               @db.Decimal(10, 2)
   descripcion        String?                @db.Text
-  evidencias         Json?
+  evidencias         Json? // DEPRECATED: usar Adjunto (entidadTipo MANTENIMIENTO)
   activo             Boolean                @default(true)
   createdAt          DateTime               @default(now())
   updatedAt          DateTime               @updatedAt
@@ -575,6 +584,53 @@ model AuditoriaSecreto {
 
   @@index([secretoId, realizadaEn])
   @@index([usuarioId, realizadaEn])
+}
+
+model ReporteGenerado {
+  id            Int                   @id @default(autoincrement())
+  codigo        String                @db.VarChar(100)
+  formato       String                @db.VarChar(10)
+  parametros    Json?
+  estado        EstadoReporteGenerado @default(PENDIENTE)
+  s3Bucket      String?               @db.VarChar(191)
+  s3Key         String?               @db.VarChar(512)
+  nombreArchivo String?               @db.VarChar(255)
+  tamano        Int?
+  error         String?               @db.Text
+  usuarioId     String
+  reporteProgramadoId Int?
+  creadoEn      DateTime              @default(now())
+  iniciadoEn    DateTime?
+  terminadoEn   DateTime?
+
+  usuario            Usuario            @relation("ReportesGenerados", fields: [usuarioId], references: [id], onDelete: Restrict)
+  reporteProgramado  ReporteProgramado?  @relation(fields: [reporteProgramadoId], references: [id], onDelete: SetNull)
+
+  @@index([usuarioId, creadoEn])
+  @@index([estado, creadoEn])
+  @@index([reporteProgramadoId])
+}
+
+model ReporteProgramado {
+  id               Int      @id @default(autoincrement())
+  codigo           String   @db.VarChar(100)
+  formato          String   @db.VarChar(10)
+  parametros       Json?
+  cron             String   @db.VarChar(100)
+  destinatarios    Json
+  activo           Boolean  @default(true)
+  usuarioId        String
+  ultimaEjecucion  DateTime?
+  ultimoEstado     String?  @db.VarChar(20)
+  ultimoError      String?  @db.Text
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  usuario     Usuario           @relation("ReportesProgramados", fields: [usuarioId], references: [id], onDelete: Restrict)
+  generaciones ReporteGenerado[]
+
+  @@index([usuarioId, createdAt])
+  @@index([activo, createdAt])
 }
 
 // ------------------------------------------------------

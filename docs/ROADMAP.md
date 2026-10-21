@@ -12,7 +12,7 @@ conviene revisarlo antes de cada iteracion y actualizarlo al cerrar cada modulo.
 | Auth (`/api/auth`)                 | `POST /login`, `GET /me`                                                                                            | Si                     | 3 requests         |
 | Incidencias (`/api/incidencias`)   | `GET /`, `GET /:id`, `POST /`, `PATCH /:id/estado`                                                                     | Si                     | 19 requests        |
 | Activos (`/api/activos`)           | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `PATCH /:id/estado`, `POST /:id/asignaciones`, `DELETE /:id` | Si                     | 41 requests        |
-| Mantenimiento (`/api/mantenimiento`) | `GET /`, `GET /:id`, `GET /activo/:activoId`, `POST /`, `PATCH /:id`, `DELETE /:id` | Si | 21 requests |
+| Mantenimiento (`/api/mantenimiento`) | `GET /`, `GET /:id`, `GET /activo/:activoId`, `POST /`, `PATCH /:id`, `DELETE /:id`; evidencias `GET/POST /:id/evidencias`, `GET/DELETE /:id/evidencias/:adjuntoId` | Si | 29 requests |
 | Importaciones (`/api/activos/importaciones`) | `POST /validar`, `POST /confirmar`                                                                          | Si                     | 7 requests         |
 | Asignaciones (`/api/asignaciones`) | `GET /`, `PATCH /:id`, `DELETE /:id`, `POST /:id/devolucion`                                                             | Si                     | 21 requests        |
 | Usuarios (`/api/usuarios`)         | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `PATCH /:id/rol`, `PATCH /:id/permisos`, `PATCH /:id/password`, `DELETE /:id`                           | Si                     | 34 requests        |
@@ -26,11 +26,13 @@ conviene revisarlo antes de cada iteracion y actualizarlo al cerrar cada modulo.
 | Notificaciones (`/api/notificaciones`) | `GET /`, `PATCH /:id/leer`, `PATCH /leer-todas`; incidencias y recordatorios de licencias                         | Si                     | 10 requests        |
 | Dashboard (`/api/dashboard`)       | `GET /summary`, `GET /proyectos`                                                                                        | Si                     | 6 requests         |
 | Auditoria (`/api/auditoria`)       | `GET /`, `GET /:id`                                                                                                     | Si                     | 11 requests        |
-| Reportes                            | sin modelo ni endpoints (ver §2.13)                                                                                    | No                     | No                 |
+| Reportes (`/api/reportes`)         | catalogo, definicion, descarga, generaciones asincronas, historial y programaciones                                     | Si                     | 38 requests        |
 | Recordatorios (`/api/recordatorios`) | `GET /`, `GET /:id`, `POST /`, `PATCH /:id`, `PATCH /:id/completar`, `DELETE /:id`                                      | Si                     | 17 requests        |
 | Sucursal (normalizacion)           | sin catalogo; `Activo.sucursal` es texto libre                                                                          | No                     | No                 |
 
-Regresion mas reciente tras implementar visibilidad por proyecto y KPIs de proyectos: `npm run build` limpio, OpenAPI valido y suite Bruno **362 requests (360 OK, 2 fallos preexistentes), 848/852 assertions**. `Proyectos/` sigue en **47/47 requests y 136/136 assertions**; `Dashboard/proyectos` valida el endpoint agregado de KPIs. La visibilidad se verifico manualmente: usuario no miembro recibe lista vacia y `404` en detalle; al agregarlo como miembro recibe el proyecto y `200`. Los 2 fallos siguen siendo `Activos/buscarPorSerie` y su cascada `Activos/cambiarEstadoAsignacionActiva`, por drift de datos de `AF00010` (ajenos a este cambio).
+Regresion mas reciente tras integrar evidencias de mantenimiento: `npm run build` limpio, OpenAPI valido y suite Bruno **411 requests (409 OK, 2 fallos preexistentes), 951/955 assertions**. `Mantenimiento/` pasa **29/29 requests y 64/64 assertions**; `Roles/denegarEvidenciasMantenimiento` valida el 403. Se verifico subida, listado, URL prefirmada, descarga, eliminacion, rechazo en orden `COMPLETADO` (`409`), aislamiento por orden (`404`) y que el endpoint generico `/api/adjuntos` respete las mismas reglas. Los 2 fallos siguen siendo `Activos/buscarPorSerie` y su cascada `Activos/cambiarEstadoAsignacionActiva`, por drift de datos de `AF00010` (ajenos a este cambio).
+
+Regresion previa tras agregar reportes programados por cron/correo: `npm run build` limpio, OpenAPI valido y suite Bruno **402 requests (400 OK, 2 fallos preexistentes), 932/936 assertions**. `Reportes/` pasa **38/38 requests y 82/82 assertions**; `Roles/denegarReportes` y `Roles/denegarProgramarReportes` validan los 403. Se verifico el scheduler con cron cada minuto: generacion `COMPLETADO` vinculada a `ReporteProgramado` y programacion en `FALLIDO` con el error esperado de SMTP no configurado. Los 2 fallos siguen siendo `Activos/buscarPorSerie` y su cascada `Activos/cambiarEstadoAsignacionActiva`, por drift de datos de `AF00010` (ajenos a este cambio).
 
 Regresion previa tras recordatorios: `npm run build` limpio, OpenAPI valido y suite Bruno **299 requests (297 OK, 2 fallos preexistentes), 679/683 assertions**. `Recordatorios/` pasa **17/17 requests y 43/43 assertions**; el dashboard devuelve hasta 5 pendientes con fecha del usuario.
 
@@ -118,7 +120,7 @@ Permisos iniciales: `incidencias:leer`, `notificaciones:leer`,
 `mantenimiento:eliminar`, `recordatorios:leer`, `recordatorios:crear`,
 `recordatorios:editar`, `recordatorios:eliminar`, `proyectos:leer`,
 `proyectos:crear`, `proyectos:editar`, `proyectos:eliminar`, `proyectos:ver-todos`, `adjuntos:subir`,
-`adjuntos:leer`, `adjuntos:eliminar` y
+`adjuntos:leer`, `adjuntos:eliminar`, `reportes:leer`, `reportes:programar` y
 `usuarios:administrar`, `roles:administrar`, `catalogos:administrar`,
 `licencias:administrar`, `secretos:leer`, `secretos:revelar` y
 `secretos:administrar`. Se protege
@@ -326,21 +328,97 @@ Vista unica y filtrable para responder "quien hizo que, cuando y sobre que".
 
 ### 2.13 Reportes
 
-Generacion de reportes exportables en **PDF (Puppeteer)** y **Excel (ExcelJS)**.
-Pendiente de disenar los endpoints y el alcance exacto de cada uno.
+Modulo de reportes exportables en **XLSX (ExcelJS)**, **CSV** y **PDF
+(Puppeteer)**. Incluye generacion sincrona, asincrona, historial y
+programaciones por cron con envio de correo.
 
-- [ ] **Inventario / Activos**: general (filtrable por sucursal, tipo y estado),
-  activos dados de baja (historial), activos asignados por responsable/usuario,
-  historial de asignaciones (entregas y devoluciones por rango de fecha).
-- [ ] **Licencias**: por vencer (30/7/1 dia) y vencidas, por software/proveedor,
-  activas vs inactivas.
-- [ ] **Auditoria**: bitacora de movimientos por modulo/usuario/rango de fecha.
-- [ ] **Ejecutivo / Operativo**: resumen de KPIs exportable (dashboard),
-  notificaciones/recordatorios generados.
-- [ ] Definir permisos RBAC por reporte (p.ej. `reportes:leer` o reutilizar los
-  permisos de cada modulo).
-- [ ] Definir generacion sincrona vs en background (job + descarga) por reporte.
-- [ ] Swagger + Bruno por cada reporte al implementarse.
+**Arquitectura implementada**
+
+- `src/services/reportes/` con:
+  - `reporte.registry.ts`: catalogo de definiciones por codigo.
+  - `reporte.service.ts`: validacion de formato/permisos, carga, renderizado,
+    generacion, historial y auditoria.
+  - `reporte-programacion.service.ts`: CRUD de programaciones, validacion de
+    cron/destinatarios y recarga del scheduler.
+  - `definiciones/`: metadatos, filtros y carga de datos por reporte.
+  - `renderers/`: XLSX, CSV y PDF.
+  - `reportes/index.ts`: registro de definiciones disponibles.
+- `src/jobs/reportes.job.ts`: scheduler `node-cron` con
+  `REPORTES_CRON_TIMEZONE` (default `America/Cancun`), `noOverlap` y recarga
+  de tareas al crear/editar/desactivar programaciones.
+- Contrato `ReporteDefinicion`: codigo, nombre, modulo, formatos, permisos,
+  filtros, limite de filas y funcion de carga.
+- API sincrona:
+  - `GET /api/reportes` - catalogo.
+  - `GET /api/reportes/:codigo` - definicion y filtros.
+  - `GET /api/reportes/:codigo/descargar?formato=xlsx|csv|pdf` - descarga.
+- API asincrona:
+  - `POST /api/reportes/:codigo/generaciones` - crea generacion PENDIENTE y
+    procesa en segundo plano.
+  - `GET /api/reportes/generaciones` - historial propio paginado.
+  - `GET /api/reportes/generaciones/:id` - estado de la generacion.
+  - `GET /api/reportes/generaciones/:id/descarga` - URL prefirmada de S3.
+- API de programaciones:
+  - `GET/POST /api/reportes/programaciones` - listar y crear.
+  - `GET/PATCH/DELETE /api/reportes/programaciones/:id` - detalle, edicion,
+    reactivacion y baja logica.
+- Modelo `ReporteProgramado` con cron, destinatarios, estado de la ultima
+  ejecucion y relacion opcional con `ReporteGenerado`. Cada ejecucion usa al
+  usuario propietario para permisos y visibilidad.
+- Modelo `ReporteGenerado` con estados `PENDIENTE`, `GENERANDO`, `COMPLETADO`
+  y `FALLIDO`; metadatos en MySQL y archivo en el bucket
+  `gestion-ti-reportes` (S3/Floci).
+- Permisos `reportes:leer` y `reportes:programar`; cada reporte exige ademas el
+  permiso del modulo de origen.
+- Auditoria `REPORTES/GENERAR` y `REPORTES/PROGRAMAR` con codigo, formato y
+  nombres de filtros.
+- Chromium instalado en la imagen Docker base y
+  `PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium` para que PDF funcione.
+
+- [X] Nucleo de reportes: registro, definiciones, validacion, renderizadores y
+  servicio de generacion sincrona.
+- [X] Reporte `inventario-general`: filtros por estado, tipo, sucursal y texto;
+  XLSX multihoja, CSV y PDF; excluye `DE_BAJA` por defecto y limita a 10,000
+  filas.
+- [X] Reporte `licencias-vigencia`: filtros por vigencia (`TODAS`, `VIGENTES`,
+  `POR_VENCER`, `VENCIDAS`), dias de aviso, activa/inactiva, proveedor y texto;
+  XLSX, CSV y PDF. No expone la clave de la licencia.
+- [X] Reporte `mantenimientos-periodo`: rango de fechas programadas, estado,
+  tipo, prioridad, tecnico, activo y texto; resumen por estado/tipo y costo
+  acumulado solo de ordenes concluidas; XLSX, CSV y PDF.
+- [X] Reporte `proyectos-avance`: proyectos visibles con estado, prioridad,
+  responsable, departamento, avance por tareas/subtareas, hitos, horas
+  registradas y presupuesto. Incluye resumen, detalle de proyectos y detalle de
+  hitos; XLSX, CSV y PDF.
+- [X] Reporte `incidencias-periodo`: rango por fecha de notificacion, estado,
+  prioridad, tipo, departamento, solicitante, asignado y texto; resumen por
+  estado, prioridad y tipo, tiempo de resolucion y detalle; XLSX, CSV y PDF.
+- [X] Reporte `auditoria-periodo`: rango de fechas, modulo, accion, usuario,
+  entidad y texto; resumen por modulo/accion/usuario y detalle. No expone
+  valores sensibles.
+- [X] Reporte `usuarios-permisos`: usuarios activos/inactivos, rol, catalogos,
+  permisos extra/revocados y permisos efectivos; no expone `passwordHash`.
+- [X] Reporte `ejecutivo-mensual`: resumen del periodo con inventario,
+  incidencias, licencias, proyectos, hitos proximos, mantenimientos, costo de
+  concluidos y horas. XLSX, CSV y PDF.
+- [X] Permiso `reportes:leer`, auditoria `REPORTES/GENERAR` y pruebas Bruno.
+- [X] Generacion asincrona con `ReporteGenerado`, historial, estados, errores,
+  archivos en S3 y URL prefirmada de descarga.
+- [X] Recuperacion al arranque de generaciones PENDIENTE y GENERANDO atascadas
+  (`REPORTES_GENERANDO_TIMEOUT_MINUTOS`, default 5) con reclamo atomico para
+  evitar duplicados.
+- [ ] **Inventario / Activos adicionales**: activos dados de baja (historial),
+  activos asignados por responsable/usuario, historial de asignaciones.
+- [ ] Graficas y formato institucional del PDF ejecutivo.
+- [ ] Cola durable o lease en base de datos para multiples instancias del API;
+  la recuperacion actual es para una sola instancia.
+- [X] Reportes programados con `ReporteProgramado`, permiso
+  `reportes:programar`, CRUD, scheduler, correo con URL prefirmada y registro
+  de ultima ejecucion/error.
+- [ ] Configurar SMTP real en `.env` y verificar la entrega de correos. Sin
+  `SMTP_HOST`, `SMTP_PORT` y `SMTP_FROM`, el scheduler genera el reporte y
+  marca la programacion como `FALLIDO`.
+- [X] Swagger + Bruno por cada reporte y por las programaciones.
 
 ### 2.14 Mantenimiento de equipos
 
@@ -359,11 +437,15 @@ Modulo de ordenes preventivas/correctivas montado en `/api/mantenimiento`.
 - [X] **Socket.IO:** sala `mantenimiento` y eventos `mantenimiento:creado`,
   `mantenimiento:actualizado` y `mantenimiento:eliminado` para usuarios con
   `mantenimiento:leer` (incluye permisos efectivos).
-- [ ] **Evidencias:** `OrdenMantenimiento.evidencias` queda reservado y vacio.
-  La infraestructura S3 ya esta conectada y permite subir imagenes, pero no se
-  acepta evidencia en `POST`/`PATCH`, no existe el endpoint
-  `POST /api/mantenimiento/:id/evidencias` ni consumo desde el frontend.
-  Pendiente definir formato, validacion, almacenamiento y visualizacion.
+- [X] **Evidencias:** se reutiliza `Adjunto` con `entidadTipo=MANTENIMIENTO`
+  y S3; `OrdenMantenimiento.evidencias` queda deprecado y deja de exponerse.
+  Endpoints `GET/POST /api/mantenimiento/:id/evidencias`,
+  `GET /api/mantenimiento/:id/evidencias/:adjuntoId/descarga` y
+  `DELETE /api/mantenimiento/:id/evidencias/:adjuntoId`.
+  Lectura exige `mantenimiento:leer` + `adjuntos:leer`; escritura exige
+  `mantenimiento:editar` + `adjuntos:subir/eliminar`. Solo se permite subir o
+  eliminar en `PROGRAMADO`/`EN_PROCESO`; en `COMPLETADO`/`CANCELADO` responde
+  `409`. El endpoint generico `/api/adjuntos` conserva las mismas reglas.
 - [ ] **Notificaciones al tecnico:** notificar al crear o reasignar una orden.
   Requiere ampliar `TipoNotificacion`, agregar relacion/FK a mantenimiento y
   migracion; no implementado.
@@ -399,7 +481,7 @@ Modulo de archivos adjuntos en S3 compatible (Floci local).
 - [X] Casos negativos: tipo no permitido, tamano excedido, solicitud sin archivo,
   entidad inexistente y usuario sin `adjuntos:subir` (403).
 - [X] `PROYECTO` habilitado en adjuntos y validado contra proyectos activos.
-- [ ] Integracion de evidencias de mantenimiento e incidencias sobre este modulo.
+- [X] Integracion de evidencias de mantenimiento sobre este modulo mediante endpoints dedicados y validacion de permisos/estado.
 
 ## 3. Features tecnicas pendientes
 
@@ -408,15 +490,15 @@ Modulo de archivos adjuntos en S3 compatible (Floci local).
 - [ ] Emitir los eventos Socket.IO desde las operaciones de alta y cambio de estado de incidencias cuando se implementen esos endpoints
 - [X] `node-cron` - job diario de correo y recordatorios persistentes de vencimiento de licencias; pendiente SLA de tickets
 - [X] Nodemailer (`src/config/mailer.ts`) - correos de alerta de licencias; pendiente otras notificaciones
-- [X] S3 (`src/config/s3.ts`, `@aws-sdk/client-s3`) - conexion con Floci, bucket, subida, listado, URL de descarga y eliminacion en `/api/adjuntos` (§2.15). Pendiente integrar evidencias de mantenimiento/incidencias.
-- [ ] Puppeteer - reportes PDF (§2.13)
+- [X] S3 (`src/config/s3.ts`, `@aws-sdk/client-s3`) - conexion con Floci, bucket, subida, listado, URL de descarga y eliminacion en `/api/adjuntos` (§2.15). Evidencias de mantenimiento integradas; incidencias ya usan el modulo generico.
+- [X] Puppeteer - reportes PDF (§2.13); Chromium instalado en la imagen Docker base
 - [ ] Ollama (`llama3.1:8b`) - asistente IA + Function Calling (servicio `ollama` en docker, profile `ai`)
 - [ ] CORS restrictivo - hoy `app.use(cors())` abierto; restringir a la URL del frontend
 - [X] `.env.example` documenta SMTP, alertas de licencias y variables S3/Floci; quedan pendientes `OLLAMA_*`, `CORS_ORIGIN` y la revision de nombres previos del roadmap
 - [ ] agregar en licencias el tipo (suscripción, perpetua).
 - [ ] Devolver en la consulta de licencias la clave
 - [X] creacion de endPoints del modulo de auditoria (fase 1 en §2.12; instrumentacion pendiente por fases)
-- [X] modulo de mantenimiento de equipos: CRUD `/api/mantenimiento`, sincronizacion del estado del activo, auditoria y eventos Socket.IO. Pendientes: evidencias, notificaciones al tecnico y pruebas de sockets (§2.14).
+- [X] modulo de mantenimiento de equipos: CRUD `/api/mantenimiento`, sincronizacion del estado del activo, auditoria y eventos Socket.IO. Evidencias implementadas; pendientes: notificaciones al tecnico y pruebas de sockets (§2.14).
 - [ ] simular subtareas  para documentar a la memoria
 - [ ] **Recordatorios (Tareas Programadas):** Notificaciones automáticas de vencimientos
 

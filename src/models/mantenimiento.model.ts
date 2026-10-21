@@ -2,7 +2,6 @@ import {
   MantenimientoEstado,
   MantenimientoPrioridad,
   MantenimientoTipo,
-  Prisma,
 } from '../generated/prisma/client';
 import { MetadatosPaginacion, UsuarioResumen } from './comun.model';
 
@@ -26,7 +25,6 @@ export interface MantenimientoResumen {
   fechaRealizada: Date | null;
   costo: number | null;
   descripcion: string | null;
-  evidencias: Prisma.JsonValue | null;
   createdAt: Date;
   updatedAt: Date;
 }

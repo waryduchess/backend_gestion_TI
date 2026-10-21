@@ -37,6 +37,8 @@ export const PERMISOS_DISPONIBLES = [
   'secretos:importar',
   'secretos:eliminar',
   'auditoria:leer',
+  'reportes:leer',
+  'reportes:programar',
 ] as const;
 
 export type Permiso = (typeof PERMISOS_DISPONIBLES)[number];

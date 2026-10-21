@@ -1,0 +1,30 @@
+meta {
+  name: Crear generacion asincrona de reporte
+  type: http
+  seq: 30
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+post {
+  url: {{baseUrl}}/api/reportes/inventario-general/generaciones?formato=csv&estado=EN_USO
+  body: none
+  auth: none
+}
+
+script:post-response {
+  if (res.status === 202) bru.setEnvVar("generacionReporteId", res.body.data.id);
+}
+
+assert {
+  res.status: eq 202
+}
+
+assert {
+  res.body.data.estado: eq PENDIENTE
+}

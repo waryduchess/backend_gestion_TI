@@ -14,6 +14,7 @@ export const MODULOS_AUDITORIA = [
   'RECORDATORIOS',
   'ADJUNTOS',
   'PROYECTOS',
+  'REPORTES',
 ] as const;
 
 export type ModuloAuditoria = (typeof MODULOS_AUDITORIA)[number];
@@ -27,6 +28,8 @@ export const ACCIONES_AUDITORIA = [
   'ASIGNAR',
   'DEVOLVER',
   'ELIMINAR',
+  'GENERAR',
+  'PROGRAMAR',
 ] as const;
 
 export type AccionAuditoria = (typeof ACCIONES_AUDITORIA)[number];

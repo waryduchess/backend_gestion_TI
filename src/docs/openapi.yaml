@@ -58,6 +58,10 @@ tags:
     description: >
       Registro y gestion de proyectos de TI. Requiere proyectos:leer,
       proyectos:crear, proyectos:editar o proyectos:eliminar segun la operacion.
+  - name: reportes
+    description: >
+      Catalogo y generacion de reportes en XLSX, CSV y PDF. Requiere
+      reportes:leer y el permiso del modulo de origen del reporte.
   - name: adjuntos
     description: >
       Archivos adjuntos almacenados en S3. La subida requiere adjuntos:subir;
@@ -4501,6 +4505,221 @@ paths:
               schema:
                 $ref: '#/components/schemas/RespuestaError'
 
+  /api/mantenimiento/{id}/evidencias:
+    get:
+      tags: [mantenimiento]
+      summary: Listar evidencias de una orden de mantenimiento
+      description: >
+        Requiere JWT, mantenimiento:leer y adjuntos:leer. Devuelve las imagenes
+        asociadas a la orden con paginacion. Solo se permite consultar ordenes
+        activas.
+      operationId: listarEvidenciasMantenimiento
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Evidencias obtenidas correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaAdjuntosPaginada'
+        '400':
+          description: Identificador o paginacion invalida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere mantenimiento:leer y adjuntos:leer
+        '404':
+          description: Mantenimiento no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+    post:
+      tags: [mantenimiento]
+      summary: Subir una evidencia de mantenimiento
+      description: >
+        Requiere JWT, mantenimiento:editar y adjuntos:subir. Recibe
+        multipart/form-data con el archivo en el campo archivo. Solo acepta
+        PNG, JPEG o WebP de hasta 10 MB. La orden debe estar en PROGRAMADO o
+        EN_PROCESO; en COMPLETADO o CANCELADO responde 409.
+      operationId: crearEvidenciaMantenimiento
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [archivo]
+              properties:
+                archivo:
+                  type: string
+                  format: binary
+                  description: Imagen PNG, JPEG o WebP
+      responses:
+        '201':
+          description: Evidencia almacenada correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaAdjunto'
+        '400':
+          description: Archivo, identificador o contenido invalido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere mantenimiento:editar y adjuntos:subir
+        '404':
+          description: Mantenimiento no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '409':
+          description: La orden esta completada o cancelada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '503':
+          description: El almacenamiento S3 no esta disponible
+
+  /api/mantenimiento/{id}/evidencias/{adjuntoId}/descarga:
+    get:
+      tags: [mantenimiento]
+      summary: Obtener URL de descarga de una evidencia
+      description: >
+        Requiere JWT, mantenimiento:leer y adjuntos:leer. Valida que el adjunto
+        pertenezca a la orden y devuelve una URL prefirmada temporal.
+      operationId: descargarEvidenciaMantenimiento
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+        - name: adjuntoId
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: URL de descarga generada correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaDescargaAdjunto'
+        '400':
+          description: Identificador invalido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere mantenimiento:leer y adjuntos:leer
+        '404':
+          description: Mantenimiento o evidencia no encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+
+  /api/mantenimiento/{id}/evidencias/{adjuntoId}:
+    delete:
+      tags: [mantenimiento]
+      summary: Eliminar una evidencia de mantenimiento
+      description: >
+        Requiere JWT, mantenimiento:editar y adjuntos:eliminar. Valida que el
+        adjunto pertenezca a la orden, que la orden este activa y que no este
+        COMPLETADO ni CANCELADO. Elimina el objeto de S3 y el metadato en MySQL.
+      operationId: eliminarEvidenciaMantenimiento
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+        - name: adjuntoId
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '204':
+          description: Evidencia eliminada correctamente
+        '400':
+          description: Identificador invalido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere mantenimiento:editar y adjuntos:eliminar
+        '404':
+          description: Mantenimiento o evidencia no encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '409':
+          description: La orden esta completada o cancelada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '503':
+          description: No se pudo eliminar la imagen de S3
+
   /api/recordatorios:
     get:
       tags: [recordatorios]
@@ -6063,6 +6282,631 @@ paths:
               schema:
                 $ref: '#/components/schemas/RespuestaError'
 
+  /api/reportes:
+    get:
+      tags: [reportes]
+      summary: Listar el catalogo de reportes
+      description: >
+        Requiere JWT y reportes:leer. Devuelve los reportes disponibles con
+        formatos, permisos y filtros permitidos.
+      operationId: listarReportes
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Catalogo obtenido correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaCatalogoReportes'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso reportes:leer
+
+  /api/reportes/programaciones:
+    get:
+      tags: [reportes]
+      summary: Listar programaciones de reportes
+      description: Requiere JWT, reportes:programar. Devuelve solo las programaciones del usuario autenticado.
+      operationId: listarProgramacionesReportes
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Programaciones obtenidas correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaProgramacionesPaginada'
+        '400':
+          description: Paginacion invalida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso reportes:programar
+    post:
+      tags: [reportes]
+      summary: Crear una programacion de reporte
+      description: >
+        Requiere JWT, reportes:programar y los permisos del reporte. El cron se
+        valida con node-cron. Los destinatarios son correos y el maximo es 20.
+      operationId: crearProgramacionReporte
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProgramacionReporteRequest'
+      responses:
+        '201':
+          description: Programacion creada correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaReporteProgramado'
+        '400':
+          description: Datos, cron, filtros o destinatarios invalidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Falta reportes:programar o el permiso del reporte
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '404':
+          description: Reporte no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+
+  /api/reportes/programaciones/{id}:
+    get:
+      tags: [reportes]
+      summary: Consultar una programacion
+      description: Requiere JWT y reportes:programar. Solo permite programaciones propias.
+      operationId: obtenerProgramacionReporte
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProgramacionId'
+      responses:
+        '200':
+          description: Programacion obtenida correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaReporteProgramado'
+        '400':
+          description: Identificador invalido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso reportes:programar
+        '404':
+          description: Programacion no encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+    patch:
+      tags: [reportes]
+      summary: Editar o reactivar una programacion
+      description: Requiere JWT y reportes:programar. Un cambio de cron recarga el scheduler.
+      operationId: actualizarProgramacionReporte
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProgramacionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProgramacionReporteEdicion'
+      responses:
+        '200':
+          description: Programacion actualizada correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaReporteProgramado'
+        '400':
+          description: Datos, cron, filtros o destinatarios invalidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso reportes:programar
+        '404':
+          description: Programacion no encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+    delete:
+      tags: [reportes]
+      summary: Desactivar una programacion
+      description: Requiere JWT y reportes:programar. Baja logica idempotente.
+      operationId: desactivarProgramacionReporte
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProgramacionId'
+      responses:
+        '200':
+          description: Programacion desactivada correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaReporteProgramado'
+        '400':
+          description: Identificador invalido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso reportes:programar
+        '404':
+          description: Programacion no encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+
+  /api/reportes/generaciones:
+    get:
+      tags: [reportes]
+      summary: Listar generaciones asincronas del usuario
+      description: Requiere JWT y reportes:leer. Devuelve solo las generaciones del usuario autenticado.
+      operationId: listarGeneracionesReportes
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Generaciones obtenidas correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaGeneracionesPaginada'
+        '400':
+          description: Paginacion invalida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso reportes:leer
+
+  /api/reportes/generaciones/{id}:
+    get:
+      tags: [reportes]
+      summary: Consultar una generacion asincrona
+      description: Requiere JWT y reportes:leer. Solo permite consultar generaciones propias.
+      operationId: obtenerGeneracionReporte
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/GeneracionId'
+      responses:
+        '200':
+          description: Generacion obtenida correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaReporteGeneracion'
+        '400':
+          description: Identificador invalido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso reportes:leer
+        '404':
+          description: Generacion no encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+
+  /api/reportes/generaciones/{id}/descarga:
+    get:
+      tags: [reportes]
+      summary: Obtener URL temporal de una generacion
+      description: >
+        Requiere JWT y reportes:leer. Solo permite descargar generaciones
+        propias completadas. Devuelve una URL prefirmada temporal.
+      operationId: descargarGeneracionReporte
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/GeneracionId'
+      responses:
+        '200':
+          description: URL temporal generada correctamente
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaDescargaGeneracion'
+        '400':
+          description: Identificador invalido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso reportes:leer
+        '404':
+          description: Generacion no encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '409':
+          description: El reporte todavia no esta completado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '503':
+          description: No se pudo generar la URL de descarga
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+
+  /api/reportes/{codigo}/generaciones:
+    post:
+      tags: [reportes]
+      summary: Crear una generacion asincrona
+      description: >
+        Requiere JWT, reportes:leer y los permisos del reporte. Encola la
+        generacion y devuelve 202. El archivo se guarda en S3 y se consulta
+        posteriormente mediante /api/reportes/generaciones/{id}.
+      operationId: crearGeneracionReporte
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ReporteCodigo'
+        - name: formato
+          in: query
+          description: Formato de salida; default xlsx
+          schema:
+            $ref: '#/components/schemas/FormatoReporte'
+      responses:
+        '202':
+          description: Generacion programada correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaReporteGeneracion'
+        '400':
+          description: Formato o filtros invalidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Falta reportes:leer o el permiso del modulo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '404':
+          description: Reporte no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+
+  /api/reportes/{codigo}:
+    get:
+      tags: [reportes]
+      summary: Obtener la definicion de un reporte
+      description: >
+        Requiere JWT y reportes:leer. Devuelve metadatos, formatos, filtros y
+        permisos adicionales del reporte.
+      operationId: obtenerReporte
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ReporteCodigo'
+      responses:
+        '200':
+          description: Definicion obtenida correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaReporteMetadata'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Requiere el permiso reportes:leer
+        '404':
+          description: Reporte no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+
+  /api/reportes/{codigo}/descargar:
+    get:
+      tags: [reportes]
+      summary: Generar y descargar un reporte
+      description: >
+        Requiere JWT, reportes:leer y el permiso del modulo de origen. Genera
+        el archivo en el formato solicitado. Los filtros disponibles dependen
+        del reporte. El PDF requiere Chromium disponible en el entorno.
+      operationId: descargarReporte
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ReporteCodigo'
+        - name: formato
+          in: query
+          description: Formato de salida; default xlsx
+          schema:
+            $ref: '#/components/schemas/FormatoReporte'
+        - name: estado
+          in: query
+          description: Filtro de estado para el reporte de inventario
+          schema:
+            type: string
+        - name: tipo
+          in: query
+          description: Tipo de activo
+          schema:
+            type: string
+        - name: sucursal
+          in: query
+          description: Sucursal del activo
+          schema:
+            type: string
+        - name: q
+          in: query
+          description: Texto de busqueda del reporte
+          schema:
+            type: string
+        - name: vigencia
+          in: query
+          description: Filtro de vigencia para el reporte de licencias
+          schema:
+            type: string
+            enum: [TODAS, VIGENTES, POR_VENCER, VENCIDAS]
+        - name: dias
+          in: query
+          description: Dias de aviso para licencias por vencer
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 365
+            default: 30
+        - name: activa
+          in: query
+          description: Incluye licencias activas o inactivas
+          schema:
+            type: boolean
+        - name: proveedor
+          in: query
+          description: Proveedor de la licencia
+          schema:
+            type: string
+        - name: desde
+          in: query
+          description: Fecha inicial del periodo del reporte
+          schema:
+            type: string
+            format: date
+        - name: hasta
+          in: query
+          description: Fecha final del periodo del reporte
+          schema:
+            type: string
+            format: date
+        - name: prioridad
+          in: query
+          description: Prioridad del mantenimiento
+          schema:
+            type: string
+            enum: [BAJA, MEDIA, ALTA]
+        - name: tecnicoId
+          in: query
+          description: Tecnico asignado al mantenimiento
+          schema:
+            type: string
+        - name: activoId
+          in: query
+          description: Activo asociado al mantenimiento
+          schema:
+            type: integer
+            minimum: 1
+        - name: responsableId
+          in: query
+          description: Responsable del proyecto
+          schema:
+            type: string
+        - name: departamentoId
+          in: query
+          description: Departamento del proyecto
+          schema:
+            type: integer
+            minimum: 1
+        - name: activo
+          in: query
+          description: Incluye proyectos activos o inactivos
+          schema:
+            type: boolean
+        - name: tipoRequerimiento
+          in: query
+          description: Tipo de requerimiento de la incidencia
+          schema:
+            $ref: '#/components/schemas/TipoRequerimiento'
+        - name: solicitanteId
+          in: query
+          description: Solicitante de la incidencia
+          schema:
+            type: string
+        - name: asignadoAId
+          in: query
+          description: Usuario asignado a la incidencia
+          schema:
+            type: string
+        - name: modulo
+          in: query
+          description: Modulo de auditoria
+          schema:
+            $ref: '#/components/schemas/ModuloAuditoria'
+        - name: accion
+          in: query
+          description: Accion de auditoria
+          schema:
+            $ref: '#/components/schemas/AccionAuditoria'
+        - name: usuarioId
+          in: query
+          description: Usuario que realizo la accion auditada
+          schema:
+            type: string
+        - name: entidadId
+          in: query
+          description: Entidad afectada en la auditoria
+          schema:
+            type: string
+        - name: rolId
+          in: query
+          description: Rol del usuario para el reporte de usuarios
+          schema:
+            type: integer
+            minimum: 1
+        - name: ubicacionId
+          in: query
+          description: Ubicacion del usuario
+          schema:
+            type: integer
+            minimum: 1
+        - name: puestoId
+          in: query
+          description: Puesto del usuario
+          schema:
+            type: integer
+            minimum: 1
+        - name: tipoUsuarioId
+          in: query
+          description: Tipo de usuario
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Archivo generado correctamente
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+                example: attachment; filename="inventario-general.xlsx"
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+            text/csv:
+              schema:
+                type: string
+                format: binary
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Formato o filtros invalidos, o limite de filas excedido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '401':
+          description: Token ausente, invalido o expirado
+        '403':
+          description: Falta reportes:leer o el permiso del modulo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '404':
+          description: Reporte no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+        '503':
+          description: El formato no esta disponible en el entorno, por ejemplo PDF sin Chromium
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -6097,6 +6941,30 @@ components:
       schema:
         type: integer
         minimum: 1
+
+    ProgramacionId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+
+    GeneracionId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+
+    ReporteCodigo:
+      name: codigo
+      in: path
+      required: true
+      schema:
+        type: string
+        example: inventario-general
 
     ProyectoId:
       name: id
@@ -7435,6 +8303,310 @@ components:
         data:
           $ref: '#/components/schemas/DescargaAdjunto'
 
+    ReporteProgramado:
+      type: object
+      required: [id, codigo, formato, parametros, cron, destinatarios, activo, usuarioId, ultimaEjecucion, ultimoEstado, ultimoError, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+          example: 1
+        codigo:
+          type: string
+          example: inventario-general
+        formato:
+          $ref: '#/components/schemas/FormatoReporte'
+        parametros:
+          type: [object, 'null']
+        cron:
+          type: string
+          example: '0 9 * * *'
+        destinatarios:
+          type: array
+          items:
+            type: string
+            format: email
+        activo:
+          type: boolean
+          example: true
+        usuarioId:
+          type: string
+          example: ADMIN
+        ultimaEjecucion:
+          type: [string, 'null']
+          format: date-time
+        ultimoEstado:
+          type: [string, 'null']
+          example: COMPLETADO
+        ultimoError:
+          type: [string, 'null']
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ProgramacionReporteRequest:
+      type: object
+      additionalProperties: false
+      required: [codigo, cron, destinatarios]
+      properties:
+        codigo:
+          type: string
+          example: inventario-general
+        formato:
+          $ref: '#/components/schemas/FormatoReporte'
+        parametros:
+          type: object
+          additionalProperties: true
+        cron:
+          type: string
+          example: '0 9 * * *'
+        destinatarios:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            type: string
+            format: email
+
+    ProgramacionReporteEdicion:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        formato:
+          $ref: '#/components/schemas/FormatoReporte'
+        parametros:
+          type: object
+          additionalProperties: true
+        cron:
+          type: string
+          example: '0 9 * * *'
+        destinatarios:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            type: string
+            format: email
+        activo:
+          type: boolean
+
+    RespuestaReporteProgramado:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: Programación de reporte creada correctamente
+        errors:
+          type: array
+          items: {}
+        data:
+          $ref: '#/components/schemas/ReporteProgramado'
+
+    RespuestaProgramacionesPaginada:
+      type: object
+      required: [success, message, errors, data, meta]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: Programaciones de reportes obtenidas correctamente
+        errors:
+          type: array
+          items: {}
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReporteProgramado'
+        meta:
+          $ref: '#/components/schemas/MetaPaginacion'
+
+    EstadoReporteGenerado:
+      type: string
+      enum: [PENDIENTE, GENERANDO, COMPLETADO, FALLIDO]
+
+    ReporteGeneracion:
+      type: object
+      required: [id, codigo, formato, parametros, estado, error, nombreArchivo, tamano, creadoEn, iniciadoEn, terminadoEn]
+      properties:
+        id:
+          type: integer
+          example: 1
+        codigo:
+          type: string
+          example: inventario-general
+        formato:
+          $ref: '#/components/schemas/FormatoReporte'
+        parametros:
+          type: [object, 'null']
+        estado:
+          $ref: '#/components/schemas/EstadoReporteGenerado'
+        error:
+          type: [string, 'null']
+        nombreArchivo:
+          type: [string, 'null']
+        tamano:
+          type: [integer, 'null']
+        creadoEn:
+          type: string
+          format: date-time
+        iniciadoEn:
+          type: [string, 'null']
+          format: date-time
+        terminadoEn:
+          type: [string, 'null']
+          format: date-time
+
+    RespuestaReporteGeneracion:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: Generación de reporte programada correctamente
+        errors:
+          type: array
+          items: {}
+        data:
+          $ref: '#/components/schemas/ReporteGeneracion'
+
+    RespuestaGeneracionesPaginada:
+      type: object
+      required: [success, message, errors, data, meta]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: Generaciones de reportes obtenidas correctamente
+        errors:
+          type: array
+          items: {}
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReporteGeneracion'
+        meta:
+          $ref: '#/components/schemas/MetaPaginacion'
+
+    DescargaGeneracion:
+      type: object
+      required: [url, expiraEn]
+      properties:
+        url:
+          type: string
+          format: uri
+        expiraEn:
+          type: string
+          format: date-time
+
+    RespuestaDescargaGeneracion:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: URL de descarga generada correctamente
+        errors:
+          type: array
+          items: {}
+        data:
+          $ref: '#/components/schemas/DescargaGeneracion'
+
+    FormatoReporte:
+      type: string
+      enum: [xlsx, csv, pdf]
+
+    ReporteFiltroDefinicion:
+      type: object
+      required: [nombre, tipo, descripcion]
+      properties:
+        nombre:
+          type: string
+          example: estado
+        tipo:
+          type: string
+          enum: [texto, enum, fecha, booleano]
+        descripcion:
+          type: string
+        opciones:
+          type: array
+          items:
+            type: string
+
+    ReporteMetadata:
+      type: object
+      required: [codigo, nombre, descripcion, modulo, formatos, permisos, filtros, maxFilas]
+      properties:
+        codigo:
+          type: string
+          example: inventario-general
+        nombre:
+          type: string
+          example: Inventario general
+        descripcion:
+          type: string
+        modulo:
+          type: string
+          example: Activos
+        formatos:
+          type: array
+          items:
+            $ref: '#/components/schemas/FormatoReporte'
+        permisos:
+          type: array
+          items:
+            $ref: '#/components/schemas/Permiso'
+        filtros:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReporteFiltroDefinicion'
+        maxFilas:
+          type: integer
+          example: 10000
+
+    RespuestaCatalogoReportes:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: Catalogo de reportes obtenido correctamente
+        errors:
+          type: array
+          items: {}
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReporteMetadata'
+
+    RespuestaReporteMetadata:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: Definicion de reporte obtenida correctamente
+        errors:
+          type: array
+          items: {}
+        data:
+          $ref: '#/components/schemas/ReporteMetadata'
+
     EstadoProyecto:
       type: string
       enum: [PLANIFICADO, EN_PROGRESO, PAUSADO, COMPLETADO, CANCELADO]
@@ -8731,11 +9903,11 @@ components:
 
     ModuloAuditoria:
       type: string
-      enum: [SECRETOS, ACTIVOS, USUARIOS, ROLES, CATALOGOS, LICENCIAS, INCIDENCIAS, ASIGNACIONES, IMPORTACIONES, MANTENIMIENTO, RECORDATORIOS, ADJUNTOS, PROYECTOS]
+      enum: [SECRETOS, ACTIVOS, USUARIOS, ROLES, CATALOGOS, LICENCIAS, INCIDENCIAS, ASIGNACIONES, IMPORTACIONES, MANTENIMIENTO, RECORDATORIOS, ADJUNTOS, PROYECTOS, REPORTES]
 
     AccionAuditoria:
       type: string
-      enum: [CREAR, ACTUALIZAR, DESACTIVAR, REVELAR, IMPORTAR, ASIGNAR, DEVOLVER, ELIMINAR]
+      enum: [CREAR, ACTUALIZAR, DESACTIVAR, REVELAR, IMPORTAR, ASIGNAR, DEVOLVER, ELIMINAR, GENERAR, PROGRAMAR]
 
     AuditoriaGlobal:
       type: object
@@ -8844,6 +10016,8 @@ components:
         - secretos:importar
         - secretos:eliminar
         - auditoria:leer
+        - reportes:leer
+        - reportes:programar
 
     RolCreacion:
       type: object
@@ -9753,7 +10927,6 @@ components:
         - fechaRealizada
         - costo
         - descripcion
-        - evidencias
         - createdAt
         - updatedAt
       properties:
@@ -9794,13 +10967,6 @@ components:
         descripcion:
           type: [string, 'null']
           example: Limpieza y revision de hardware
-        evidencias:
-          type: [object, 'null']
-          additionalProperties: true
-          description: >
-            Campo reservado. Actualmente no se captura por POST/PATCH ni se
-            implementa subida de archivos.
-          example: null
         createdAt:
           type: string
           format: date-time

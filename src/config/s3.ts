@@ -22,6 +22,9 @@ export const BUCKET_ADJUNTOS =
   process.env.AWS_BUCKET_NAME?.trim() ||
   'gestion-ti-adjuntos';
 
+export const BUCKET_REPORTES =
+  process.env.S3_BUCKET_REPORTES?.trim() || 'gestion-ti-reportes';
+
 export const S3_PUBLIC_ENDPOINT =
   process.env.S3_PUBLIC_ENDPOINT?.trim() || endpoint;
 
@@ -62,28 +65,32 @@ const esBucketExistente = (error: unknown): boolean => {
   );
 };
 
-let bucketPendiente: Promise<void> | null = null;
+const bucketPendientes = new Map<string, Promise<void>>();
 
-export const asegurarBucket = (): Promise<void> => {
-  if (bucketPendiente) return bucketPendiente;
+export const asegurarBucket = (
+  bucket: string = BUCKET_ADJUNTOS
+): Promise<void> => {
+  const pendiente = bucketPendientes.get(bucket);
+  if (pendiente) return pendiente;
 
-  bucketPendiente = (async (): Promise<void> => {
+  const promesa = (async (): Promise<void> => {
     try {
-      await s3.send(new HeadBucketCommand({ Bucket: BUCKET_ADJUNTOS }));
+      await s3.send(new HeadBucketCommand({ Bucket: bucket }));
       return;
     } catch (error) {
       if (!esBucketInexistente(error)) throw error;
     }
 
     try {
-      await s3.send(new CreateBucketCommand({ Bucket: BUCKET_ADJUNTOS }));
+      await s3.send(new CreateBucketCommand({ Bucket: bucket }));
     } catch (error) {
       if (!esBucketExistente(error)) throw error;
     }
   })().catch((error: unknown) => {
-    bucketPendiente = null;
+    bucketPendientes.delete(bucket);
     throw error;
   });
 
-  return bucketPendiente;
+  bucketPendientes.set(bucket, promesa);
+  return promesa;
 };

@@ -1,0 +1,32 @@
+meta {
+  name: Eliminar evidencia de mantenimiento
+  type: http
+  seq: 33
+}
+
+script:pre-request {
+  if (!bru.getEnvVar("evidenciaMantenimientoOrdenId") || !bru.getEnvVar("evidenciaMantenimientoId")) {
+    await bru.runRequest("Mantenimiento/subirEvidencia");
+  }
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+delete {
+  url: {{baseUrl}}/api/mantenimiento/{{evidenciaMantenimientoOrdenId}}/evidencias/{{evidenciaMantenimientoId}}
+  body: none
+  auth: none
+}
+
+script:post-response {
+  if (res.status === 204) {
+    bru.setEnvVar("evidenciaMantenimientoId", "");
+    bru.setEnvVar("evidenciaMantenimientoOrdenId", "");
+    await bru.runRequest("Mantenimiento/eliminar");
+  }
+}
+
+assert {
+  res.status: eq 204
+}

@@ -1,0 +1,36 @@
+meta {
+  name: Rechazar evidencia en orden completada
+  type: http
+  seq: 34
+}
+
+script:pre-request {
+  await bru.runRequest("Mantenimiento/crear");
+  await bru.runRequest("Mantenimiento/iniciar");
+  await bru.runRequest("Mantenimiento/completar");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+post {
+  url: {{baseUrl}}/api/mantenimiento/{{mantenimientoId}}/evidencias
+  body: multipartForm
+  auth: none
+}
+
+body:multipart-form {
+  archivo: @file(./Adjuntos/fixtures/imagen-prueba.png) @contentType(image/png)
+}
+
+script:post-response {
+  await bru.runRequest("Mantenimiento/eliminar");
+}
+
+assert {
+  res.status: eq 409
+}
+
+assert {
+  res.body.errors[0].campo: eq estado
+}

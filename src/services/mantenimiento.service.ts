@@ -71,7 +71,6 @@ const mapearMantenimiento = (
   fechaRealizada: fila.fechaRealizada,
   costo: fila.costo === null ? null : Number(fila.costo),
   descripcion: fila.descripcion,
-  evidencias: fila.evidencias,
   createdAt: fila.createdAt,
   updatedAt: fila.updatedAt,
 });

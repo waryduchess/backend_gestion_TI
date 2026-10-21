@@ -1,46 +1,11 @@
 import { Prisma } from '../generated/prisma/client';
 import { prisma } from '../config/prisma';
-import {
-  calcularPermisosEfectivos,
-  normalizarPermisos,
-} from './permisos';
+import { usuarioTienePermiso } from './permisos-usuario';
 
 export const puedeVerTodosProyectos = async (
   usuarioId: string
-): Promise<boolean> => {
-  const usuario = await prisma.usuario.findUnique({
-    where: { id: usuarioId },
-    select: {
-      permisosExtra: true,
-      permisosRevocados: true,
-      rol: {
-        select: { activo: true, permisos: true },
-      },
-    },
-  });
-
-  if (!usuario?.rol?.activo) return false;
-
-  try {
-    const permisos = calcularPermisosEfectivos(
-      normalizarPermisos(
-        usuario.rol.permisos,
-        'Rol del usuario para visibilidad de proyectos'
-      ),
-      normalizarPermisos(
-        usuario.permisosExtra,
-        'permisosExtra para visibilidad de proyectos'
-      ),
-      normalizarPermisos(
-        usuario.permisosRevocados,
-        'permisosRevocados para visibilidad de proyectos'
-      )
-    );
-    return permisos.includes('proyectos:ver-todos');
-  } catch {
-    return false;
-  }
-};
+): Promise<boolean> =>
+  usuarioTienePermiso(usuarioId, 'proyectos:ver-todos');
 
 export const filtroProyectosVisibles = (
   usuarioId: string,

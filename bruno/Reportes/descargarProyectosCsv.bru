@@ -1,0 +1,28 @@
+meta {
+  name: Descargar reporte de proyectos en CSV
+  type: http
+  seq: 16
+}
+
+script:pre-request {
+  await bru.runRequest("Auth/login");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+get {
+  url: {{baseUrl}}/api/reportes/proyectos-avance/descargar?formato=csv&estado=EN_PROGRESO
+  body: none
+  auth: none
+}
+
+script:post-response {
+  const tipo = String(res.headers["content-type"] || "");
+  if (!tipo.includes("text/csv")) throw new Error("El CSV no tiene el Content-Type esperado");
+  if (!String(res.body || "").includes("PRY-0648")) throw new Error("El CSV no contiene el proyecto demo");
+}
+
+assert {
+  res.status: eq 200
+}

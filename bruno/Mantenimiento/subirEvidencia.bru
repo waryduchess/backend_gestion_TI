@@ -1,0 +1,43 @@
+meta {
+  name: Subir evidencia de mantenimiento
+  type: http
+  seq: 30
+}
+
+script:pre-request {
+  await bru.runRequest("Mantenimiento/crear");
+  const token = bru.getEnvVar("token");
+  if (typeof token !== "string" || token === "" || token === "0") throw new Error("No fue posible iniciar sesion para la prueba");
+  req.setHeader("Authorization", "Bearer " + token);
+}
+
+post {
+  url: {{baseUrl}}/api/mantenimiento/{{mantenimientoId}}/evidencias
+  body: multipartForm
+  auth: none
+}
+
+body:multipart-form {
+  archivo: @file(./Adjuntos/fixtures/imagen-prueba.png) @contentType(image/png)
+}
+
+script:post-response {
+  if (res.status === 201) bru.setEnvVar("evidenciaMantenimientoId", res.body.data.id);
+    bru.setEnvVar("evidenciaMantenimientoOrdenId", res.body.data.entidadId);
+}
+
+assert {
+  res.status: eq 201
+}
+
+assert {
+  res.body.data.entidadTipo: eq MANTENIMIENTO
+}
+
+assert {
+  res.body.data.extension: eq .png
+}
+
+assert {
+  res.body.data.tamano: gt 0
+}
