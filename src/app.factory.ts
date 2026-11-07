@@ -1,0 +1,75 @@
+import 'dotenv/config';
+import cors from 'cors';
+import express, { Application, Request, Response } from 'express';
+import { errorHandler, notFoundHandler } from './middlewares/error.middleware';
+import authRoutes from './routes/auth.routes';
+import activoRoutes from './routes/activo.routes';
+import asignacionRoutes from './routes/asignacion.routes';
+import incidenciaRoutes from './routes/incidencia.routes';
+import usuarioRoutes from './routes/usuario.routes';
+import catalogoRoutes from './routes/catalogo.routes';
+import { crearRutasCatalogoAdministrable } from './routes/catalogo-admin.routes';
+import rolRoutes from './routes/rol.routes';
+import docsRoutes from './docs/docs.routes';
+import licenciaRoutes from './routes/licencia.routes';
+import notificacionRoutes from './routes/notificacion.routes';
+import secretoRoutes from './routes/secreto.routes';
+import dashboardRoutes from './routes/dashboard.routes';
+import auditoriaRoutes from './routes/auditoria.routes';
+import mantenimientoRoutes from './routes/mantenimiento.routes';
+import recordatorioRoutes from './routes/recordatorio.routes';
+import adjuntoRoutes from './routes/adjunto.routes';
+import proyectoRoutes from './routes/proyecto.routes';
+import reporteRoutes from './routes/reporte.routes';
+
+export const createApp = (): Application => {
+  const app = express();
+
+  app.use(cors());
+  app.use(express.json({ limit: '1mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+
+  app.get('/health', (_req: Request, res: Response): void => {
+    res.status(200).json({
+      success: true,
+      message: 'API operativa',
+      errors: [],
+    });
+  });
+
+  app.use('/api/auth', authRoutes);
+  app.use('/api/activos', activoRoutes);
+  app.use('/api/asignaciones', asignacionRoutes);
+  app.use('/api/incidencias', incidenciaRoutes);
+  app.use('/api/usuarios', usuarioRoutes);
+  app.use('/api/catalogos', catalogoRoutes);
+  app.use(
+    '/api/departamentos',
+    crearRutasCatalogoAdministrable('departamento')
+  );
+  app.use('/api/ubicaciones', crearRutasCatalogoAdministrable('ubicacion'));
+  app.use('/api/puestos', crearRutasCatalogoAdministrable('puesto'));
+  app.use(
+    '/api/tipos-usuario',
+    crearRutasCatalogoAdministrable('tipoUsuario')
+  );
+  app.use('/api/roles', rolRoutes);
+  app.use('/api/licencias', licenciaRoutes);
+  app.use('/api/notificaciones', notificacionRoutes);
+  app.use('/api/secretos', secretoRoutes);
+  app.use('/api/dashboard', dashboardRoutes);
+  app.use('/api/auditoria', auditoriaRoutes);
+  app.use('/api/mantenimiento', mantenimientoRoutes);
+  app.use('/api/recordatorios', recordatorioRoutes);
+  app.use('/api/adjuntos', adjuntoRoutes);
+  app.use('/api/proyectos', proyectoRoutes);
+  app.use('/api/reportes', reporteRoutes);
+  app.use('/api/docs', docsRoutes);
+
+  app.use(notFoundHandler);
+  app.use(errorHandler);
+
+  return app;
+};
+
+export default createApp;
