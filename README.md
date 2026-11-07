@@ -141,6 +141,53 @@ cd bruno && npx @usebruno/cli run . -r --env Local           # suite Bruno
 
 ---
 
+## Produccion con Docker
+
+El backend incluye la etapa `production` y la etapa `migrator` en el `Dockerfile`.
+El frontend incluye su propio `Dockerfile` con build de Vite y Nginx.
+
+1. Crear el archivo de produccion:
+
+```bash
+cp .env.production.example .env.production
+# Editar credenciales, dominio, S3, SMTP y secretos.
+```
+
+2. Verificar la ruta del frontend. Por defecto se usa `../frontend_gestion_TI`:
+
+```bash
+# En .env.production:
+FRONTEND_CONTEXT=../frontend_gestion_TI
+```
+
+3. Construir y levantar el entorno:
+
+```bash
+docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
+```
+
+El servicio `migrate` aplica las migraciones antes de iniciar la API. Para crear
+el administrador inicial:
+
+```bash
+docker compose --env-file .env.production -f docker-compose.prod.yml \
+  run --rm migrate npm run seed
+```
+
+Verificacion:
+
+```bash
+curl http://localhost/health
+docker compose --env-file .env.production -f docker-compose.prod.yml ps
+```
+
+El frontend queda publicado en `HTTP_PORT` (80 por defecto) y Nginx redirige
+`/api` y `/socket.io` hacia la API. Para HTTPS se recomienda colocar un proxy
+con TLS por delante o montar los certificados en el servicio `frontend`.
+No subir `.env.production` al repositorio.
+
+---
+
 ## Coleccion Bruno (pruebas)
 
 `bruno/environments/Local.bru` no se commitea (contiene credenciales); la plantilla si:

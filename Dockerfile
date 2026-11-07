@@ -44,4 +44,12 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/prisma7.config.ts ./prisma7.config.ts
 EXPOSE 3000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD curl -fsS http://127.0.0.1:3000/health || exit 1
+USER node
 CMD ["node", "dist/app.js"]
+
+# ---------- Migraciones ----------
+FROM builder AS migrator
+ENV NODE_ENV=production
+CMD ["npx", "prisma", "migrate", "deploy"]
