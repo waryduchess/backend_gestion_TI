@@ -1,10 +1,17 @@
 import { Router } from 'express';
-import { login, obtenerPerfilPropio } from '../controllers/auth.controller';
+import {
+  confirmarRestablecimiento,
+  login,
+  obtenerPerfilPropio,
+  solicitarRecuperacion,
+} from '../controllers/auth.controller';
 import { verificarToken } from '../middlewares/auth.middleware';
 
 const router: Router = Router();
 
 router.post('/login', login);
+router.post('/recuperar', solicitarRecuperacion);
+router.post('/restablecer', confirmarRestablecimiento);
 router.get('/me', verificarToken, obtenerPerfilPropio);
 
 export default router;

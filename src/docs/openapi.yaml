@@ -130,6 +130,67 @@ paths:
                 message: Credenciales invalidas
                 errors: []
 
+  /api/auth/recuperar:
+    post:
+      tags: [auth]
+      summary: Solicitar restablecimiento de contraseña
+      description: >
+        Envía por correo un enlace de recuperación con un token de un solo uso
+        que expira en 30 minutos. La respuesta es uniforme tanto si el correo
+        existe como si no, para no revelar cuentas registradas.
+      operationId: solicitarRecuperacion
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SolicitudRecuperacionPassword'
+            example:
+              email: usuario@horbismex.com
+      responses:
+        '202':
+          description: Instrucciones enviadas si la cuenta existe
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaOperacion'
+        '400':
+          description: El correo es obligatorio
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+
+  /api/auth/restablecer:
+    post:
+      tags: [auth]
+      summary: Restablecer la contraseña con el token recibido por correo
+      operationId: confirmarRestablecimiento
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RestablecimientoPassword'
+            example:
+              token: 5f1c...
+              password: "********"
+      responses:
+        '200':
+          description: Contraseña actualizada correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaOperacion'
+        '400':
+          description: Token invalido, expirado o contraseña demasiado corta
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespuestaError'
+
   /api/auth/me:
     get:
       tags: [auth]
@@ -7028,6 +7089,43 @@ components:
           type: string
           format: password
           example: "********"
+
+    SolicitudRecuperacionPassword:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+          example: usuario@horbismex.com
+
+    RestablecimientoPassword:
+      type: object
+      required: [token, password]
+      properties:
+        token:
+          type: string
+          minLength: 1
+          description: Token recibido en el enlace de recuperacion
+        password:
+          type: string
+          format: password
+          minLength: 8
+          example: "********"
+
+    RespuestaOperacion:
+      type: object
+      required: [success, message, errors, data]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        errors:
+          type: array
+          items: {}
+        data:
+          type: 'null'
 
     UsuarioAuth:
       type: object

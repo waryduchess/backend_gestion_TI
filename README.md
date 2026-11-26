@@ -112,8 +112,13 @@ Verificacion:
   configúrala como `AES_SECRET_KEY`; no uses el valor de ejemplo. Manténla
   fuera de Git y respáldala de forma segura: cambiarla o perderla impide
   descifrar secretos y claves existentes.
-* `POST /api/auth/login` es la unica ruta operativa publica; `/health` y la
+* Las rutas publicas de autenticacion son `POST /api/auth/login`,
+  `POST /api/auth/recuperar` y `POST /api/auth/restablecer`; `/health` y la
   documentacion permanecen publicos para comprobacion y consulta.
+* La recuperacion envia un token de un solo uso por correo con
+  `PASSWORD_RESET_URL` (por defecto `https://<DOMAIN>/dev/recuperar`), vigente
+  `PASSWORD_RESET_TTL_MINUTOS` minutos. Sin SMTP, el enlace se imprime en los
+  logs solo cuando `NODE_ENV` no es `production`.
 
 Notas:
 * La base queda vacia salvo el admin; los datos de ejemplo no se incluyen.

@@ -218,8 +218,23 @@ model Usuario {
   registrosHorasProyecto ProyectoRegistroHoras[] @relation("HorasProyecto")
   reportesGenerados     ReporteGenerado[]      @relation("ReportesGenerados")
   reportesProgramados   ReporteProgramado[]    @relation("ReportesProgramados")
+  passwordResets        PasswordResetToken[]
 
   @@index([email])
+}
+
+model PasswordResetToken {
+  id        Int       @id @default(autoincrement())
+  usuarioId String
+  tokenHash String    @db.VarChar(64) // SHA-256 del token enviado por correo
+  creadoEn  DateTime  @default(now())
+  expiraEn  DateTime
+  usadoEn   DateTime?
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId])
+  @@index([tokenHash])
 }
 
 // ------------------------------------------------------
