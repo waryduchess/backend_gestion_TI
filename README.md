@@ -1,6 +1,6 @@
 # Sistema de Gestion de TI - Backend API
 
-API RESTful y servicio en tiempo real para el Sistema de Gestion de TI, desarrollado con Node.js, Express, TypeScript, Prisma ORM y MySQL. Este backend se encarga de gestionar la logica de negocio para la operativa de tickets, inventario, licenciamiento cifrado, proyectos, notificaciones y la integracion con el asistente de IA Local (Llama 3.1).
+API RESTful y servicio en tiempo real para el Sistema de Gestion de TI, desarrollado con Node.js, Express, TypeScript, Prisma ORM y MySQL. Este backend se encarga de gestionar la logica de negocio para la operativa de tickets, inventario, licenciamiento cifrado, proyectos, notificaciones y reportes.
 
 ---
 
@@ -15,7 +15,6 @@ API RESTful y servicio en tiempo real para el Sistema de Gestion de TI, desarrol
 * Generacion de Archivos: ExcelJS (Excel), Puppeteer (PDF)
 * Almacenamiento y Correos: AWS SDK S3 (@aws-sdk/client-s3), Nodemailer (SMTP)
 * Tareas Programadas: node-cron
-* IA Local: Llama 3.1 (a traves de Ollama / vLLM API)
 
 ---
 
@@ -27,7 +26,6 @@ Asegurate de tener instalado lo siguiente en tu entorno local:
 * npm o pnpm
 * Docker y Docker Compose
 * MySQL (si prefieres ejecutarlo de forma nativa sin Docker)
-* Ollama (para la ejecucion del modelo Llama 3.1 local)
 
 ---
 
@@ -47,7 +45,7 @@ Variables minimas a cambiar en `.env`:
 * `JWT_SECRET` - secreto para firmar los tokens
 * `ADMIN_EMAIL` / `ADMIN_PASSWORD` / `ADMIN_NAME` - credenciales del usuario admin que crea el seed
 
-El resto de variables (`SMTP_*`, `S3_*`, `OLLAMA_*`, `AES_SECRET_KEY`) solo se necesitan al usar esas features.
+El resto de variables (`SMTP_*`, `S3_*`, `PASSWORD_RESET_*`, `AES_SECRET_KEY`) solo se necesitan al usar esas features.
 
 ---
 
@@ -122,7 +120,6 @@ Verificacion:
 
 Notas:
 * La base queda vacia salvo el admin; los datos de ejemplo no se incluyen.
-* Opcional (IA local): `docker compose --profile ai up -d` levanta el servicio Ollama.
 * Si editas `src/app.ts`, reinicia el contenedor: `docker compose up -d --force-recreate api`
 
 ---
@@ -190,6 +187,11 @@ El frontend queda publicado en `HTTP_PORT` (80 por defecto) y Nginx redirige
 `/api` y `/socket.io` hacia la API. Para HTTPS se recomienda colocar un proxy
 con TLS por delante o montar los certificados en el servicio `frontend`.
 No subir `.env.production` al repositorio.
+
+Si no se despliega S3, dejar `AWS_ENDPOINT_URL` vacío: la API arranca, pero
+adjuntos y reportes responden 503 y los reportes programados no se activan.
+Configurar `PASSWORD_RESET_URL` con la ruta final del frontend; sin SMTP la
+recuperación de contraseña no entrega correos en producción.
 
 ---
 

@@ -492,9 +492,8 @@ Modulo de archivos adjuntos en S3 compatible (Floci local).
 - [X] Nodemailer (`src/config/mailer.ts`) - correos de alerta de licencias; pendiente otras notificaciones
 - [X] S3 (`src/config/s3.ts`, `@aws-sdk/client-s3`) - conexion con Floci, bucket, subida, listado, URL de descarga y eliminacion en `/api/adjuntos` (§2.15). Evidencias de mantenimiento integradas; incidencias ya usan el modulo generico.
 - [X] Puppeteer - reportes PDF (§2.13); Chromium instalado en la imagen Docker base
-- [ ] Ollama (`llama3.1:8b`) - asistente IA + Function Calling (servicio `ollama` en docker, profile `ai`)
 - [ ] CORS restrictivo - hoy `app.use(cors())` abierto; restringir a la URL del frontend
-- [X] `.env.example` documenta SMTP, alertas de licencias y variables S3/Floci; quedan pendientes `OLLAMA_*`, `CORS_ORIGIN` y la revision de nombres previos del roadmap
+- [X] `.env.example` documenta SMTP, alertas de licencias, recuperacion de contrasena y variables S3/Floci; queda pendiente la revision de nombres previos del roadmap
 - [ ] agregar en licencias el tipo (suscripción, perpetua).
 - [ ] Devolver en la consulta de licencias la clave
 - [X] creacion de endPoints del modulo de auditoria (fase 1 en §2.12; instrumentacion pendiente por fases)

@@ -64,21 +64,9 @@ services:
       db:
         condition: service_healthy
 
-  # Servicio opcional de IA local. Levantar con: docker compose --profile ai up
-  ollama:
-    image: ollama/ollama:latest
-    container_name: gestion_ti_ollama
-    profiles: ["ai"]
-    restart: unless-stopped
-    ports:
-      - "${OLLAMA_PORT:-11434}:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-
 networks:
   gestion_ti_shared:
     external: true
 
 volumes:
   db_data:
-  ollama_data:
