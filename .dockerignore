@@ -11,6 +11,7 @@ prisma/generated
 coverage
 .vscode
 .idea
+.opencode
 Dockerfile
 docker-compose.yml
 docker-compose.*.yml
