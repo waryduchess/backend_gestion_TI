@@ -188,6 +188,13 @@ El frontend queda publicado en `HTTP_PORT` (80 por defecto) y Nginx redirige
 con TLS por delante o montar los certificados en el servicio `frontend`.
 No subir `.env.production` al repositorio.
 
+Si el proxy publica la aplicacion bajo un prefijo (por ejemplo `/dev/`),
+enrutar hacia el contenedor `frontend` tanto ese prefijo como `/api/`,
+`/socket.io/` y `/health`, porque el frontend construido usa `VITE_API_URL=/api`.
+El proxy debe enviar `X-Forwarded-Proto: https`; `SOCKET_CORS_ORIGIN` se
+configura con el origen sin la ruta (por ejemplo `https://ejemplo.com`).
+`DOMAIN` y `PASSWORD_RESET_URL` se ajustan cuando se defina el nombre publico.
+
 Si no se despliega S3, dejar `AWS_ENDPOINT_URL` vacío: la API arranca, pero
 adjuntos y reportes responden 503 y los reportes programados no se activan.
 Configurar `PASSWORD_RESET_URL` con la ruta final del frontend; sin SMTP la
